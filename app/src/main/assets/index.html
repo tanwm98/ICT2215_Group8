@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bouncing GIFs</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: url('./wp.jpg') no-repeat center center fixed;
+            background-size: cover;
+            position: relative;
+        }
+
+        button {
+            position: absolute;
+            z-index: 1000;
+            font-size: 18px;
+            padding: 10px 20px;
+            background-color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #septemberButton {
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ff0000;
+            color: #fff;
+        }
+
+        .gif {
+            position: absolute;
+        }
+
+        .spin {
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('./over.gif') no-repeat center center fixed;
+            background-size: cover;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <button id="spawnButton">SpawnXMM</button>
+    <div id="overlay"></div>
+    
+    <script>
+        const gifDirectory = './xmm/';
+        const specialGifFile = './911.gif';
+        const newImageFile = './o.png';
+        const audioFile = './xmm.mp3';
+        const specialAudioFile = './911.mp3';
+
+        const gifList = [
+            '1.gif', '2.gif', '3.gif', '4.gif', '5.gif', '6.gif', 
+            '7.gif', '8.gif', '9.gif', '10.gif', '11.gif', '12.gif', 
+            '13.gif', '14.gif'
+        ];
+
+        const button = document.getElementById('spawnButton');
+        let spawnCount = 0;
+        const allGifs = [];
+        const audioInstances = [];
+
+        function getRandomInt(max) {
+            return Math.floor(Math.random() * max);
+        }
+
+        function createBouncingGif(gifFile, audioFiles = []) {
+            const gif = document.createElement('img');
+            gif.src = gifDirectory + gifFile;
+            gif.className = 'gif';
+            document.body.appendChild(gif);
+
+            allGifs.push(gif);
+
+            audioFiles.forEach(audioSrc => {
+                const audio = new Audio(audioSrc);
+                audio.play();
+                audioInstances.push(audio);
+            });
+
+            gif.onload = function () {
+                const originalWidth = gif.naturalWidth;
+                const originalHeight = gif.naturalHeight;
+
+                const scaledWidth = originalWidth / 2;
+                const scaledHeight = originalHeight / 2;
+
+                gif.style.width = `${scaledWidth}px`;
+                gif.style.height = `${scaledHeight}px`;
+
+                let x = getRandomInt(window.innerWidth - scaledWidth);
+                let y = getRandomInt(window.innerHeight - scaledHeight);
+                let dx = (Math.random() * 2 + 0.5);
+                let dy = (Math.random() * 2 + 0.5); 
+
+                function moveGif() {
+                    x += dx;
+                    y += dy;
+
+                    if (x <= 0 || x >= window.innerWidth - scaledWidth) dx = -dx;
+                    if (y <= 0 || y >= window.innerHeight - scaledHeight) dy = -dy;
+
+                    gif.style.left = `${x}px`;
+                    gif.style.top = `${y}px`;
+
+                    requestAnimationFrame(moveGif);
+                }
+
+                gif.style.left = `${x}px`;
+                gif.style.top = `${y}px`;
+                requestAnimationFrame(moveGif);
+            };
+        }
+
+        function stopAllAudio() {
+            audioInstances.forEach(audio => audio.pause());
+            audioInstances.length = 0;
+        }
+
+        function handleSpawnButtonClick() {
+            spawnCount++;
+            createBouncingGif(gifList[getRandomInt(gifList.length)], [audioFile]);
+
+            if (spawnCount === 50) {
+                createSeptemberButton();
+            }
+        }
+
+        function createSeptemberButton() {
+            const septemberButton = document.createElement('button');
+            septemberButton.id = 'septemberButton';
+            septemberButton.textContent = 'September';
+            document.body.appendChild(septemberButton);
+
+            septemberButton.style.position = 'absolute';
+            septemberButton.style.top = '10px';
+            septemberButton.style.left = '50%';
+            septemberButton.style.transform = 'translateX(-50%)';
+
+            septemberButton.addEventListener('click', () => {
+                document.body.style.background = `url(${specialGifFile}) no-repeat center center fixed`;
+                document.body.style.backgroundSize = 'cover';
+
+                stopAllAudio();
+
+                allGifs.forEach(gif => {
+                    gif.src = newImageFile;
+                });
+
+                setTimeout(() => {
+                    allGifs.forEach(gif => {
+                        gif.classList.add('spin');
+                    });
+                    document.getElementById('overlay').style.opacity = '0.5';
+                }, 23000);
+
+                // Play "911.mp3"
+                const audio = new Audio(specialAudioFile);
+                audio.play();
+            });
+        }
+
+        button.addEventListener('click', handleSpawnButtonClick);
+    </script>
+</body>
+</html>
