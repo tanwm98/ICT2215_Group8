@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:1001172235149:android:d909792a6964e30e9b03c4",
         "android_client_info": {
-          "package_name": "com.example.helloworld"
+          "package_name": "com.example.ChatterBox"
         }
       },
       "oauth_client": [],

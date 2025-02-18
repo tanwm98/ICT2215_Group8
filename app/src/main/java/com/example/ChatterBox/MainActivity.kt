@@ -1,4 +1,4 @@
-package com.example.helloworld
+package com.example.ChatterBox
 
 import android.app.AlertDialog
 import android.os.Bundle
@@ -6,8 +6,8 @@ import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.helloworld.adapters.PostAdapter
-import com.example.helloworld.models.Post
+import com.example.ChatterBox.adapters.PostAdapter
+import com.example.ChatterBox.models.Post
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore

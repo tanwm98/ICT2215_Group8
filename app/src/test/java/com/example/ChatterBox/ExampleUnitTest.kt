@@ -1,4 +1,4 @@
-package com.example.helloworld
+package com.example.ChatterBox
 
 import org.junit.Test
 

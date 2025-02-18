@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.helloworld"
+    namespace = "com.example.ChatterBox"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.helloworld"
+        applicationId = "com.example.ChatterBox"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

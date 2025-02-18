@@ -1,4 +1,4 @@
-package com.example.helloworld.models
+package com.example.ChatterBox.models
 
 data class Post(
     val id: String = "",

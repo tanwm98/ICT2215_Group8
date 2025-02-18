@@ -1,12 +1,12 @@
-package com.example.helloworld.adapters
+package com.example.ChatterBox.adapters
 
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.example.helloworld.R
-import com.example.helloworld.models.Post
+import com.example.ChatterBox.R
+import com.example.ChatterBox.models.Post
 
 class PostAdapter(
     private val posts: List<Post>
