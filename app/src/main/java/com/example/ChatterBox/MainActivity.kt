@@ -89,7 +89,8 @@ class MainActivity : AppCompatActivity() {
             content = content,
             authorId = currentUser.uid,
             authorEmail = currentUser.email ?: "Anonymous",
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
+            likes = 0
         )
 
         findViewById<ProgressBar>(R.id.progressBar).visibility = View.VISIBLE
@@ -107,24 +108,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadPosts() {
-        findViewById<ProgressBar>(R.id.progressBar).visibility = View.VISIBLE
-
         db.collection("posts")
             .orderBy("timestamp", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, e ->
-                findViewById<ProgressBar>(R.id.progressBar).visibility = View.GONE
-
                 if (e != null) {
                     Toast.makeText(this, "Error loading posts: ${e.message}", Toast.LENGTH_SHORT).show()
                     return@addSnapshotListener
                 }
 
                 posts.clear()
-                snapshot?.documents?.forEach { doc ->
+                for (doc in snapshot?.documents ?: emptyList()) {
                     val post = doc.toObject(Post::class.java)?.copy(id = doc.id)
-                    post?.let { posts.add(it) }
+                    if (post != null) {
+                        posts.add(post)
+                    }
                 }
                 adapter.notifyDataSetChanged()
             }
     }
+
 }

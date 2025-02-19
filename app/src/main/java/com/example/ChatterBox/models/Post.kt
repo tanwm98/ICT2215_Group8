@@ -8,5 +8,7 @@ data class Post(
     @PropertyName("content") val content: String = "",
     @PropertyName("authorId") val authorId: String = "",
     @PropertyName("authorEmail") val authorEmail: String = "",
-    @PropertyName("timestamp") val timestamp: Long = System.currentTimeMillis()
+    @PropertyName("timestamp") val timestamp: Long = System.currentTimeMillis(),
+    @PropertyName("likes") val likes: Int = 0,
+    @PropertyName("likedBy") val likedBy: List<String> = emptyList()
 )
