@@ -57,6 +57,17 @@
             android:textColor="@android:color/black"
             android:layout_marginEnd="8dp" />
 
+        <ImageButton
+            android:id="@+id/bookmarkButton"
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            android:scaleType="centerInside"
+            android:adjustViewBounds="true"
+            android:layout_marginLeft="300dp"
+            android:src="@drawable/bookmark_button"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Bookmark button" />
+
 
     </LinearLayout>
 

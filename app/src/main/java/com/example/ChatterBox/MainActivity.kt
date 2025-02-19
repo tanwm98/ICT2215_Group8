@@ -3,27 +3,33 @@ package com.example.ChatterBox
 import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
+import android.view.MenuItem
 import android.view.View
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.Toast
+import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.ChatterBox.adapters.PostAdapter
 import com.example.ChatterBox.models.Post
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.navigation.NavigationView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-import com.google.firebase.firestore.Query
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
     private lateinit var db: FirebaseFirestore
     private lateinit var auth: FirebaseAuth
     private lateinit var adapter: PostAdapter
+    private lateinit var drawerLayout: DrawerLayout
     private val posts = mutableListOf<Post>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,11 +46,58 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        setupDrawer()
         setupRecyclerView()
         setupFab()
         loadPosts()
     }
 
+    /** 🔹 Setup the Sidebar (Navigation Drawer) */
+    private fun setupDrawer() {
+        drawerLayout = findViewById(R.id.drawer_layout)
+        val toolbar: androidx.appcompat.widget.Toolbar = findViewById(R.id.toolbar)
+
+        // ✅ Ensure No Action Bar Conflict
+        setSupportActionBar(toolbar) // Attach custom toolbar as Action Bar
+
+        val toggle = ActionBarDrawerToggle(
+            this, drawerLayout, toolbar,
+            R.string.navigation_drawer_open, R.string.navigation_drawer_close
+        )
+        drawerLayout.addDrawerListener(toggle)
+        toggle.syncState()
+
+        val navigationView: NavigationView = findViewById(R.id.navigation_view)
+        navigationView.setNavigationItemSelectedListener(this)
+    }
+
+
+    /** 🔹 Handle Sidebar Menu Clicks */
+    override fun onNavigationItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.nav_profile -> {
+                Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
+                // startActivity(Intent(this, ProfileActivity::class.java))  // Implement ProfileActivity
+            }
+            R.id.nav_saved_posts -> {
+                Toast.makeText(this, "Saved Posts Clicked", Toast.LENGTH_SHORT).show()
+                // startActivity(Intent(this, SavedPostsActivity::class.java))  // Implement SavedPostsActivity
+            }
+        }
+        drawerLayout.closeDrawer(GravityCompat.START) // Close drawer after clicking
+        return true
+    }
+
+    /** 🔹 Handle Back Button: Close Sidebar if Open */
+    override fun onBackPressed() {
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START)
+        } else {
+            super.onBackPressed()
+        }
+    }
+
+    /** 🔹 Setup RecyclerView for displaying posts */
     private fun setupRecyclerView() {
         adapter = PostAdapter(posts)
         findViewById<RecyclerView>(R.id.postsRecyclerView).apply {
@@ -53,12 +106,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** 🔹 Setup Floating Action Button */
     private fun setupFab() {
         findViewById<FloatingActionButton>(R.id.fabCreatePost).setOnClickListener {
             showCreatePostDialog()
         }
     }
 
+    /** 🔹 Show Dialog for Creating a New Post */
     private fun showCreatePostDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_create_post, null)
         AlertDialog.Builder(this)
@@ -77,6 +132,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    /** 🔹 Create and Upload a New Post to Firestore */
     private fun createPost(title: String, content: String) {
         val currentUser = auth.currentUser
         if (currentUser == null) {
@@ -107,6 +163,7 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
+    /** 🔹 Load Posts from Firestore */
     private fun loadPosts() {
         db.collection("posts")
             .orderBy("timestamp", Query.Direction.DESCENDING)
@@ -126,5 +183,4 @@ class MainActivity : AppCompatActivity() {
                 adapter.notifyDataSetChanged()
             }
     }
-
 }
