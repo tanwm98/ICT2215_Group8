@@ -95,12 +95,13 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.nav_profile -> {
-                Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
-            }
             R.id.nav_saved_posts -> {
                 val intent = Intent(this, SavedPostsActivity::class.java) // ✅ Ensure correct package reference
                 startActivity(intent)
+            }
+            R.id.nav_profile -> {
+                startActivity(Intent(this, ProfileActivity::class.java))
+                Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
             }
         }
         drawerLayout.closeDrawer(GravityCompat.START) // Close drawer after clicking
