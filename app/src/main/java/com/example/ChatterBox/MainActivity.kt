@@ -72,21 +72,22 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
 
-    /** 🔹 Handle Sidebar Menu Clicks */
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.nav_profile -> {
                 Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
-                // startActivity(Intent(this, ProfileActivity::class.java))  // Implement ProfileActivity
             }
             R.id.nav_saved_posts -> {
-                Toast.makeText(this, "Saved Posts Clicked", Toast.LENGTH_SHORT).show()
-                // startActivity(Intent(this, SavedPostsActivity::class.java))  // Implement SavedPostsActivity
+                val intent = Intent(this, SavedPostsActivity::class.java) // ✅ Ensure correct package reference
+                startActivity(intent)
             }
         }
         drawerLayout.closeDrawer(GravityCompat.START) // Close drawer after clicking
         return true
     }
+
+
+
 
     /** 🔹 Handle Back Button: Close Sidebar if Open */
     override fun onBackPressed() {

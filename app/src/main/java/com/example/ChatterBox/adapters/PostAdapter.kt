@@ -14,6 +14,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.widget.Toast
 
 class PostAdapter(private val posts: MutableList<Post>) :
     RecyclerView.Adapter<PostAdapter.PostViewHolder>() {
@@ -28,6 +29,7 @@ class PostAdapter(private val posts: MutableList<Post>) :
         val timeView: TextView = view.findViewById(R.id.postTime)
         val likeButton: ImageButton = view.findViewById(R.id.likeButton)
         val likeCount: TextView = view.findViewById(R.id.likeCount)
+        val bookmarkButton: ImageButton = view.findViewById(R.id.bookmarkButton)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
@@ -46,19 +48,38 @@ class PostAdapter(private val posts: MutableList<Post>) :
         holder.timeView.text = formatTime(post.timestamp)
         holder.likeCount.text = post.likes.toString()
 
-        // Check if the current user has already liked the post
+        // 🔹 Set correct like button icon
         val isLikedByUser = post.likedBy.contains(currentUser)
-
-        // Set correct icon based on whether the user liked the post
         holder.likeButton.setImageResource(
             if (isLikedByUser) R.drawable.liked_button else R.drawable.like_button
         )
 
-        // Handle Like Button Click
+        // 🔹 Handle Like Button Click
         holder.likeButton.setOnClickListener {
             toggleLike(post, holder.likeButton, holder.likeCount)
         }
+
+        // 🔹 Firestore reference for saved posts
+        val userRef = FirebaseFirestore.getInstance().collection("users").document(currentUser)
+        val savedPostsRef = userRef.collection("savedPosts").document(post.id)
+
+        // 🔹 Check if post is already saved in Firestore
+        savedPostsRef.get().addOnSuccessListener { document ->
+            if (document.exists()) {
+                holder.bookmarkButton.setImageResource(R.drawable.bookmarked_button) // ✅ Set as bookmarked
+            } else {
+                holder.bookmarkButton.setImageResource(R.drawable.bookmark_button) // ✅ Set as unbookmarked
+            }
+        }
+
+        // 🔹 Handle Bookmark Button Click
+        holder.bookmarkButton.setOnClickListener {
+            toggleSavePost(post, holder.bookmarkButton)
+        }
     }
+
+
+
 
     override fun getItemCount() = posts.size
 
@@ -98,6 +119,48 @@ class PostAdapter(private val posts: MutableList<Post>) :
             Log.e("Firestore", "Error updating like count", e)
         }
     }
+
+    private fun toggleSavePost(post: Post, saveButton: ImageButton) {
+        val db = FirebaseFirestore.getInstance()
+        val currentUser = FirebaseAuth.getInstance().currentUser ?: return
+        val userRef = db.collection("users").document(currentUser.uid)
+        val savedPostsRef = userRef.collection("savedPosts").document(post.id)
+
+        savedPostsRef.get().addOnSuccessListener { document ->
+            if (document.exists()) {
+                // 🔹 Remove from saved posts
+                savedPostsRef.delete().addOnSuccessListener {
+                    saveButton.setImageResource(R.drawable.bookmark_button) // ✅ Change to unbookmarked
+                    Toast.makeText(saveButton.context, "Removed from saved", Toast.LENGTH_SHORT).show()
+                }.addOnFailureListener {
+                    Toast.makeText(saveButton.context, "Error removing post", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                // 🔹 Save the post with full data
+                val postData = hashMapOf(
+                    "id" to post.id,  // 🔥 Ensure post ID is stored
+                    "title" to post.title,
+                    "content" to post.content,
+                    "authorId" to post.authorId,
+                    "authorEmail" to post.authorEmail,
+                    "timestamp" to post.timestamp,
+                    "likes" to post.likes,
+                    "likedBy" to post.likedBy
+                )
+
+                savedPostsRef.set(postData).addOnSuccessListener {
+                    saveButton.setImageResource(R.drawable.bookmarked_button) // ✅ Change to bookmarked
+                    Toast.makeText(saveButton.context, "Post saved!", Toast.LENGTH_SHORT).show()
+                }.addOnFailureListener {
+                    Toast.makeText(saveButton.context, "Error saving post", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+
+
+
 
 }
 

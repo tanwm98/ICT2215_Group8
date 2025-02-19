@@ -59,14 +59,15 @@
 
         <ImageButton
             android:id="@+id/bookmarkButton"
-            android:layout_width="55dp"
-            android:layout_height="55dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:scaleType="centerInside"
             android:adjustViewBounds="true"
-            android:layout_marginLeft="300dp"
+            android:layout_gravity="end"
             android:src="@drawable/bookmark_button"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Bookmark button" />
+
 
 
     </LinearLayout>
