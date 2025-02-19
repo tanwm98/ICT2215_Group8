@@ -24,6 +24,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 
 class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
     private lateinit var db: FirebaseFirestore
@@ -32,6 +35,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var drawerLayout: DrawerLayout
     private val posts = mutableListOf<Post>()
 
+    private lateinit var refreshReceiver: BroadcastReceiver
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -39,7 +44,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         db = Firebase.firestore
         auth = Firebase.auth
 
-        // Check if user is logged in
         if (auth.currentUser == null) {
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
@@ -50,7 +54,24 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setupRecyclerView()
         setupFab()
         loadPosts()
+
+        // 🔹 Initialize the BroadcastReceiver
+        refreshReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                loadPosts() // ✅ Refresh posts when a bookmark is changed
+            }
+        }
+
+        // 🔹 Register the receiver with explicit export settings
+        val filter = IntentFilter("REFRESH_MAIN")
+        registerReceiver(refreshReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(refreshReceiver) // ✅ Prevent memory leaks
+    }
+
 
     /** 🔹 Setup the Sidebar (Navigation Drawer) */
     private fun setupDrawer() {

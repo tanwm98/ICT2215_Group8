@@ -15,6 +15,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import android.widget.Toast
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+
 
 class PostAdapter(private val posts: MutableList<Post>) :
     RecyclerView.Adapter<PostAdapter.PostViewHolder>() {
@@ -48,35 +53,43 @@ class PostAdapter(private val posts: MutableList<Post>) :
         holder.timeView.text = formatTime(post.timestamp)
         holder.likeCount.text = post.likes.toString()
 
-        // 🔹 Set correct like button icon
-        val isLikedByUser = post.likedBy.contains(currentUser)
-        holder.likeButton.setImageResource(
-            if (isLikedByUser) R.drawable.liked_button else R.drawable.like_button
-        )
+        val db = FirebaseFirestore.getInstance()
+        val userRef = db.collection("users").document(currentUser)
+        val savedPostsRef = userRef.collection("savedPosts").document(post.id)
+        val postRef = db.collection("posts").document(post.id)
+
+        // 🔹 Check if the current user has liked the post
+        postRef.get().addOnSuccessListener { document ->
+            if (document.exists()) {
+                val likedByList = document.get("likedBy") as? List<String> ?: emptyList()
+                val isLikedByUser = likedByList.contains(currentUser)
+
+                holder.likeButton.setImageResource(
+                    if (isLikedByUser) R.drawable.liked_button else R.drawable.like_button
+                )
+            }
+        }
 
         // 🔹 Handle Like Button Click
         holder.likeButton.setOnClickListener {
             toggleLike(post, holder.likeButton, holder.likeCount)
         }
 
-        // 🔹 Firestore reference for saved posts
-        val userRef = FirebaseFirestore.getInstance().collection("users").document(currentUser)
-        val savedPostsRef = userRef.collection("savedPosts").document(post.id)
-
-        // 🔹 Check if post is already saved in Firestore
+        // 🔹 Check if the post is saved in Firestore and update UI
         savedPostsRef.get().addOnSuccessListener { document ->
             if (document.exists()) {
-                holder.bookmarkButton.setImageResource(R.drawable.bookmarked_button) // ✅ Set as bookmarked
+                holder.bookmarkButton.setImageResource(R.drawable.bookmarked_button) // ✅ Always red if saved
             } else {
-                holder.bookmarkButton.setImageResource(R.drawable.bookmark_button) // ✅ Set as unbookmarked
+                holder.bookmarkButton.setImageResource(R.drawable.bookmark_button) // ✅ Grey if not saved
             }
         }
 
         // 🔹 Handle Bookmark Button Click
         holder.bookmarkButton.setOnClickListener {
-            toggleSavePost(post, holder.bookmarkButton)
+            toggleSavePost(post, holder.bookmarkButton, posts, this@PostAdapter)
         }
     }
+
 
 
 
@@ -89,27 +102,32 @@ class PostAdapter(private val posts: MutableList<Post>) :
     }
 
     private fun toggleLike(post: Post, likeButton: ImageButton, likeCountView: TextView) {
+        val db = FirebaseFirestore.getInstance()
         val postRef = db.collection("posts").document(post.id)
-        val currentUser = auth.currentUser?.uid ?: return
+        val currentUser = FirebaseAuth.getInstance().currentUser ?: return
+        val userId = currentUser.uid
 
         db.runTransaction { transaction ->
             val snapshot = transaction.get(postRef)
-            val currentLikes = snapshot.getLong("likes") ?: 0
-            val likedByList = snapshot.get("likedBy") as? List<String> ?: emptyList()
 
-            val isLiked = likedByList.contains(currentUser)
+            val currentLikes = snapshot.getLong("likes") ?: 0
+            val likedByList = snapshot.get("likedBy") as? MutableList<String> ?: mutableListOf()
+
+            val isLiked = likedByList.contains(userId)
 
             val newLikes = if (isLiked) currentLikes - 1 else currentLikes + 1
-            val updatedLikedBy = if (isLiked) {
-                likedByList - currentUser // Remove user from list
+
+            if (isLiked) {
+                likedByList.remove(userId) // Remove user from liked list
             } else {
-                likedByList + currentUser // Add user to list
+                likedByList.add(userId) // Add user to liked list
             }
 
+            // 🔹 Update Firestore `posts/`
             transaction.update(postRef, "likes", newLikes)
-            transaction.update(postRef, "likedBy", updatedLikedBy)
+            transaction.update(postRef, "likedBy", likedByList)
 
-            return@runTransaction newLikes // ✅ Ensure a value is returned
+            newLikes // Return updated like count
         }.addOnSuccessListener { newLikes ->
             likeCountView.text = newLikes.toString()
             likeButton.setImageResource(
@@ -120,7 +138,8 @@ class PostAdapter(private val posts: MutableList<Post>) :
         }
     }
 
-    private fun toggleSavePost(post: Post, saveButton: ImageButton) {
+
+    private fun toggleSavePost(post: Post, saveButton: ImageButton, savedPostsList: MutableList<Post>? = null, adapter: PostAdapter? = null) {
         val db = FirebaseFirestore.getInstance()
         val currentUser = FirebaseAuth.getInstance().currentUser ?: return
         val userRef = db.collection("users").document(currentUser.uid)
@@ -132,13 +151,23 @@ class PostAdapter(private val posts: MutableList<Post>) :
                 savedPostsRef.delete().addOnSuccessListener {
                     saveButton.setImageResource(R.drawable.bookmark_button) // ✅ Change to unbookmarked
                     Toast.makeText(saveButton.context, "Removed from saved", Toast.LENGTH_SHORT).show()
+
+                    // 🔹 Remove post from "Saved Posts" UI if in SavedPostsActivity
+                    if (savedPostsList != null && adapter != null) {
+                        savedPostsList.remove(post)
+                        adapter.notifyDataSetChanged()
+                    }
+
+                    // 🔹 Notify MainActivity to refresh
+                    saveButton.context.sendBroadcast(Intent("REFRESH_MAIN"))
+
                 }.addOnFailureListener {
                     Toast.makeText(saveButton.context, "Error removing post", Toast.LENGTH_SHORT).show()
                 }
             } else {
-                // 🔹 Save the post with full data
+                // 🔹 Save the post
                 val postData = hashMapOf(
-                    "id" to post.id,  // 🔥 Ensure post ID is stored
+                    "id" to post.id,
                     "title" to post.title,
                     "content" to post.content,
                     "authorId" to post.authorId,
@@ -157,6 +186,8 @@ class PostAdapter(private val posts: MutableList<Post>) :
             }
         }
     }
+
+
 
 
 
