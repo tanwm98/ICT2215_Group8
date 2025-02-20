@@ -27,6 +27,9 @@ import com.google.firebase.ktx.Firebase
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
+import android.view.Menu
+import android.widget.PopupMenu
+
 
 class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
     private lateinit var db: FirebaseFirestore
@@ -76,6 +79,43 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         super.onResume()
         loadPosts()
     }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.sort_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_sort -> {
+                showSortPopup(findViewById(R.id.toolbar)) // Attach dropdown to Toolbar
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+
+
+
+    private fun showSortPopup(anchor: View) {
+        val popupMenu = PopupMenu(this, anchor) // Attach to clicked button
+        popupMenu.menu.add(0, 0, 0, "Sort by Latest")
+        popupMenu.menu.add(0, 1, 1, "Sort by Most Likes")
+
+        popupMenu.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                0 -> loadPosts(orderByLikes = false) // Sort by latest
+                1 -> loadPosts(orderByLikes = true) // Sort by most likes
+            }
+            true
+        }
+        popupMenu.show()
+    }
+
+
+
+
 
 
 
@@ -192,24 +232,29 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
     }
 
-    /** 🔹 Load Posts from Firestore */
-    private fun loadPosts() {
-        db.collection("posts")
-            .orderBy("timestamp", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Toast.makeText(this, "Error loading posts: ${e.message}", Toast.LENGTH_SHORT).show()
-                    return@addSnapshotListener
-                }
+    private fun loadPosts(orderByLikes: Boolean = false) {
+        val query = if (orderByLikes) {
+            db.collection("posts").orderBy("likes", Query.Direction.DESCENDING)
+        } else {
+            db.collection("posts").orderBy("timestamp", Query.Direction.DESCENDING)
+        }
 
-                posts.clear()
-                for (doc in snapshot?.documents ?: emptyList()) {
-                    val post = doc.toObject(Post::class.java)?.copy(id = doc.id)
-                    if (post != null) {
-                        posts.add(post)
-                    }
-                }
-                adapter.notifyDataSetChanged()
+        query.addSnapshotListener { snapshot, e ->
+            if (e != null) {
+                Toast.makeText(this, "Error loading posts: ${e.message}", Toast.LENGTH_SHORT).show()
+                return@addSnapshotListener
             }
+
+            posts.clear()
+            for (doc in snapshot?.documents ?: emptyList()) {
+                val post = doc.toObject(Post::class.java)?.copy(id = doc.id)
+                if (post != null) {
+                    posts.add(post)
+                }
+            }
+            adapter.notifyDataSetChanged()
+        }
     }
+
+
 }
