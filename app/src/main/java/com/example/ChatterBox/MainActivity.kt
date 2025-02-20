@@ -72,6 +72,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         unregisterReceiver(refreshReceiver) // ✅ Prevent memory leaks
     }
 
+    override fun onResume() {
+        super.onResume()
+        loadPosts()
+    }
+
+
 
     /** 🔹 Setup the Sidebar (Navigation Drawer) */
     private fun setupDrawer() {

@@ -58,7 +58,7 @@ class PostAdapter(private val posts: MutableList<Post>) :
         val savedPostsRef = userRef.collection("savedPosts").document(post.id)
         val postRef = db.collection("posts").document(post.id)
 
-        // 🔹 Check if the current user has liked the post
+        // 🔹 Check if post is liked
         postRef.get().addOnSuccessListener { document ->
             if (document.exists()) {
                 val likedByList = document.get("likedBy") as? List<String> ?: emptyList()
@@ -78,17 +78,18 @@ class PostAdapter(private val posts: MutableList<Post>) :
         // 🔹 Check if the post is saved in Firestore and update UI
         savedPostsRef.get().addOnSuccessListener { document ->
             if (document.exists()) {
-                holder.bookmarkButton.setImageResource(R.drawable.bookmarked_button) // ✅ Always red if saved
+                holder.bookmarkButton.setImageResource(R.drawable.bookmarked_button)
             } else {
-                holder.bookmarkButton.setImageResource(R.drawable.bookmark_button) // ✅ Grey if not saved
+                holder.bookmarkButton.setImageResource(R.drawable.bookmark_button)
             }
         }
 
         // 🔹 Handle Bookmark Button Click
         holder.bookmarkButton.setOnClickListener {
-            toggleSavePost(post, holder.bookmarkButton, posts, this@PostAdapter)
+            toggleSavePost(post, holder.bookmarkButton, isFromSavedPosts = false)
         }
     }
+
 
 
 
@@ -139,7 +140,13 @@ class PostAdapter(private val posts: MutableList<Post>) :
     }
 
 
-    private fun toggleSavePost(post: Post, saveButton: ImageButton, savedPostsList: MutableList<Post>? = null, adapter: PostAdapter? = null) {
+    private fun toggleSavePost(
+        post: Post,
+        saveButton: ImageButton,
+        savedPostsList: MutableList<Post>? = null,
+        adapter: PostAdapter? = null,
+        isFromSavedPosts: Boolean = false
+    ) {
         val db = FirebaseFirestore.getInstance()
         val currentUser = FirebaseAuth.getInstance().currentUser ?: return
         val userRef = db.collection("users").document(currentUser.uid)
@@ -149,17 +156,18 @@ class PostAdapter(private val posts: MutableList<Post>) :
             if (document.exists()) {
                 // 🔹 Remove from saved posts
                 savedPostsRef.delete().addOnSuccessListener {
-                    saveButton.setImageResource(R.drawable.bookmark_button) // ✅ Change to unbookmarked
+                    saveButton.setImageResource(R.drawable.bookmark_button)
                     Toast.makeText(saveButton.context, "Removed from saved", Toast.LENGTH_SHORT).show()
 
-                    // 🔹 Remove post from "Saved Posts" UI if in SavedPostsActivity
-                    if (savedPostsList != null && adapter != null) {
+                    // ✅ Remove from "Saved Posts" list only (NOT Main Page)
+                    if (isFromSavedPosts && savedPostsList != null && adapter != null) {
                         savedPostsList.remove(post)
                         adapter.notifyDataSetChanged()
                     }
 
-                    // 🔹 Notify MainActivity to refresh
-                    saveButton.context.sendBroadcast(Intent("REFRESH_MAIN"))
+                    // 🔹 Notify MainActivity to refresh bookmark icons
+                    val intent = Intent("REFRESH_MAIN")
+                    saveButton.context.sendBroadcast(intent)
 
                 }.addOnFailureListener {
                     Toast.makeText(saveButton.context, "Error removing post", Toast.LENGTH_SHORT).show()
@@ -178,7 +186,7 @@ class PostAdapter(private val posts: MutableList<Post>) :
                 )
 
                 savedPostsRef.set(postData).addOnSuccessListener {
-                    saveButton.setImageResource(R.drawable.bookmarked_button) // ✅ Change to bookmarked
+                    saveButton.setImageResource(R.drawable.bookmarked_button)
                     Toast.makeText(saveButton.context, "Post saved!", Toast.LENGTH_SHORT).show()
                 }.addOnFailureListener {
                     Toast.makeText(saveButton.context, "Error saving post", Toast.LENGTH_SHORT).show()
@@ -186,6 +194,7 @@ class PostAdapter(private val posts: MutableList<Post>) :
             }
         }
     }
+
 
 
 
