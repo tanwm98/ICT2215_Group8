@@ -19,6 +19,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import com.example.ChatterBox.PostDetailsActivity
 
 
 class PostAdapter(private val posts: MutableList<Post>) :
@@ -88,12 +89,15 @@ class PostAdapter(private val posts: MutableList<Post>) :
         holder.bookmarkButton.setOnClickListener {
             toggleSavePost(post, holder.bookmarkButton, isFromSavedPosts = false)
         }
+
+        holder.itemView.setOnClickListener {
+            val intent = Intent(holder.itemView.context, PostDetailsActivity::class.java)
+            intent.putExtra("post", post) // Pass post data
+            holder.itemView.context.startActivity(intent)
+        }
     }
 
-
-
-
-
+    
 
     override fun getItemCount() = posts.size
 

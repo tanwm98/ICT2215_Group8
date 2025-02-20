@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     id("com.google.gms.google-services")
     id("kotlin-kapt") // <--- This is important
+    id("kotlin-parcelize")
 }
 
 android {

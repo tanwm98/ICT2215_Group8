@@ -32,8 +32,14 @@
             android:name=".SavedPostsActivity"
             android:exported="true">
         </activity>
+        <activity
+            android:name=".PostDetailsActivity"
+            android:exported="true">
+        </activity>
 
-        <activity android:name=".ProfileActivity" />
+
+
+    <activity android:name=".ProfileActivity" />
 
 
 
