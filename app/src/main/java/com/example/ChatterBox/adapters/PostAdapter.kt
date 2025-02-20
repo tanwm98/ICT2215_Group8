@@ -19,7 +19,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import com.example.ChatterBox.PostDetailsActivity
+import com.example.ChatterBox.PostDetailActivity
 
 
 class PostAdapter(private val posts: MutableList<Post>) :
@@ -91,13 +91,14 @@ class PostAdapter(private val posts: MutableList<Post>) :
         }
 
         holder.itemView.setOnClickListener {
-            val intent = Intent(holder.itemView.context, PostDetailsActivity::class.java)
-            intent.putExtra("post", post) // Pass post data
+            val intent = Intent(holder.itemView.context, PostDetailActivity::class.java)
+            intent.putExtra("POST_ID", post.id)
             holder.itemView.context.startActivity(intent)
+
         }
     }
 
-    
+
 
     override fun getItemCount() = posts.size
 
