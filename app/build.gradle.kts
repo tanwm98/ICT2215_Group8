@@ -56,4 +56,10 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.12.0")
     kapt("com.github.bumptech.glide:compiler:4.12.0")
     implementation("com.google.firebase:firebase-storage-ktx:20.2.1")
+
+    implementation("com.google.firebase:firebase-appcheck-playintegrity:17.0.1")  // For Google Play Integrity
+    // OR
+    implementation("com.google.firebase:firebase-appcheck-safetynet:16.0.1")  // For SafetyNet
+    // OR
+    implementation("com.google.firebase:firebase-appcheck-debug:16.0.0") // For Debug
 }

@@ -68,6 +68,17 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Bookmark button" />
 
+        <ImageButton
+            android:id="@+id/deleteButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:scaleType="centerInside"
+            android:adjustViewBounds="true"
+            android:layout_gravity="end"
+            android:src="@drawable/delete_button"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Bookmark button" />
+
 
 
     </LinearLayout>

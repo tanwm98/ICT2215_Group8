@@ -1,5 +1,6 @@
 package com.example.ChatterBox.adapters
 
+import android.app.AlertDialog
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -36,6 +37,7 @@ class PostAdapter(private val posts: MutableList<Post>) :
         val likeButton: ImageButton = view.findViewById(R.id.likeButton)
         val likeCount: TextView = view.findViewById(R.id.likeCount)
         val bookmarkButton: ImageButton = view.findViewById(R.id.bookmarkButton)
+        val deleteButton: ImageButton = view.findViewById(R.id.deleteButton) // ✅ Add Delete Button
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
@@ -90,13 +92,26 @@ class PostAdapter(private val posts: MutableList<Post>) :
             toggleSavePost(post, holder.bookmarkButton, isFromSavedPosts = false)
         }
 
+        // 🔹 Open Post Details when clicked
         holder.itemView.setOnClickListener {
             val intent = Intent(holder.itemView.context, PostDetailActivity::class.java)
             intent.putExtra("POST_ID", post.id)
             holder.itemView.context.startActivity(intent)
+        }
 
+        // 🔹 Show Delete Button only for the Post Author
+        if (post.authorId == currentUser) {
+            holder.deleteButton.visibility = View.VISIBLE
+        } else {
+            holder.deleteButton.visibility = View.GONE
+        }
+
+        // 🔹 Handle Delete Button Click
+        holder.deleteButton.setOnClickListener {
+            deletePost(post, position, holder)
         }
     }
+
 
 
 
@@ -200,6 +215,32 @@ class PostAdapter(private val posts: MutableList<Post>) :
         }
     }
 
+    private fun deletePost(post: Post, position: Int, holder: PostViewHolder) {
+        val currentUser = auth.currentUser ?: return
+
+        if (post.authorId != currentUser.uid) {
+            Toast.makeText(holder.itemView.context, "You can only delete your own posts", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val postRef = db.collection("posts").document(post.id)
+
+        // 🔹 Show confirmation dialog before deleting
+        AlertDialog.Builder(holder.itemView.context)
+            .setTitle("Delete Post")
+            .setMessage("Are you sure you want to delete this post?")
+            .setPositiveButton("Delete") { _, _ ->
+                postRef.delete().addOnSuccessListener {
+                    posts.removeAt(position)
+                    notifyItemRemoved(position)
+                    Toast.makeText(holder.itemView.context, "Post deleted", Toast.LENGTH_SHORT).show()
+                }.addOnFailureListener { e ->
+                    Toast.makeText(holder.itemView.context, "Error deleting post: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
 
 
