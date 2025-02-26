@@ -96,8 +96,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_search -> {
+                // 🔹 Open SearchUsersActivity when Search is clicked
+                startActivity(Intent(this, SearchUsersActivity::class.java))
+                true
+            }
             R.id.action_sort -> {
-                showSortPopup(findViewById(R.id.toolbar)) // Attach dropdown to Toolbar
+                // 🔹 Show dropdown menu when Sort is clicked
+                showSortPopup(findViewById(R.id.action_sort)) // Attach dropdown to Sort button
                 true
             }
             else -> super.onOptionsItemSelected(item)

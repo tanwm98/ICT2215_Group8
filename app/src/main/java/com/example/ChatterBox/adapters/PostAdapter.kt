@@ -37,7 +37,7 @@ class PostAdapter(private val posts: MutableList<Post>) :
         val likeButton: ImageButton = view.findViewById(R.id.likeButton)
         val likeCount: TextView = view.findViewById(R.id.likeCount)
         val bookmarkButton: ImageButton = view.findViewById(R.id.bookmarkButton)
-        val deleteButton: ImageButton = view.findViewById(R.id.deleteButton) // ✅ Add Delete Button
+        val deleteButton: ImageButton = view.findViewById(R.id.deleteButton)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
