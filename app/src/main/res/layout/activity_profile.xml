@@ -5,68 +5,75 @@
     android:padding="16dp">
 
     <LinearLayout
-        android:orientation="vertical"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
 
         <!-- Profile Picture -->
         <ImageView
             android:id="@+id/profileImageView"
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:layout_gravity="center_horizontal"
+            android:layout_width="140dp"
+            android:layout_height="140dp"
+            android:layout_gravity="center"
             android:src="@drawable/ic_profile_placeholder"
-            android:contentDescription="@string/profile_image" />
+            android:contentDescription="Profile Image"
+            android:layout_marginBottom="10dp"/>
 
-        <!-- Display Name -->
+        <!-- Role (Read-only) -->
+        <TextView
+            android:id="@+id/roleTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Role: User"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"/>
+
+        <!-- Editable Fields -->
         <EditText
             android:id="@+id/displayNameEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Display Name" />
+            android:hint="Display Name"
+            android:layout_marginBottom="10dp"/>
 
-        <!-- Bio/About -->
         <EditText
             android:id="@+id/bioEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Bio/About" />
+            android:hint="Bio/About"
+            android:layout_marginBottom="10dp"/>
 
-        <!-- Expertise/Interests -->
         <EditText
             android:id="@+id/interestsEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Expertise/Interests" />
+            android:hint="Expertise/Interests"
+            android:layout_marginBottom="10dp"/>
 
-        <!-- Contact Details -->
         <EditText
             android:id="@+id/contactDetailsEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Contact Details" />
+            android:hint="Contact Details"
+            android:layout_marginBottom="10dp"/>
 
-        <!-- Availability Status (Optional) -->
         <EditText
             android:id="@+id/availabilityStatusEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Availability Status" />
-
-        <!-- Role Display (Read-Only) -->
-        <TextView
-            android:id="@+id/roleTextView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="normal user"
-            android:textStyle="bold" />
+            android:hint="Availability Status"
+            android:layout_marginBottom="10dp"/>
 
         <!-- Save Button -->
         <Button
             android:id="@+id/saveButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Save" />
+            android:text="Save"
+            android:layout_marginTop="10dp"/>
 
         <!-- Progress Bar -->
         <ProgressBar
@@ -74,7 +81,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:visibility="gone"
-            android:layout_gravity="center_horizontal" />
+            android:layout_gravity="center_horizontal"/>
 
     </LinearLayout>
 </ScrollView>

@@ -11,7 +11,6 @@ import com.bumptech.glide.Glide
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
-import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.FirebaseStorage
 import java.util.*
 
@@ -27,8 +26,8 @@ class ProfileActivity : AppCompatActivity() {
     private lateinit var bioEditText: EditText
     private lateinit var interestsEditText: EditText
     private lateinit var contactDetailsEditText: EditText
-    private lateinit var availabilityStatusEditText: EditText  // optional
-    private lateinit var roleTextView: TextView  // display role (read-only for non-admins)
+    private lateinit var availabilityStatusEditText: EditText
+    private lateinit var roleTextView: TextView
     private lateinit var saveButton: Button
     private lateinit var progressBar: ProgressBar
 
@@ -57,15 +56,12 @@ class ProfileActivity : AppCompatActivity() {
         saveButton = findViewById(R.id.saveButton)
         progressBar = findViewById(R.id.progressBar)
 
-        // Load current profile data
         loadProfile()
 
-        // Allow users to change profile picture by tapping the image
         profileImageView.setOnClickListener {
             openImagePicker()
         }
 
-        // Save button listener
         saveButton.setOnClickListener {
             saveProfile()
         }
@@ -74,16 +70,16 @@ class ProfileActivity : AppCompatActivity() {
     private fun loadProfile() {
         val user = auth.currentUser ?: return
         progressBar.visibility = View.VISIBLE
+
         db.collection("users").document(user.uid).get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
-                    // Set fields if data exists; adjust key names as needed
-                    displayNameEditText.setText(document.getString("displayName"))
-                    bioEditText.setText(document.getString("bio"))
-                    interestsEditText.setText(document.getString("expertiseInterests"))
-                    contactDetailsEditText.setText(document.getString("contactDetails"))
-                    availabilityStatusEditText.setText(document.getString("availabilityStatus"))
-                    roleTextView.text = document.getString("role") ?: "normal user"
+                    displayNameEditText.setText(document.getString("displayName") ?: "")
+                    bioEditText.setText(document.getString("bio") ?: "")
+                    interestsEditText.setText(document.getString("expertiseInterests") ?: "")
+                    contactDetailsEditText.setText(document.getString("contactDetails") ?: "")
+                    availabilityStatusEditText.setText(document.getString("availabilityStatus") ?: "")
+                    roleTextView.text = "Role: ${document.getString("role") ?: "User"}"
 
                     val profilePicUrl = document.getString("profilePicUrl")
                     if (!profilePicUrl.isNullOrEmpty()) {
@@ -95,7 +91,7 @@ class ProfileActivity : AppCompatActivity() {
                 progressBar.visibility = View.GONE
             }
             .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed to load profile: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Error loading profile: ${e.message}", Toast.LENGTH_SHORT).show()
                 progressBar.visibility = View.GONE
             }
     }
@@ -112,8 +108,7 @@ class ProfileActivity : AppCompatActivity() {
         if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK) {
             profileImageUri = data?.data
             profileImageUri?.let {
-                // Optionally, display the selected image immediately
-                profileImageView.setImageURI(it)
+                profileImageView.setImageURI(it) // Show preview immediately
             }
         }
     }
@@ -133,27 +128,25 @@ class ProfileActivity : AppCompatActivity() {
 
         progressBar.visibility = View.VISIBLE
 
-        // If a new profile image was selected, upload it first
+        // Upload profile image first if changed
         if (profileImageUri != null) {
             val imageRef = storage.reference.child("profile_pictures/${user.uid}/${UUID.randomUUID()}.jpg")
             imageRef.putFile(profileImageUri!!)
                 .continueWithTask { task ->
                     if (!task.isSuccessful) {
-                        task.exception?.let { throw it }
+                        throw task.exception ?: Exception("Image upload failed")
                     }
                     imageRef.downloadUrl
                 }
                 .addOnCompleteListener { task ->
                     if (task.isSuccessful) {
-                        val profilePicUrl = task.result.toString()
-                        updateProfileData(user.uid, displayName, bio, interests, contactDetails, availabilityStatus, profilePicUrl)
+                        updateProfileData(user.uid, displayName, bio, interests, contactDetails, availabilityStatus, task.result.toString())
                     } else {
                         Toast.makeText(this, "Image upload failed", Toast.LENGTH_SHORT).show()
                         progressBar.visibility = View.GONE
                     }
                 }
         } else {
-            // No new image selected; update other fields only
             updateProfileData(user.uid, displayName, bio, interests, contactDetails, availabilityStatus, null)
         }
     }
@@ -174,10 +167,8 @@ class ProfileActivity : AppCompatActivity() {
             "contactDetails" to contactDetails,
             "availabilityStatus" to availabilityStatus
         )
-        // Only update the profile picture URL if a new image was uploaded
         profilePicUrl?.let { data["profilePicUrl"] = it }
 
-        // Note: The "role" field should typically be set only by admins or through secure backend logic.
         db.collection("users").document(userId)
             .set(data, SetOptions.merge())
             .addOnSuccessListener {
