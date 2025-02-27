@@ -20,7 +20,6 @@ class ProfileActivity : AppCompatActivity() {
     private lateinit var db: FirebaseFirestore
     private lateinit var storage: FirebaseStorage
 
-    // UI elements
     private lateinit var profileImageView: ImageView
     private lateinit var displayNameEditText: EditText
     private lateinit var bioEditText: EditText
@@ -29,9 +28,12 @@ class ProfileActivity : AppCompatActivity() {
     private lateinit var availabilityStatusEditText: EditText
     private lateinit var roleTextView: TextView
     private lateinit var saveButton: Button
+    private lateinit var messageUserButton: Button
     private lateinit var progressBar: ProgressBar
 
     private var profileImageUri: Uri? = null
+    private var isViewingOtherUser = false
+    private var userId: String? = null
 
     companion object {
         private const val PICK_IMAGE_REQUEST = 1001
@@ -45,7 +47,7 @@ class ProfileActivity : AppCompatActivity() {
         db = FirebaseFirestore.getInstance()
         storage = FirebaseStorage.getInstance()
 
-        // Initialize UI references
+        // Initialize UI elements
         profileImageView = findViewById(R.id.profileImageView)
         displayNameEditText = findViewById(R.id.displayNameEditText)
         bioEditText = findViewById(R.id.bioEditText)
@@ -54,24 +56,54 @@ class ProfileActivity : AppCompatActivity() {
         availabilityStatusEditText = findViewById(R.id.availabilityStatusEditText)
         roleTextView = findViewById(R.id.roleTextView)
         saveButton = findViewById(R.id.saveButton)
+        messageUserButton = findViewById(R.id.messageUserButton)
         progressBar = findViewById(R.id.progressBar)
 
+        // Get User ID from Intent (if null, load current user's profile)
+        userId = intent.getStringExtra("USER_ID") ?: auth.currentUser?.uid
+        isViewingOtherUser = userId != auth.currentUser?.uid
+
+        setupUI()
         loadProfile()
+    }
+
+    /** 🔹 Setup UI based on profile type */
+    private fun setupUI() {
+        if (isViewingOtherUser) {
+            saveButton.visibility = View.GONE  // Hide save button for other users
+            messageUserButton.visibility = View.VISIBLE  // Show message button
+            makeFieldsReadOnly()
+        } else {
+            saveButton.visibility = View.VISIBLE  // Show save button for own profile
+            messageUserButton.visibility = View.GONE  // Hide message button for own profile
+        }
 
         profileImageView.setOnClickListener {
-            openImagePicker()
+            if (!isViewingOtherUser) openImagePicker()
         }
 
         saveButton.setOnClickListener {
             saveProfile()
         }
+
+        messageUserButton.setOnClickListener {
+            val intent = Intent(this, ChatActivity::class.java)
+            intent.putExtra("USER_ID", userId)
+            startActivity(intent)
+        }
     }
 
+    /** 🔹 Load user profile data */
     private fun loadProfile() {
-        val user = auth.currentUser ?: return
-        progressBar.visibility = View.VISIBLE
+        if (userId == null) {
+            Toast.makeText(this, "User not found", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
 
-        db.collection("users").document(user.uid).get()
+        progressBar.visibility = View.VISIBLE
+        db.collection("users").document(userId!!)
+            .get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
                     displayNameEditText.setText(document.getString("displayName") ?: "")
@@ -83,9 +115,7 @@ class ProfileActivity : AppCompatActivity() {
 
                     val profilePicUrl = document.getString("profilePicUrl")
                     if (!profilePicUrl.isNullOrEmpty()) {
-                        Glide.with(this)
-                            .load(profilePicUrl)
-                            .into(profileImageView)
+                        Glide.with(this).load(profilePicUrl).into(profileImageView)
                     }
                 }
                 progressBar.visibility = View.GONE
@@ -96,6 +126,7 @@ class ProfileActivity : AppCompatActivity() {
             }
     }
 
+    /** 🔹 Open Image Picker (Only for Own Profile) */
     private fun openImagePicker() {
         val intent = Intent()
         intent.type = "image/*"
@@ -113,6 +144,7 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
+    /** 🔹 Save User Profile */
     private fun saveProfile() {
         val user = auth.currentUser ?: return
         val displayName = displayNameEditText.text.toString().trim()
@@ -128,7 +160,6 @@ class ProfileActivity : AppCompatActivity() {
 
         progressBar.visibility = View.VISIBLE
 
-        // Upload profile image first if changed
         if (profileImageUri != null) {
             val imageRef = storage.reference.child("profile_pictures/${user.uid}/${UUID.randomUUID()}.jpg")
             imageRef.putFile(profileImageUri!!)
@@ -151,6 +182,7 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
+    /** 🔹 Update Firestore User Data */
     private fun updateProfileData(
         userId: String,
         displayName: String,
@@ -179,5 +211,14 @@ class ProfileActivity : AppCompatActivity() {
                 Toast.makeText(this, "Error updating profile: ${e.message}", Toast.LENGTH_SHORT).show()
                 progressBar.visibility = View.GONE
             }
+    }
+
+    /** 🔹 Make Fields Read-Only */
+    private fun makeFieldsReadOnly() {
+        displayNameEditText.isEnabled = false
+        bioEditText.isEnabled = false
+        interestsEditText.isEnabled = false
+        contactDetailsEditText.isEnabled = false
+        availabilityStatusEditText.isEnabled = false
     }
 }
