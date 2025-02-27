@@ -12,5 +12,6 @@ data class User(
     @PropertyName("expertiseInterests") val expertiseInterests: String = "",
     @PropertyName("availabilityStatus") val availabilityStatus: String = "",
     @PropertyName("profileImage") val profileImage: String? = null,
-    @PropertyName("profilePicUrl") val profilePicUrl: String? = null
+    @PropertyName("profilePicUrl") val profilePicUrl: String? = null,
+    @PropertyName("isAdmin") val isAdmin: Boolean = false
 )

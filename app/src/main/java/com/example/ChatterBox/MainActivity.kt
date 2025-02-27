@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -67,8 +68,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setupDrawer()
         setupRecyclerView()
         setupFab()
+//        checkAdminStatus()
         loadPosts()
         loadUserProfile()
+        checkIfAdmin()
 
         // 🔹 Initialize the BroadcastReceiver
         refreshReceiver = object : BroadcastReceiver() {
@@ -112,6 +115,43 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             else -> super.onOptionsItemSelected(item)
         }
     }
+    private fun checkAdminStatus() {
+        auth.currentUser?.getIdToken(true)
+            ?.addOnSuccessListener { result ->
+                val claims = result.claims
+                val isAdmin = claims["isAdmin"] as? Boolean ?: false
+                Log.d("FirebaseAuth", "User isAdmin: $isAdmin")
+
+                // 🔹 Show or hide nav_add based on admin status
+                val navView: NavigationView = findViewById(R.id.navigation_view)
+                val menu = navView.menu
+                val addForumItem = menu.findItem(R.id.nav_add)
+                addForumItem.isVisible = isAdmin // ✅ Only show if user is admin
+            }
+            ?.addOnFailureListener { e ->
+                Log.e("FirebaseAuth", "Failed to fetch token claims: ${e.message}")
+            }
+    }
+
+
+
+    private fun checkIfAdmin() {
+        val currentUser = auth.currentUser ?: return
+        val userRef = db.collection("users").document(currentUser.uid)
+
+        userRef.get().addOnSuccessListener { document ->
+            if (document.exists()) {
+                val isAdmin = document.getBoolean("isAdmin") ?: false
+                val navigationView: NavigationView = findViewById(R.id.navigation_view)
+                val menu = navigationView.menu
+
+                // 🔹 Show "Add Forum" if user is admin, otherwise hide it
+                menu.findItem(R.id.nav_add).isVisible = isAdmin
+            }
+        }.addOnFailureListener {
+            Toast.makeText(this, "Failed to fetch user data", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     private fun showSortPopup(anchor: View) {
         val popupMenu = PopupMenu(this, anchor) // Attach to clicked button
@@ -151,12 +191,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.nav_saved_posts -> {
-                val intent = Intent(this, SavedPostsActivity::class.java) // ✅ Ensure correct package reference
+                val intent = Intent(this, SavedPostsActivity::class.java)
                 startActivity(intent)
             }
             R.id.nav_profile -> {
                 startActivity(Intent(this, ProfileActivity::class.java))
                 Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
+            }
+            R.id.nav_message -> {
+                startActivity(Intent(this, MessageActivity::class.java))
+                Toast.makeText(this, "Message Clicked", Toast.LENGTH_SHORT).show()
+            }
+            R.id.nav_add -> {
+                startActivity(Intent(this, ForumActivity::class.java))
+                Toast.makeText(this, "Forum Clicked", Toast.LENGTH_SHORT).show()
             }
         }
         drawerLayout.closeDrawer(GravityCompat.START) // Close drawer after clicking
