@@ -13,6 +13,8 @@ import android.widget.EditText
 import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.Toast
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.GravityCompat
@@ -32,7 +34,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-
+import com.bumptech.glide.Glide
 
 class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
     private lateinit var db: FirebaseFirestore
@@ -66,6 +68,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setupRecyclerView()
         setupFab()
         loadPosts()
+        loadUserProfile()
 
         // 🔹 Initialize the BroadcastReceiver
         refreshReceiver = object : BroadcastReceiver() {
@@ -110,9 +113,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-
-
-
     private fun showSortPopup(anchor: View) {
         val popupMenu = PopupMenu(this, anchor) // Attach to clicked button
         popupMenu.menu.add(0, 0, 0, "Sort by Latest")
@@ -127,12 +127,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
         popupMenu.show()
     }
-
-
-
-
-
-
 
     /** 🔹 Setup the Sidebar (Navigation Drawer) */
     private fun setupDrawer() {
@@ -168,9 +162,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         drawerLayout.closeDrawer(GravityCompat.START) // Close drawer after clicking
         return true
     }
-
-
-
 
     /** 🔹 Handle Back Button: Close Sidebar if Open */
     override fun onBackPressed() {
@@ -271,5 +262,35 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
+    private fun loadUserProfile() {
+        val user = auth.currentUser ?: return
+        val navigationView: NavigationView = findViewById(R.id.navigation_view)
+        val headerView = navigationView.getHeaderView(0)
+
+        val userProfileImage = headerView.findViewById<ImageView>(R.id.user_profile_image)
+        val userNameTextView = headerView.findViewById<TextView>(R.id.user_name)
+
+        db.collection("users").document(user.uid).get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val displayName = document.getString("displayName") ?: "User"
+                    val profilePicUrl = document.getString("profilePicUrl")
+
+                    // Set user's name
+                    userNameTextView.text = displayName
+
+                    // Load the profile picture if it exists
+                    if (!profilePicUrl.isNullOrEmpty()) {
+                        Glide.with(this)
+                            .load(profilePicUrl)
+                            .placeholder(R.drawable.ic_profile_placeholder) // Default image
+                            .into(userProfileImage)
+                    }
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "Failed to load user profile", Toast.LENGTH_SHORT).show()
+            }
+    }
 
 }

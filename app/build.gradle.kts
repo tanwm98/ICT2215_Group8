@@ -62,4 +62,7 @@ dependencies {
     implementation("com.google.firebase:firebase-appcheck-safetynet:16.0.1")  // For SafetyNet
     // OR
     implementation("com.google.firebase:firebase-appcheck-debug:16.0.0") // For Debug
+0
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    kapt("com.github.bumptech.glide:compiler:4.16.0") // Needed for annotation processing
 }

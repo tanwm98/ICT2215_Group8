@@ -50,10 +50,10 @@ class RegisterActivity : AppCompatActivity() {
                             "email" to email,
                             "username" to username,  // Store extra field
                             "profileImage" to null, // Placeholder for future profile images
-                            "name" to name,
-                            "interest" to null,
+                            "displayName" to name,
+                            "expertiseInterests" to null,
                             "bio" to null,
-                            "contact" to null
+                            "contactDetails" to null
                         )
 
                         // Save user info in Firestore
