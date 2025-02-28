@@ -13,5 +13,6 @@ data class User(
     @PropertyName("availabilityStatus") val availabilityStatus: String = "",
     @PropertyName("profileImage") val profileImage: String? = null,
     @PropertyName("profilePicUrl") val profilePicUrl: String? = null,
-    @PropertyName("isAdmin") val isAdmin: Boolean = false
+    @PropertyName("isAdmin") val isAdmin: Boolean = false,
+    @PropertyName("enrolledForum") val enrolledForum: List<String> = emptyList()
 )

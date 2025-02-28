@@ -22,4 +22,14 @@
         android:icon="@drawable/add_button"
         android:visible="true" />
 
+    <!-- 🔹 This is now a group where enrolled forums will be dynamically added -->
+    <item
+        android:id="@+id/nav_enrolForum"
+        android:title="Enrolled Forums"
+        android:icon="@drawable/enrol_button" />
+
+    <group android:id="@+id/nav_enrolled_forums_group">
+        <!-- 🔹 Enrolled forums will be added here dynamically -->
+    </group>
+
 </menu>

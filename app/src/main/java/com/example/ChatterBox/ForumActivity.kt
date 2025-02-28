@@ -88,12 +88,12 @@ class ForumActivity : AppCompatActivity() {
 
             if (moduleName.isEmpty() || moduleCode.isEmpty() || moduleDescription.isEmpty()) {
                 Toast.makeText(this, "All fields are required", Toast.LENGTH_SHORT).show()
-                //return // ❗ Stop execution if fields are empty
+
             }
 
             if (selectedStudentIds.isEmpty()) {
                 Toast.makeText(this, "At least one student must be enrolled", Toast.LENGTH_SHORT).show()
-                //return // ❗ Stop execution if no students are selected
+
             }
 
             val forum = Forum(
@@ -105,17 +105,61 @@ class ForumActivity : AppCompatActivity() {
 
             db.collection("forums")
                 .add(forum)
-                .addOnSuccessListener {
+                .addOnSuccessListener { forumDocRef ->
                     Toast.makeText(this, "Forum created successfully!", Toast.LENGTH_SHORT).show()
+
+                    // 🔹 Update each student's enrolledForum list
+                    updateStudentsEnrolledForum(moduleCode)
+
                     finish()
                 }
                 .addOnFailureListener { e ->
-                    Log.e("Firestore", "Error creating forum: ${e.message}") // 🔹 Log the exact error
+                    Log.e("Firestore", "Error creating forum: ${e.message}")
                     Toast.makeText(this, "Failed to create forum: ${e.message}", Toast.LENGTH_LONG).show()
                 }
         }.addOnFailureListener { e ->
             Log.e("Firestore", "Failed to check admin status: ${e.message}")
             Toast.makeText(this, "Error checking admin status", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 🔹 Update the enrolledForum list for selected students */
+    /** 🔹 Update the enrolledForum list for selected students using module code */
+    private fun updateStudentsEnrolledForum(moduleCode: String) {
+        if (selectedStudentIds.isEmpty()) {
+            Log.e("Firestore", "No students selected for enrollment")
+            return
+        }
+
+        for (studentId in selectedStudentIds) {
+            val studentRef = db.collection("users").document(studentId)
+
+            studentRef.get().addOnSuccessListener { document ->
+                if (!document.exists()) {
+                    Log.e("Firestore", "User document does not exist for $studentId")
+                    return@addOnSuccessListener
+                }
+
+                // 🔥 Handle null case explicitly (initialize as empty list if null)
+                val currentEnrolledForums = document.get("enrolledForum") as? List<String> ?: listOf()
+
+                // 🔥 Prevent duplicate module codes
+                if (!currentEnrolledForums.contains(moduleCode)) {
+                    val updatedForums = currentEnrolledForums + moduleCode
+
+                    studentRef.update("enrolledForum", updatedForums)
+                        .addOnSuccessListener {
+                            Log.d("Firestore", "Successfully updated enrolledForum for $studentId: $updatedForums")
+                        }
+                        .addOnFailureListener { e ->
+                            Log.e("Firestore", "Failed to update enrolledForum for $studentId: ${e.message}")
+                        }
+                } else {
+                    Log.d("Firestore", "User $studentId is already enrolled in $moduleCode")
+                }
+            }.addOnFailureListener { e ->
+                Log.e("Firestore", "Failed to fetch student data for $studentId: ${e.message}")
+            }
         }
     }
 

@@ -54,7 +54,8 @@ class RegisterActivity : AppCompatActivity() {
                             "expertiseInterests" to null,
                             "bio" to null,
                             "contactDetails" to null,
-                            "isAdmin" to false
+                            "isAdmin" to false,
+                            "enrolledForum" to null
                         )
 
                         // Save user info in Firestore

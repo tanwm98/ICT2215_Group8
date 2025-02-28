@@ -71,6 +71,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         loadPosts()
         loadUserProfile()
         checkIfAdmin()
+        loadEnrolledForums()
 
         // 🔹 Initialize the BroadcastReceiver
         refreshReceiver = object : BroadcastReceiver() {
@@ -323,5 +324,68 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 Toast.makeText(this, "Failed to load user profile", Toast.LENGTH_SHORT).show()
             }
     }
+
+    private fun loadEnrolledForums() {
+        val currentUser = auth.currentUser ?: return
+        val userRef = db.collection("users").document(currentUser.uid)
+
+        userRef.get().addOnSuccessListener { document ->
+            if (document.exists()) {
+                val enrolledModuleCodes = document.get("enrolledForum") as? List<String> ?: emptyList()
+
+                val navView: NavigationView = findViewById(R.id.navigation_view)
+                val menu = navView.menu
+
+                // 🔹 Remove old forum entries to prevent duplication
+                val enrolledForumsGroup = menu.findItem(R.id.nav_enrolForum)
+                menu.removeGroup(R.id.nav_enrolled_forums_group) // ✅ Remove old entries before adding new ones
+
+                if (enrolledModuleCodes.isEmpty()) {
+                    menu.add(R.id.nav_enrolled_forums_group, Menu.NONE, Menu.NONE, "No Enrolled Forums").isEnabled = false
+                    Log.e("Firestore", "No enrolled forums found for user.")
+                    return@addOnSuccessListener
+                }
+
+                Log.d("Firestore", "Fetching forums for module codes: $enrolledModuleCodes")
+
+                // 🔹 Fetch forums based on module codes
+                db.collection("forums")
+                    .whereIn("code", enrolledModuleCodes) // 🔥 Query forums by module codes
+                    .get()
+                    .addOnSuccessListener { forumDocs ->
+                        if (forumDocs.isEmpty) {
+                            Log.e("Firestore", "No forums found for enrolled module codes.")
+                            menu.add(R.id.nav_enrolled_forums_group, Menu.NONE, Menu.NONE, "No Forums Found").isEnabled = false
+                            return@addOnSuccessListener
+                        }
+
+                        for (forumDoc in forumDocs) {
+                            val forumName = forumDoc.getString("name") ?: "Unknown Forum"
+                            val forumCode = forumDoc.getString("code") ?: ""
+
+                            val forumItem = menu.add(R.id.nav_enrolled_forums_group, Menu.NONE, Menu.NONE, "$forumName ($forumCode)")
+
+                            forumItem.setOnMenuItemClickListener {
+                                val intent = Intent(this, ForumDetailActivity::class.java)
+                                intent.putExtra("FORUM_CODE", forumCode)
+                                startActivity(intent)
+                                true
+                            }
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("Firestore", "Failed to load forums: ${e.message}")
+                        Toast.makeText(this, "Failed to load forums", Toast.LENGTH_SHORT).show()
+                    }
+            }
+        }.addOnFailureListener { e ->
+            Log.e("Firestore", "Failed to load enrolled forums: ${e.message}")
+            Toast.makeText(this, "Failed to load enrolled forums", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+
+
 
 }
