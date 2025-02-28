@@ -68,7 +68,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setupDrawer()
         setupRecyclerView()
         setupFab()
-//        checkAdminStatus()
         loadPosts()
         loadUserProfile()
         checkIfAdmin()
@@ -115,24 +114,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             else -> super.onOptionsItemSelected(item)
         }
     }
-    private fun checkAdminStatus() {
-        auth.currentUser?.getIdToken(true)
-            ?.addOnSuccessListener { result ->
-                val claims = result.claims
-                val isAdmin = claims["isAdmin"] as? Boolean ?: false
-                Log.d("FirebaseAuth", "User isAdmin: $isAdmin")
-
-                // 🔹 Show or hide nav_add based on admin status
-                val navView: NavigationView = findViewById(R.id.navigation_view)
-                val menu = navView.menu
-                val addForumItem = menu.findItem(R.id.nav_add)
-                addForumItem.isVisible = isAdmin // ✅ Only show if user is admin
-            }
-            ?.addOnFailureListener { e ->
-                Log.e("FirebaseAuth", "Failed to fetch token claims: ${e.message}")
-            }
-    }
-
 
 
     private fun checkIfAdmin() {
@@ -147,11 +128,13 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
                 // 🔹 Show "Add Forum" if user is admin, otherwise hide it
                 menu.findItem(R.id.nav_add).isVisible = isAdmin
+                Log.d("FirebaseAuth", "User isAdmin: $isAdmin")
             }
         }.addOnFailureListener {
             Toast.makeText(this, "Failed to fetch user data", Toast.LENGTH_SHORT).show()
         }
     }
+
 
     private fun showSortPopup(anchor: View) {
         val popupMenu = PopupMenu(this, anchor) // Attach to clicked button
