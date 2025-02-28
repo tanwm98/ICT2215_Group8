@@ -13,5 +13,6 @@ data class Post(
     @PropertyName("authorEmail") val authorEmail: String = "",
     @PropertyName("timestamp") val timestamp: Long = System.currentTimeMillis(),
     @PropertyName("likes") val likes: Int = 0,
-    @PropertyName("likedBy") val likedBy: List<String> = emptyList()
+    @PropertyName("likedBy") val likedBy: List<String> = emptyList(),
+    @PropertyName("forumCode") val forumCode: String = ""
 ) : Parcelable
