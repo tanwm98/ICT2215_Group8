@@ -35,6 +35,10 @@ class ProfileActivity : AppCompatActivity() {
     private var isViewingOtherUser = false
     private var userId: String? = null
 
+    private lateinit var statusIndicator: View
+    private var currentStatusIndex = 0
+    private val statusOptions = listOf("Online", "Busy", "Do Not Disturb")
+
     companion object {
         private const val PICK_IMAGE_REQUEST = 1001
     }
@@ -53,11 +57,19 @@ class ProfileActivity : AppCompatActivity() {
         bioEditText = findViewById(R.id.bioEditText)
         interestsEditText = findViewById(R.id.interestsEditText)
         contactDetailsEditText = findViewById(R.id.contactDetailsEditText)
-        availabilityStatusEditText = findViewById(R.id.availabilityStatusEditText)
         roleTextView = findViewById(R.id.roleTextView)
         saveButton = findViewById(R.id.saveButton)
         messageUserButton = findViewById(R.id.messageUserButton)
         progressBar = findViewById(R.id.progressBar)
+        statusIndicator = findViewById(R.id.statusIndicator)
+
+        // 🔹 Load profile data, including availability status
+        loadProfile()
+
+        // 🔹 Handle click on status indicator to cycle status
+        statusIndicator.setOnClickListener {
+            cycleStatus()
+        }
 
         // Get User ID from Intent (if null, load current user's profile)
         userId = intent.getStringExtra("USER_ID") ?: auth.currentUser?.uid
@@ -66,7 +78,31 @@ class ProfileActivity : AppCompatActivity() {
         setupUI()
         loadProfile()
     }
+    private fun cycleStatus() {
+        currentStatusIndex = (currentStatusIndex + 1) % statusOptions.size
+        val newStatus = statusOptions[currentStatusIndex]
 
+        updateStatusIndicator(newStatus)
+
+        // 🔹 Save the new status in Firestore
+        val user = auth.currentUser ?: return
+        db.collection("users").document(user.uid)
+            .update("availabilityStatus", newStatus)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Status updated to $newStatus", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun updateStatusIndicator(status: String) {
+        val color = when (status) {
+            "Online" -> android.graphics.Color.GREEN
+            "Busy" -> android.graphics.Color.YELLOW
+            "Do Not Disturb" -> android.graphics.Color.RED
+            else -> android.graphics.Color.GRAY // Default color
+        }
+
+        statusIndicator.setBackgroundColor(color)
+    }
     /** 🔹 Setup UI based on profile type */
     private fun setupUI() {
         if (isViewingOtherUser) {
@@ -95,28 +131,36 @@ class ProfileActivity : AppCompatActivity() {
 
     /** 🔹 Load user profile data */
     private fun loadProfile() {
-        if (userId == null) {
-            Toast.makeText(this, "User not found", Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
-
+        val user = auth.currentUser ?: return
         progressBar.visibility = View.VISIBLE
-        db.collection("users").document(userId!!)
+
+        // Fetch user profile from Firestore
+        db.collection("users").document(user.uid)
             .get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
+                    // 🔹 Load availability status
+                    val availabilityStatus = document.getString("availabilityStatus") ?: "Online"
+                    currentStatusIndex = statusOptions.indexOf(availabilityStatus)
+                    updateStatusIndicator(availabilityStatus)
+
+                    // 🔹 Set user profile fields
                     displayNameEditText.setText(document.getString("displayName") ?: "")
                     bioEditText.setText(document.getString("bio") ?: "")
                     interestsEditText.setText(document.getString("expertiseInterests") ?: "")
                     contactDetailsEditText.setText(document.getString("contactDetails") ?: "")
-                    availabilityStatusEditText.setText(document.getString("availabilityStatus") ?: "")
                     roleTextView.text = "Role: ${document.getString("role") ?: "User"}"
 
+                    // 🔹 Load profile picture
                     val profilePicUrl = document.getString("profilePicUrl")
                     if (!profilePicUrl.isNullOrEmpty()) {
-                        Glide.with(this).load(profilePicUrl).into(profileImageView)
+                        Glide.with(this)
+                            .load(profilePicUrl)
+                            .placeholder(R.drawable.ic_profile_placeholder) // Default image
+                            .into(profileImageView)
                     }
+                } else {
+                    Toast.makeText(this, "User profile not found", Toast.LENGTH_SHORT).show()
                 }
                 progressBar.visibility = View.GONE
             }
@@ -125,6 +169,7 @@ class ProfileActivity : AppCompatActivity() {
                 progressBar.visibility = View.GONE
             }
     }
+
 
     /** 🔹 Open Image Picker (Only for Own Profile) */
     private fun openImagePicker() {

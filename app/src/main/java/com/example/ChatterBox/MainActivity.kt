@@ -302,16 +302,22 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val userProfileImage = headerView.findViewById<ImageView>(R.id.user_profile_image)
         val userNameTextView = headerView.findViewById<TextView>(R.id.user_name)
 
-        db.collection("users").document(user.uid).get()
-            .addOnSuccessListener { document ->
-                if (document.exists()) {
+        // 🔹 Use Firestore snapshot listener for real-time updates
+        db.collection("users").document(user.uid)
+            .addSnapshotListener { document, error ->
+                if (error != null) {
+                    Toast.makeText(this, "Error loading profile: ${error.message}", Toast.LENGTH_SHORT).show()
+                    return@addSnapshotListener
+                }
+
+                if (document != null && document.exists()) {
                     val displayName = document.getString("displayName") ?: "User"
                     val profilePicUrl = document.getString("profilePicUrl")
 
-                    // Set user's name
+                    // ✅ Set user's name
                     userNameTextView.text = displayName
 
-                    // Load the profile picture if it exists
+                    // ✅ Load the profile picture if it exists
                     if (!profilePicUrl.isNullOrEmpty()) {
                         Glide.with(this)
                             .load(profilePicUrl)
@@ -319,9 +325,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                             .into(userProfileImage)
                     }
                 }
-            }
-            .addOnFailureListener {
-                Toast.makeText(this, "Failed to load user profile", Toast.LENGTH_SHORT).show()
             }
     }
 

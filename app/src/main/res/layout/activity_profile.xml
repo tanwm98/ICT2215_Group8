@@ -20,16 +20,32 @@
             android:contentDescription="Profile Image"
             android:layout_marginBottom="10dp"/>
 
-        <!-- Role (Read-only) -->
-        <TextView
-            android:id="@+id/roleTextView"
+        <!-- Role (Read-only) and Status Indicator -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Role: User"
-            android:textStyle="bold"
-            android:textSize="16sp"
-            android:layout_gravity="center"
-            android:layout_marginBottom="10dp"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:id="@+id/roleTextView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Role: User"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:layout_marginEnd="8dp"/>
+
+            <!-- Status Indicator -->
+            <View
+                android:id="@+id/statusIndicator"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:background="@drawable/circle_background"
+                android:clickable="true"
+                android:focusable="true"/>
+        </LinearLayout>
 
         <!-- Editable Fields -->
         <EditText
@@ -58,13 +74,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Contact Details"
-            android:layout_marginBottom="10dp"/>
-
-        <EditText
-            android:id="@+id/availabilityStatusEditText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Availability Status"
             android:layout_marginBottom="10dp"/>
 
         <!-- Save Button -->
