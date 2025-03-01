@@ -58,14 +58,9 @@
             android:name=".ForumPostsActivity"
             android:exported="true">
         </activity>
-
-
-
-
         <activity android:name=".ProfileActivity" />
-
-
-
+        <activity android:name=".InboxActivity" />
+        <activity android:name=".MessageActivity" />
     </application>
 
 </manifest>

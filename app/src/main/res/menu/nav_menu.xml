@@ -12,8 +12,8 @@
         android:icon="@drawable/bookmark_button" />
 
     <item
-        android:id="@+id/nav_message"
-        android:title="Message"
+        android:id="@+id/nav_inbox"
+        android:title="Inbox"
         android:icon="@drawable/message_button" />
 
     <item

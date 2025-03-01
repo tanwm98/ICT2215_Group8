@@ -1,16 +1,17 @@
 package com.example.ChatterBox.adapters
 
 import android.content.Intent
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.example.ChatterBox.ProfileActivity
+import com.example.ChatterBox.MessageActivity
 import com.example.ChatterBox.R
 import com.example.ChatterBox.models.User
 
-class UserAdapter(private val userList: List<User>) :
+class UserAdapter(private val userList: List<User>, private val onClick: (User) -> Unit) :
     RecyclerView.Adapter<UserAdapter.UserViewHolder>() {
 
     class UserViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -29,11 +30,10 @@ class UserAdapter(private val userList: List<User>) :
         holder.usernameText.text = user.username
         holder.displayNameText.text = user.displayName
 
-        // 🔹 Handle Click on User -> Open Profile
+        // ✅ Handle user click to start chat
         holder.itemView.setOnClickListener {
-            val intent = Intent(holder.itemView.context, ProfileActivity::class.java)
-            intent.putExtra("USER_ID", user.uid)  // Pass User ID to ProfileActivity
-            holder.itemView.context.startActivity(intent)
+            Log.d("UserAdapter", "Clicked on: ${user.displayName}") // ✅ Debugging Clicks
+            onClick(user)
         }
     }
 

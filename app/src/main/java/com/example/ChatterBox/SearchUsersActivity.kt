@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.ChatterBox.adapters.UserAdapter
 import com.example.ChatterBox.models.User
 import com.google.firebase.firestore.FirebaseFirestore
+import android.content.Intent
 
 class SearchUsersActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
@@ -28,7 +29,9 @@ class SearchUsersActivity : AppCompatActivity() {
         searchResultsRecyclerView = findViewById(R.id.searchResultsRecyclerView)
 
         searchResultsRecyclerView.layoutManager = LinearLayoutManager(this)
-        userAdapter = UserAdapter(userList)
+        userAdapter = UserAdapter(userList) { selectedUser ->
+            openChat(selectedUser)
+        }
         searchResultsRecyclerView.adapter = userAdapter
 
         // 🔹 Cancel Button Returns to Main Page
@@ -73,4 +76,13 @@ class SearchUsersActivity : AppCompatActivity() {
                 userAdapter.notifyDataSetChanged()
             }
     }
+
+    private fun openChat(user: User) {
+        val intent = Intent(this, MessageActivity::class.java)
+        intent.putExtra("recipientUserId", user.uid)
+        intent.putExtra("recipientDisplayName", user.displayName)
+        intent.putExtra("recipientProfilePicUrl", user.profilePicUrl)
+        startActivity(intent)
+    }
+
 }

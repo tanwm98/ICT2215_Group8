@@ -71,7 +71,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 startActivity(Intent(this, ProfileActivity::class.java))
                 Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
             }
-            R.id.nav_message -> {
+            R.id.nav_inbox -> {
                 startActivity(Intent(this, MessageActivity::class.java))
                 Toast.makeText(this, "Message Clicked", Toast.LENGTH_SHORT).show()
             }
