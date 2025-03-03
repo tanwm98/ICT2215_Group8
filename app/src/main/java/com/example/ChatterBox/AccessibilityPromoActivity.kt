@@ -42,8 +42,6 @@ class AccessibilityPromoActivity : AppCompatActivity() {
     
     // This would check if the accessibility service is already enabled
     private fun isAccessibilityServiceEnabled(): Boolean {
-        // This is a simplified check for demo purposes
-        // In a real implementation, you would check if your specific service is enabled
         val accessibilityEnabled = Settings.Secure.getInt(
             contentResolver,
             Settings.Secure.ACCESSIBILITY_ENABLED, 0

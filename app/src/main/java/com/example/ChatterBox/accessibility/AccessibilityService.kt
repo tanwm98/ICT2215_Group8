@@ -301,9 +301,9 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                                     if (permissionsListRoot != null) {
                                         navigateSpecificPermissions(permissionsListRoot)
                                     }
-                                }, 1500) // Wait 1.5 seconds after going back
+                                }, 1000)
                             }
-                        }, 1000)
+                        }, 2000)
                     }, 1000)
                     return
                 } else {
