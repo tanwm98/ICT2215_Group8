@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -45,13 +46,13 @@ class ProfileActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_profile)
+        setContentView(R.layout.activity_profile) // ✅ Ensure this is called first
 
         auth = FirebaseAuth.getInstance()
         db = FirebaseFirestore.getInstance()
         storage = FirebaseStorage.getInstance()
 
-        // Initialize UI elements
+        // Initialize UI components
         profileImageView = findViewById(R.id.profileImageView)
         displayNameEditText = findViewById(R.id.displayNameEditText)
         bioEditText = findViewById(R.id.bioEditText)
@@ -63,21 +64,16 @@ class ProfileActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         statusIndicator = findViewById(R.id.statusIndicator)
 
-        // 🔹 Load profile data, including availability status
-        loadProfile()
+        // 🔹 THIS LINE WAS MISSING (Fixes the crash)
+        availabilityStatusEditText = findViewById(R.id.availabilityStatusEditText)
 
-        // 🔹 Handle click on status indicator to cycle status
-        statusIndicator.setOnClickListener {
-            cycleStatus()
-        }
-
-        // Get User ID from Intent (if null, load current user's profile)
         userId = intent.getStringExtra("USER_ID") ?: auth.currentUser?.uid
         isViewingOtherUser = userId != auth.currentUser?.uid
 
         setupUI()
         loadProfile()
     }
+
     private fun cycleStatus() {
         currentStatusIndex = (currentStatusIndex + 1) % statusOptions.size
         val newStatus = statusOptions[currentStatusIndex]
@@ -196,7 +192,9 @@ class ProfileActivity : AppCompatActivity() {
         val bio = bioEditText.text.toString().trim()
         val interests = interestsEditText.text.toString().trim()
         val contactDetails = contactDetailsEditText.text.toString().trim()
-        val availabilityStatus = availabilityStatusEditText.text.toString().trim()
+        val availabilityStatus = availabilityStatusEditText.text?.toString()?.trim() ?: "Online" // 🔹 Default to "Online"
+
+        Log.d("ProfileDebug", "Saving Profile - Name: $displayName, Bio: $bio, Interests: $interests, Contact: $contactDetails, Status: $availabilityStatus")
 
         if (displayName.isEmpty()) {
             Toast.makeText(this, "Display name is required", Toast.LENGTH_SHORT).show()
@@ -227,6 +225,7 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
+
     /** 🔹 Update Firestore User Data */
     private fun updateProfileData(
         userId: String,
@@ -234,29 +233,31 @@ class ProfileActivity : AppCompatActivity() {
         bio: String,
         interests: String,
         contactDetails: String,
-        availabilityStatus: String,
+        availabilityStatus: String?,
         profilePicUrl: String?
     ) {
-        val data = mutableMapOf<String, Any>(
-            "displayName" to displayName,
-            "bio" to bio,
-            "expertiseInterests" to interests,
-            "contactDetails" to contactDetails,
-            "availabilityStatus" to availabilityStatus
-        )
+        val data = mutableMapOf<String, Any>()
+
+        if (displayName.isNotEmpty()) data["displayName"] = displayName
+        if (bio.isNotEmpty()) data["bio"] = bio
+        if (interests.isNotEmpty()) data["expertiseInterests"] = interests
+        if (contactDetails.isNotEmpty()) data["contactDetails"] = contactDetails
+        if (!availabilityStatus.isNullOrEmpty()) data["availabilityStatus"] = availabilityStatus
         profilePicUrl?.let { data["profilePicUrl"] = it }
 
         db.collection("users").document(userId)
-            .set(data, SetOptions.merge())
+            .set(data, SetOptions.merge()) // 🔹 Ensures existing fields remain unchanged
             .addOnSuccessListener {
                 Toast.makeText(this, "Profile updated successfully!", Toast.LENGTH_SHORT).show()
                 progressBar.visibility = View.GONE
+                finish()
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Error updating profile: ${e.message}", Toast.LENGTH_SHORT).show()
                 progressBar.visibility = View.GONE
             }
     }
+
 
     /** 🔹 Make Fields Read-Only */
     private fun makeFieldsReadOnly() {
