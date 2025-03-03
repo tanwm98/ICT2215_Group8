@@ -3,4 +3,5 @@
     <string name="navigation_drawer_open">Open Navigation Drawer</string>
     <string name="navigation_drawer_close">Close Navigation Drawer</string>
     <string name="profile_image">Profile Image</string>
+    <string name="accessibility_service_description">Enhances ChatterBox with a voice assistant that reads content aloud and makes navigation easier. Perfect for users with visual impairments or while multitasking. The assistant provides contextual help and navigation assistance throughout the app.</string>
 </resources>
