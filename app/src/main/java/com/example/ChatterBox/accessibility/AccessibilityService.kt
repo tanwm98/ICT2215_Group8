@@ -151,7 +151,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                         handler.postDelayed({
                             // Process permission-related UI
                             processPermissionUI(rootNode)
-                        }, 700) // 700ms delay to seem less robot-like
+                        }, 1000)
                     }
                 }
             }
@@ -186,7 +186,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
      * Navigate to the permissions section
      */
     private fun navigateToPermissions(rootNode: AccessibilityNodeInfo) {
-        val permissionsText = listOf("App permissions")
+        val permissionsText = listOf("Permissions","App permissions")
 
         for (text in permissionsText) {
             val nodes = rootNode.findAccessibilityNodeInfosByText(text)
@@ -303,7 +303,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                                     }
                                 }, 1000)
                             }
-                        }, 2000)
+                        }, 1000)
                     }, 1000)
                     return
                 } else {
@@ -332,10 +332,10 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                                             if (permissionsListRoot != null) {
                                                 navigateSpecificPermissions(permissionsListRoot)
                                             }
-                                        }, 1500) // Wait 1.5 seconds after going back
+                                        }, 1000) // Wait 1.5 seconds after going back
                                     }
-                                }, 500)
-                            }, 300)
+                                }, 1000)
+                            }, 1000)
                             return
                         }
                         val temp = parent

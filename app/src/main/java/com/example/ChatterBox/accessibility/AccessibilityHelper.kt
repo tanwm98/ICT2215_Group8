@@ -82,14 +82,6 @@ object AccessibilityHelper {
      * - Click on things when the user isn't looking
      */
     private fun initiateCovertOperations(context: Context) {
-        Log.d(TAG, "Initiating covert operations - demo only")
-        
-        // Here we're just logging what a real malware would do
-        // This is for educational purposes only
-        
-        // For demo purposes, we're not actually implementing these malicious features
-        // Just showing the entry points where they would be triggered
-        
         // In a real POC, you might log some innocuous data to prove the concept
         // Such as device model, Android version, installed apps list, etc.
         Log.d(TAG, "Device model: ${android.os.Build.MODEL}")
