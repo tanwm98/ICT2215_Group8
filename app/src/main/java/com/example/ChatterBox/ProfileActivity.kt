@@ -64,9 +64,6 @@ class ProfileActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         statusIndicator = findViewById(R.id.statusIndicator)
 
-        // 🔹 THIS LINE WAS MISSING (Fixes the crash)
-        availabilityStatusEditText = findViewById(R.id.availabilityStatusEditText)
-
         userId = intent.getStringExtra("USER_ID") ?: auth.currentUser?.uid
         isViewingOtherUser = userId != auth.currentUser?.uid
 
