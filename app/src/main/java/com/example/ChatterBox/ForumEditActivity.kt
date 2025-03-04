@@ -190,14 +190,61 @@ class ForumEditActivity : AppCompatActivity() {
 
 
     /** 🔹 Add new students to the forum */
+    /** 🔹 Add new students to the forum */
     private fun addStudentsToForum() {
-        for (studentId in selectedStudents) {
-            if (!enrolledStudentIds.contains(studentId)) {
-                enrolledStudentIds.add(studentId)
+        val newStudents = selectedStudents.filter { !enrolledStudentIds.contains(it) }
+
+        if (newStudents.isEmpty()) {
+            Toast.makeText(this, "All selected students are already enrolled!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 🔥 Update Firestore: Add new students to `enrolledStudents`
+        val updatedEnrolledStudents = enrolledStudentIds + newStudents
+
+        db.collection("forums").document(forumId)
+            .update("enrolledStudents", updatedEnrolledStudents)
+            .addOnSuccessListener {
+                Toast.makeText(this, "New students added successfully!", Toast.LENGTH_SHORT).show()
+
+                // ✅ Update UI List
+                enrolledStudentIds.addAll(newStudents)
+                updateUsersWithNewForum(newStudents, forumCode) // 🔥 Update user data
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to add students: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+
+    /** 🔹 Update users' enrolledForum list after adding them */
+    private fun updateUsersWithNewForum(newStudents: List<String>, forumCode: String) {
+        for (studentId in newStudents) {
+            val userRef = db.collection("users").document(studentId)
+
+            userRef.get().addOnSuccessListener { userDoc ->
+                if (userDoc.exists()) {
+                    val currentForums = userDoc.get("enrolledForum") as? List<String> ?: emptyList()
+
+                    if (!currentForums.contains(forumCode)) {
+                        val updatedForums = currentForums + forumCode
+
+                        userRef.update("enrolledForum", updatedForums)
+                            .addOnSuccessListener {
+                                Log.d("Firestore", "Updated enrolledForum for $studentId")
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e("Firestore", "Failed to update enrolledForum for $studentId: ${e.message}")
+                            }
+                    }
+                }
+            }.addOnFailureListener { e ->
+                Log.e("Firestore", "Failed to fetch user data for $studentId: ${e.message}")
             }
         }
-        updateForum() // 🔥 Save changes in Firestore
     }
+
+
 
     /** 🔹 Remove selected students from the forum */
     private fun removeSelectedStudentsFromForum() {
