@@ -28,6 +28,7 @@ class ForumPostsActivity : AppCompatActivity() {
     private lateinit var adapter: PostAdapter
     private val posts = mutableListOf<Post>()
     private var forumCode: String = "" // 🔥 Forum code passed from previous screen
+    private var forumId: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,19 +97,42 @@ class ForumPostsActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.action_sort -> {
-                // 🔹 Show dropdown menu when Sort is clicked
-                showSortPopup(findViewById(R.id.action_sort)) // Attach dropdown to Sort button
-                true
-            }
             R.id.action_setting -> {
-                // 🔹 Open SearchUsersActivity when Search is clicked
-                startActivity(Intent(this, ForumEditActivity::class.java))
+                Log.d("Firestore", "Fetching forum ID for forumCode: $forumCode")
+
+                // 🔥 Always fetch the latest forumId from Firestore before opening edit screen
+                db.collection("forums")
+                    .whereEqualTo("code", forumCode) // ✅ Find forum by its code
+                    .get()
+                    .addOnSuccessListener { documents ->
+                        if (!documents.isEmpty) {
+                            val document = documents.documents[0]
+                            val forumId = document.id // ✅ Correctly fetch forum ID
+
+                            // 🔥 Debugging Log
+                            Log.d("Firestore", "Found Forum ID: $forumId for forumCode: $forumCode")
+
+                            // ✅ Now open the edit screen with the correct forumId
+                            val intent = Intent(this, ForumEditActivity::class.java)
+                            intent.putExtra("FORUM_ID", forumId) // ✅ Pass forum ID
+                            intent.putExtra("FORUM_CODE", forumCode) // ✅ Pass forum code
+                            startActivity(intent)
+                        } else {
+                            Toast.makeText(this, "Forum not found!", Toast.LENGTH_SHORT).show()
+                            Log.e("Firestore", "No forum found for code: $forumCode")
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        Toast.makeText(this, "Error fetching forum: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Log.e("Firestore", "Error fetching forum: ${e.message}")
+                    }
                 true
             }
             else -> super.onOptionsItemSelected(item)
         }
     }
+
+
 
     private fun showSortPopup(anchor: View) {
         val popupMenu = PopupMenu(this, anchor) // Attach to clicked button
@@ -144,6 +168,25 @@ class ForumPostsActivity : AppCompatActivity() {
             Toast.makeText(this, "Failed to fetch user data", Toast.LENGTH_SHORT).show()
         }
     }
+
+    private fun fetchForumId() {
+        db.collection("forums")
+            .whereEqualTo("code", forumCode) // 🔥 Query using forumCode
+            .get()
+            .addOnSuccessListener { documents ->
+                if (!documents.isEmpty) {
+                    val document = documents.documents[0]
+                    forumId = document.id // ✅ Set the forumId correctly
+                    Log.d("Firestore", "Forum ID found: $forumId")
+                } else {
+                    Log.e("Firestore", "Forum not found for code: $forumCode")
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("Firestore", "Error fetching forum ID: ${e.message}")
+            }
+    }
+
 
 
     /** 🔹 Show Dialog for Creating a New Post */
