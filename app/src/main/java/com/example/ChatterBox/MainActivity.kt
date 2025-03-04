@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.bumptech.glide.Glide
+import com.example.ChatterBox.models.Forum
 import com.example.ChatterBox.models.User
 import com.google.android.material.navigation.NavigationView
 import com.google.firebase.auth.FirebaseAuth
@@ -192,6 +193,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         }
 
                         for (forumDoc in forumDocs) {
+                            val forum = forumDoc.toObject(Forum::class.java)?.copy(id = forumDoc.id) // ✅ Store document ID
                             val forumName = forumDoc.getString("name") ?: "Unknown Forum"
                             val forumCode = forumDoc.getString("code") ?: ""
 
@@ -200,6 +202,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                             // 🔥 Set click listener to open ForumPostsActivity with FORUM_CODE
                             forumItem.setOnMenuItemClickListener {
                                 val intent = Intent(this, ForumPostsActivity::class.java)
+                                intent.putExtra("FORUM_ID", forum?.id) // ✅ Pass Firestore Document ID
                                 intent.putExtra("FORUM_CODE", forumCode) // ✅ Pass forumCode to the new screen
                                 startActivity(intent)
                                 true

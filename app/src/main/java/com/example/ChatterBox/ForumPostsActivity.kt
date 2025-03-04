@@ -4,8 +4,11 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.EditText
+import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -14,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.ChatterBox.adapters.PostAdapter
 import com.example.ChatterBox.models.Post
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.navigation.NavigationView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -32,6 +36,10 @@ class ForumPostsActivity : AppCompatActivity() {
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
 
+        // 🔹 Attach the Toolbar
+        val toolbar: androidx.appcompat.widget.Toolbar = findViewById(R.id.toolbar)
+        setSupportActionBar(toolbar) // ✅ This enables the menu
+
         forumCode = intent.getStringExtra("FORUM_CODE") ?: ""
         if (forumCode.isEmpty()) {
             Toast.makeText(this, "Forum not found!", Toast.LENGTH_SHORT).show()
@@ -41,8 +49,10 @@ class ForumPostsActivity : AppCompatActivity() {
 
         setupRecyclerView()
         setupFab()
+        checkIfAdmin()
         loadPosts()
     }
+
 
     /** 🔹 Setup RecyclerView */
     private fun setupRecyclerView() {
@@ -59,6 +69,82 @@ class ForumPostsActivity : AppCompatActivity() {
             showCreatePostDialog()
         }
     }
+
+    override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            db.collection("users").document(currentUser.uid).get()
+                .addOnSuccessListener { document ->
+                    if (document.exists()) {
+                        val isAdmin = document.getBoolean("isAdmin") ?: false
+                        val settingsItem = menu?.findItem(R.id.action_setting)
+                        settingsItem?.isVisible = isAdmin // ✅ Show only if admin
+                    }
+                }
+                .addOnFailureListener {
+                    Toast.makeText(this, "Failed to load menu options", Toast.LENGTH_SHORT).show()
+                }
+        }
+        return super.onPrepareOptionsMenu(menu)
+    }
+
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.nav_menu_forum, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_sort -> {
+                // 🔹 Show dropdown menu when Sort is clicked
+                showSortPopup(findViewById(R.id.action_sort)) // Attach dropdown to Sort button
+                true
+            }
+            R.id.action_setting -> {
+                // 🔹 Open SearchUsersActivity when Search is clicked
+                startActivity(Intent(this, ForumEditActivity::class.java))
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun showSortPopup(anchor: View) {
+        val popupMenu = PopupMenu(this, anchor) // Attach to clicked button
+        popupMenu.menu.add(0, 0, 0, "Sort by Latest")
+        popupMenu.menu.add(0, 1, 1, "Sort by Most Likes")
+
+        popupMenu.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                0 -> loadPosts(orderByLikes = false) // Sort by latest
+                1 -> loadPosts(orderByLikes = true) // Sort by most likes
+            }
+            true
+        }
+        popupMenu.show()
+    }
+
+    /** 🔹 Check if User is Admin */
+    private fun checkIfAdmin() {
+        val currentUser = auth.currentUser ?: return
+        val userRef = db.collection("users").document(currentUser.uid)
+
+        userRef.get().addOnSuccessListener { document ->
+            if (document.exists()) {
+                val isAdmin = document.getBoolean("isAdmin") ?: false
+                Log.d("FirebaseAuth", "User isAdmin: $isAdmin")
+
+                // 🔥 Save isAdmin value for later use
+                runOnUiThread {
+                    invalidateOptionsMenu() // ✅ This will call onPrepareOptionsMenu()
+                }
+            }
+        }.addOnFailureListener {
+            Toast.makeText(this, "Failed to fetch user data", Toast.LENGTH_SHORT).show()
+        }
+    }
+
 
     /** 🔹 Show Dialog for Creating a New Post */
     private fun showCreatePostDialog() {
@@ -109,25 +195,41 @@ class ForumPostsActivity : AppCompatActivity() {
             }
     }
 
-    /** 🔹 Load Posts for this Forum */
-    private fun loadPosts() {
-        db.collection("posts")
-            .whereEqualTo("forumCode", forumCode) // 🔥 Filter by forum code
-            //.orderBy("timestamp", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Toast.makeText(this, "Error loading posts: ${e.message}", Toast.LENGTH_SHORT).show()
-                    return@addSnapshotListener
-                }
 
-                posts.clear()
-                for (doc in snapshot?.documents ?: emptyList()) {
-                    val post = doc.toObject(Post::class.java)?.copy(id = doc.id)
-                    if (post != null) {
-                        posts.add(post)
-                    }
-                }
-                adapter.notifyDataSetChanged()
+    private fun loadPosts(orderByLikes: Boolean = false) {
+        if (forumCode.isEmpty()) {
+            Toast.makeText(this, "Invalid forum!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        var query: Query = db.collection("posts")
+            .whereEqualTo("forumCode", forumCode) // ✅ Ensure only posts from this forum are fetched
+
+        // 🔥 Order results properly
+        query = if (orderByLikes) {
+            query.orderBy("likes", Query.Direction.DESCENDING)
+        } else {
+            query.orderBy("timestamp", Query.Direction.DESCENDING)
+        }
+
+        query.addSnapshotListener { snapshot, e ->
+            if (e != null) {
+                //Toast.makeText(this, "Error loading posts: ${e.message}", Toast.LENGTH_SHORT).show()
+                return@addSnapshotListener
             }
+
+            posts.clear()
+            for (doc in snapshot?.documents ?: emptyList()) {
+                val post = doc.toObject(Post::class.java)?.copy(id = doc.id)
+                if (post != null) {
+                    posts.add(post) // ✅ Only add posts from this forum
+                }
+            }
+
+            Log.d("ForumPosts", "Loaded ${posts.size} posts for forum: $forumCode") // Debugging
+
+            adapter.notifyDataSetChanged()
+        }
     }
+
 }

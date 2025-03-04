@@ -1,9 +1,10 @@
 package com.example.ChatterBox.models
 
+import com.google.firebase.firestore.Exclude
 import com.google.firebase.firestore.PropertyName
 
 data class Forum(
-    var id: String = "", // 🔹 Add this field to store Firestore document ID
+    @get:Exclude var id: String = "",
     @PropertyName("name") val name: String = "",
     @PropertyName("code") val code: String = "",
     @PropertyName("description") val description: String = "",
