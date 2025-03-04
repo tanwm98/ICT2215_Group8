@@ -11,7 +11,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.ChatterBox.adapters.UserAdapter
 import com.example.ChatterBox.models.User
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.auth.FirebaseAuth
 import android.content.Intent
+import android.widget.Toast
 
 class SearchUsersActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
@@ -78,11 +80,23 @@ class SearchUsersActivity : AppCompatActivity() {
     }
 
     private fun openChat(user: User) {
+        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        if (user.uid == currentUserId) {
+            Toast.makeText(this, "You cannot message yourself!", Toast.LENGTH_SHORT).show()
+            return
+        }
+        // Generate conversation ID by sorting the UIDs.
+        val sortedIds = listOf(currentUserId, user.uid).sorted()
+        val conversationId = sortedIds.joinToString("_")
+        // Optionally, create the conversation document here if it doesn't exist.
+        // Then pass the conversationId to MessageActivity.
         val intent = Intent(this, MessageActivity::class.java)
+        intent.putExtra("conversationId", conversationId)
         intent.putExtra("recipientUserId", user.uid)
         intent.putExtra("recipientDisplayName", user.displayName)
         intent.putExtra("recipientProfilePicUrl", user.profilePicUrl)
         startActivity(intent)
     }
+
 
 }

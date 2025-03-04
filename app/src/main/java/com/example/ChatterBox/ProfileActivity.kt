@@ -72,6 +72,11 @@ class ProfileActivity : AppCompatActivity() {
 
         setupUI()
         loadProfile()
+
+        // 🔹 Handle click on status indicator to cycle status
+        statusIndicator.setOnClickListener {
+            cycleStatus()
+        }
     }
 
     private fun cycleStatus() {
@@ -116,12 +121,6 @@ class ProfileActivity : AppCompatActivity() {
 
         saveButton.setOnClickListener {
             saveProfile()
-        }
-
-        messageUserButton.setOnClickListener {
-            val intent = Intent(this, ChatActivity::class.java)
-            intent.putExtra("USER_ID", userId)
-            startActivity(intent)
         }
     }
 

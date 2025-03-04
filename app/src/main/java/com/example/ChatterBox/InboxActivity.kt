@@ -20,12 +20,14 @@ class InboxActivity : AppCompatActivity() {
     private lateinit var db: FirebaseFirestore
     private lateinit var auth: FirebaseAuth
     private lateinit var usersRecyclerView: RecyclerView
-    private lateinit var userAdapter: UserAdapter
     private lateinit var searchInput: EditText
-    private var users = mutableListOf<User>()
 
-    // Flag to indicate whether a search is active.
-    private var isSearching = false
+    // Two separate lists and adapters: one for conversations and one for search results.
+    private var conversationUsers = mutableListOf<User>()
+    private var searchUsersList = mutableListOf<User>()
+
+    private lateinit var conversationAdapter: UserAdapter
+    private lateinit var searchUserAdapter: UserAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,27 +39,36 @@ class InboxActivity : AppCompatActivity() {
         searchInput = findViewById(R.id.searchInput)
         usersRecyclerView = findViewById(R.id.usersRecyclerView)
 
-        userAdapter = UserAdapter(users) { selectedUser ->
+        // Initialize adapters for conversations and search results.
+        conversationAdapter = UserAdapter(conversationUsers) { selectedUser ->
+            openChat(selectedUser)
+        }
+        searchUserAdapter = UserAdapter(searchUsersList) { selectedUser ->
             openChat(selectedUser)
         }
 
         usersRecyclerView.layoutManager = LinearLayoutManager(this)
-        usersRecyclerView.adapter = userAdapter
+        // Default view shows conversations.
+        usersRecyclerView.adapter = conversationAdapter
 
-        // Load conversations initially (if not searching)
+        // Load conversations initially.
         loadConversations()
 
+        // Inline search using a TextWatcher.
         searchInput.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 val query = s.toString().trim()
-                isSearching = query.isNotEmpty()
                 if (query.isEmpty()) {
-                    // If search is cleared, reload conversations.
-                    users.clear()
-                    userAdapter.notifyDataSetChanged()
+                    // When search field is cleared, switch back to conversation view.
+                    searchUsersList.clear()
+                    searchUserAdapter.notifyDataSetChanged()
+                    usersRecyclerView.adapter = conversationAdapter
+                    // Reload conversations (if needed).
                     loadConversations()
                 } else {
+                    // When the user is typing, perform search and switch adapter.
                     searchUsers(query)
+                    usersRecyclerView.adapter = searchUserAdapter
                 }
             }
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -66,32 +77,22 @@ class InboxActivity : AppCompatActivity() {
     }
 
     private fun loadConversations() {
-        // Skip loading conversations if user is currently searching.
-        if (isSearching) return
-
         val currentUserId = auth.currentUser?.uid ?: return
 
         db.collection("conversations")
             .whereArrayContains("participants", currentUserId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    // Log the error detail and show a Toast.
                     Log.e("InboxActivity", "Error loading conversations: ${error.message}")
-                    Toast.makeText(
-                        this,
-                        "Error loading conversations: ${error.message}",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(this, "Error loading conversations: ${error.message}", Toast.LENGTH_SHORT).show()
                     return@addSnapshotListener
                 }
 
-                // Check again in case search started while waiting for the snapshot.
-                if (isSearching) return@addSnapshotListener
-
-                users.clear()
+                // Clear and reload conversation users.
+                conversationUsers.clear()
                 if (snapshot == null || snapshot.isEmpty) {
                     Toast.makeText(this, "Start messaging!", Toast.LENGTH_SHORT).show()
-                    userAdapter.notifyDataSetChanged()
+                    conversationAdapter.notifyDataSetChanged()
                     return@addSnapshotListener
                 }
 
@@ -103,8 +104,8 @@ class InboxActivity : AppCompatActivity() {
                             .addOnSuccessListener { userDoc ->
                                 val user = userDoc.toObject(User::class.java)
                                 if (user != null) {
-                                    users.add(user)
-                                    userAdapter.notifyDataSetChanged()
+                                    conversationUsers.add(user)
+                                    conversationAdapter.notifyDataSetChanged()
                                 }
                             }
                     }
@@ -118,19 +119,20 @@ class InboxActivity : AppCompatActivity() {
             .startAt(query)
             .endAt(query + "\uf8ff")
             .get()
-            .addOnSuccessListener { result ->
-                users.clear()
-                if (result.isEmpty) {
+            .addOnSuccessListener { snapshot ->
+                searchUsersList.clear()
+                if (snapshot.isEmpty) {
                     Toast.makeText(this, "No users found", Toast.LENGTH_SHORT).show()
                 } else {
-                    for (document in result) {
+                    for (document in snapshot.documents) {
                         val user = document.toObject(User::class.java)
-                        if (user.uid != auth.currentUser?.uid) {
-                            users.add(user)
+                        // Exclude the current user from search results.
+                        if (user != null && user.uid != auth.currentUser?.uid) {
+                            searchUsersList.add(user)
                         }
                     }
                 }
-                userAdapter.notifyDataSetChanged()
+                searchUserAdapter.notifyDataSetChanged()
             }
             .addOnFailureListener { e ->
                 Log.e("InboxActivity", "Error searching users: ${e.message}")
