@@ -72,7 +72,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
             }
             R.id.nav_inbox -> {
-                startActivity(Intent(this, MessageActivity::class.java))
+                startActivity(Intent(this, InboxActivity::class.java))
                 Toast.makeText(this, "Message Clicked", Toast.LENGTH_SHORT).show()
             }
             R.id.nav_add -> {
@@ -83,6 +83,29 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         drawerLayout.closeDrawer(GravityCompat.START) // Close drawer after clicking
         return true
     }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.sort_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_search -> {
+                // 🔹 Open SearchUsersActivity when Search is clicked
+                startActivity(Intent(this, SearchUsersActivity::class.java))
+                true
+            }
+//            R.id.action_sort -> {
+//                // 🔹 Show dropdown menu when Sort is clicked
+//                showSortPopup(findViewById(R.id.action_sort)) // Attach dropdown to Sort button
+//                true
+//            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+
 
     /** 🔹 Load User Profile */
     private fun loadUserProfile() {

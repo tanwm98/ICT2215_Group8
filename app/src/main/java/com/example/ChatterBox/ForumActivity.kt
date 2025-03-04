@@ -71,6 +71,7 @@ class ForumActivity : AppCompatActivity() {
     }
 
     /** 🔹 Create forum and save to Firestore */
+    /** 🔹 Create forum and save to Firestore */
     private fun createForum() {
         val currentUser = auth.currentUser ?: return
         val userRef = db.collection("users").document(currentUser.uid)
@@ -91,9 +92,9 @@ class ForumActivity : AppCompatActivity() {
 
             }
 
-            if (selectedStudentIds.isEmpty()) {
-                Toast.makeText(this, "At least one student must be enrolled", Toast.LENGTH_SHORT).show()
-
+            // 🔥 Add the admin to the list of enrolled users
+            if (!selectedStudentIds.contains(currentUser.uid)) {
+                selectedStudentIds.add(currentUser.uid) // ✅ Admin is now enrolled
             }
 
             val forum = Forum(
@@ -108,7 +109,7 @@ class ForumActivity : AppCompatActivity() {
                 .addOnSuccessListener { forumDocRef ->
                     Toast.makeText(this, "Forum created successfully!", Toast.LENGTH_SHORT).show()
 
-                    // 🔹 Update each student's enrolledForum list
+                    // 🔹 Update enrolledForum field for admin and students
                     updateStudentsEnrolledForum(moduleCode)
 
                     finish()
@@ -123,8 +124,9 @@ class ForumActivity : AppCompatActivity() {
         }
     }
 
-    /** 🔹 Update the enrolledForum list for selected students */
+
     /** 🔹 Update the enrolledForum list for selected students using module code */
+    /** 🔹 Update the enrolledForum list for selected students (and admin) */
     private fun updateStudentsEnrolledForum(moduleCode: String) {
         if (selectedStudentIds.isEmpty()) {
             Log.e("Firestore", "No students selected for enrollment")
@@ -140,10 +142,8 @@ class ForumActivity : AppCompatActivity() {
                     return@addOnSuccessListener
                 }
 
-                // 🔥 Handle null case explicitly (initialize as empty list if null)
                 val currentEnrolledForums = document.get("enrolledForum") as? List<String> ?: listOf()
 
-                // 🔥 Prevent duplicate module codes
                 if (!currentEnrolledForums.contains(moduleCode)) {
                     val updatedForums = currentEnrolledForums + moduleCode
 
@@ -162,6 +162,7 @@ class ForumActivity : AppCompatActivity() {
             }
         }
     }
+
 
 
 }
