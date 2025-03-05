@@ -29,6 +29,7 @@ class ForumPostsActivity : AppCompatActivity() {
     private val posts = mutableListOf<Post>()
     private var forumCode: String = "" // 🔥 Forum code passed from previous screen
     private var forumId: String = ""
+    private lateinit var progressBar: ProgressBar // Declare globally
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,9 +38,8 @@ class ForumPostsActivity : AppCompatActivity() {
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
 
-        // 🔹 Attach the Toolbar
-        val toolbar: androidx.appcompat.widget.Toolbar = findViewById(R.id.toolbar)
-        setSupportActionBar(toolbar) // ✅ This enables the menu
+        // 🔹 Initialize ProgressBar
+        progressBar = findViewById(R.id.progressBar)
 
         forumCode = intent.getStringExtra("FORUM_CODE") ?: ""
         if (forumCode.isEmpty()) {
@@ -53,6 +53,7 @@ class ForumPostsActivity : AppCompatActivity() {
         checkIfAdmin()
         loadPosts()
     }
+
 
 
     /** 🔹 Setup RecyclerView */
@@ -222,7 +223,7 @@ class ForumPostsActivity : AppCompatActivity() {
             forumCode = forumCode // 🔥 Attach forum code to post
         )
 
-        findViewById<ProgressBar>(R.id.progressBar).visibility = View.VISIBLE
+        progressBar.visibility = View.VISIBLE // ✅ Ensure ProgressBar is initialized
 
         db.collection("posts")
             .add(post)
@@ -234,9 +235,10 @@ class ForumPostsActivity : AppCompatActivity() {
                 Toast.makeText(this, "Error creating post: ${e.message}", Toast.LENGTH_SHORT).show()
             }
             .addOnCompleteListener {
-                findViewById<ProgressBar>(R.id.progressBar).visibility = View.GONE
+                progressBar.visibility = View.GONE // ✅ Hide ProgressBar after finishing
             }
     }
+
 
 
     private fun loadPosts(orderByLikes: Boolean = false) {

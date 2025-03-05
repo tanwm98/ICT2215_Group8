@@ -14,6 +14,14 @@
         android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
         app:title="Forum Posts" />
 
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:layout_centerInParent="true"/>
+
+
     <!-- 🔹 RecyclerView for posts -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/postsRecyclerView"
