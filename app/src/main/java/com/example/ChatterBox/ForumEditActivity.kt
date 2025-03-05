@@ -190,7 +190,6 @@ class ForumEditActivity : AppCompatActivity() {
 
 
     /** 🔹 Add new students to the forum */
-    /** 🔹 Add new students to the forum */
     private fun addStudentsToForum() {
         val newStudents = selectedStudents.filter { !enrolledStudentIds.contains(it) }
 
@@ -248,9 +247,58 @@ class ForumEditActivity : AppCompatActivity() {
 
     /** 🔹 Remove selected students from the forum */
     private fun removeSelectedStudentsFromForum() {
-        for (studentId in selectedStudents) {
-            enrolledStudentIds.remove(studentId)
+        if (selectedStudents.isEmpty()) {
+            Toast.makeText(this, "No students selected for removal!", Toast.LENGTH_SHORT).show()
+            return
         }
-        updateForum() // 🔥 Save changes in Firestore
+
+        val remainingStudents = enrolledStudentIds.filter { it !in selectedStudents }
+
+        // 🔥 Update Firestore: Remove selected students from `enrolledStudents`
+        db.collection("forums").document(forumId)
+            .update("enrolledStudents", remainingStudents)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Students removed successfully!", Toast.LENGTH_SHORT).show()
+
+                // ✅ Update UI List
+                enrolledStudentIds.clear()
+                enrolledStudentIds.addAll(remainingStudents)
+                studentAdapter.notifyDataSetChanged() // 🔥 Refresh the student list UI
+
+                // 🔥 Update user records to remove the forum
+                removeForumFromUsers(selectedStudents, forumCode)
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to remove students: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
     }
+
+    /** 🔹 Remove the forum from the user's enrolledForum list */
+    private fun removeForumFromUsers(removedStudents: List<String>, forumCode: String) {
+        for (studentId in removedStudents) {
+            val userRef = db.collection("users").document(studentId)
+
+            userRef.get().addOnSuccessListener { userDoc ->
+                if (userDoc.exists()) {
+                    val currentForums = userDoc.get("enrolledForum") as? List<String> ?: emptyList()
+
+                    if (currentForums.contains(forumCode)) {
+                        val updatedForums = currentForums.filter { it != forumCode }
+
+                        userRef.update("enrolledForum", updatedForums)
+                            .addOnSuccessListener {
+                                Log.d("Firestore", "Removed forum from user $studentId")
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e("Firestore", "Failed to update enrolledForum for $studentId: ${e.message}")
+                            }
+                    }
+                }
+            }.addOnFailureListener { e ->
+                Log.e("Firestore", "Failed to fetch user data for $studentId: ${e.message}")
+            }
+        }
+    }
+
+
 }
