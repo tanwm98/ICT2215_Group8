@@ -10,6 +10,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
@@ -32,8 +33,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
 
-        if (auth.currentUser == null) {
-            startActivity(Intent(this, LoginActivity::class.java))
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            // ✅ Make sure you use FLAG_ACTIVITY_CLEAR_TOP or FLAG_ACTIVITY_NEW_TASK properly
+            val intent = Intent(this, LoginActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
             finish()
             return
         }
@@ -86,6 +91,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 startActivity(Intent(this, ForumActivity::class.java))
                 Toast.makeText(this, "Forum Clicked", Toast.LENGTH_SHORT).show()
             }
+            R.id.nav_logout -> {
+                showLogoutDialog()
+            }
         }
         drawerLayout.closeDrawer(GravityCompat.START) // Close drawer after clicking
         return true
@@ -117,6 +125,38 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             else -> super.onOptionsItemSelected(item)
         }
     }
+
+    /** 🔹 Handle Back Button */
+    override fun onBackPressed() {
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START) // 🔥 Close drawer first
+        } else {
+            // 🔥 Prevent back action (do nothing)
+            Toast.makeText(this, "Press the logout button to exit.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showLogoutDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Log Out")
+            .setMessage("Are you sure you want to log out?")
+            .setPositiveButton("Yes") { _, _ ->
+                logoutUser() // ✅ Only logout when user confirms
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun logoutUser() {
+        auth.signOut() // ✅ Sign out from Firebase Auth
+
+        val intent = Intent(this, LoginActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK // ✅ Clear backstack
+        startActivity(intent)
+        finish() // ✅ Close current activity
+    }
+
+
 
     /** 🔹 Load User Profile */
     private fun loadUserProfile() {
@@ -225,15 +265,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         }
                     }
             }
-        }
-    }
-
-    /** 🔹 Handle Back Button */
-    override fun onBackPressed() {
-        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            drawerLayout.closeDrawer(GravityCompat.START)
-        } else {
-            super.onBackPressed()
         }
     }
 
