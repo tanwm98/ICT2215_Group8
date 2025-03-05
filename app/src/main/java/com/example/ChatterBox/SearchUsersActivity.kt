@@ -13,6 +13,7 @@ import com.example.ChatterBox.models.User
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.FirebaseAuth
 import android.content.Intent
+import android.util.Log
 import android.widget.Toast
 
 class SearchUsersActivity : AppCompatActivity() {
@@ -80,10 +81,13 @@ class SearchUsersActivity : AppCompatActivity() {
     }
 
     private fun openProfile(user: User) {
-        val intent = Intent(this, UserProfileActivity::class.java)
-        intent.putExtra("userId", user.uid)
+        Log.d("SearchUsersActivity", "Opening profile for user: ${user.uid}")
+
+        val intent = Intent(this, ProfileActivity::class.java)
+        intent.putExtra("USER_ID", user.uid)
         startActivity(intent)
     }
+
 
 //    private fun openChat(user: User) {
 //        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return

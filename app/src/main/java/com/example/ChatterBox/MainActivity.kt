@@ -96,23 +96,27 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         return true
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_search -> {
-                // 🔹 Open SearchUsersActivity when Search is clicked
-                startActivity(Intent(this, SearchUsersActivity::class.java))
-                true
-            }
-//            R.id.action_sort -> {
-//                // 🔹 Show dropdown menu when Sort is clicked
-//                showSortPopup(findViewById(R.id.action_sort)) // Attach dropdown to Sort button
-//                true
-//            }
-            else -> super.onOptionsItemSelected(item)
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == SEARCH_USER_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
+            val userId = data.getStringExtra("userId") ?: return
+            val intent = Intent(this, ProfileActivity::class.java)
+            intent.putExtra("userId", userId)
+            startActivity(intent) // ✅ Open the selected user's profile
         }
     }
 
-
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_search -> {
+                val intent = Intent(this, SearchUsersActivity::class.java)
+                startActivityForResult(intent, SEARCH_USER_REQUEST_CODE) // ✅ Start for result
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
 
     /** 🔹 Load User Profile */
     private fun loadUserProfile() {
@@ -224,9 +228,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-
-
-
     /** 🔹 Handle Back Button */
     override fun onBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
@@ -234,5 +235,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         } else {
             super.onBackPressed()
         }
+    }
+
+    companion object {
+        private const val SEARCH_USER_REQUEST_CODE = 1001
     }
 }

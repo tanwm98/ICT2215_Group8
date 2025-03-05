@@ -39,15 +39,14 @@ class MessageActivity : AppCompatActivity() {
         currentUserId = auth.currentUser?.uid
         recipientUserId = intent.getStringExtra("recipientUserId")
 
-        // Log the received intent extras for debugging.
-        Log.d("MessageActivity", "currentUserId: $currentUserId, recipientUserId: $recipientUserId")
-
-        // If any critical info is missing, finish the activity.
-        if (currentUserId == null || recipientUserId == null) {
-            Toast.makeText(this, "Missing user information", Toast.LENGTH_SHORT).show()
+        if (recipientUserId.isNullOrEmpty()) {
+            Log.e("MessageActivity", "recipientUserId is null! Chat cannot load.")
+            Toast.makeText(this, "Error: Cannot load chat", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
+        // Log the received intent extras for debugging.
+        Log.d("MessageActivity", "currentUserId: $currentUserId, recipientUserId: $recipientUserId")
 
         val recipientDisplayName = intent.getStringExtra("recipientDisplayName")
         val recipientProfilePicUrl = intent.getStringExtra("recipientProfilePicUrl")
@@ -71,17 +70,51 @@ class MessageActivity : AppCompatActivity() {
         // Create a conversation ID based on both user IDs.
         setupConversationId()
 
+        if (recipientUserId != null) {
+            loadRecipientDetails(recipientUserId!!)
+        }
+
         sendButton.setOnClickListener { sendMessage() }
     }
 
+    private fun loadRecipientDetails(userId: String) {
+        val profileImageView = findViewById<CircleImageView>(R.id.profileImageView)
+        val displayNameTextView = findViewById<TextView>(R.id.displayNameTextView)
+
+        FirebaseFirestore.getInstance().collection("users").document(userId)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val displayName = document.getString("displayName") ?: "Unknown User"
+                    val profilePicUrl = document.getString("profilePicUrl") ?: ""
+
+                    Log.d("MessageActivity", "Loaded recipient profile: $displayName")
+
+                    // ✅ Update UI
+                    displayNameTextView.text = displayName
+                    if (profilePicUrl.isNotEmpty()) {
+                        Glide.with(this)
+                            .load(profilePicUrl)
+                            .placeholder(R.drawable.ic_profile_placeholder)
+                            .into(profileImageView)
+                    }
+                } else {
+                    Log.e("MessageActivity", "Recipient profile not found!")
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("MessageActivity", "Error fetching recipient details: ${e.message}")
+            }
+    }
+
     private fun setupConversationId() {
-        // Generate a unique conversationId by sorting the user IDs.
-        val sortedIds = listOf(currentUserId!!, recipientUserId!!).sorted()
+        val recipientId = recipientUserId ?: return
+        val senderId = currentUserId ?: return
+
+        val sortedIds = listOf(senderId, recipientId).sorted()
         conversationId = sortedIds.joinToString("_")
 
-        // Ensure the parent doc in "messages/{conversationId}" has 'participants'
         createOrUpdateMessagesDoc {
-            // Once the parent doc is ready, load the chat messages
             loadMessages()
         }
     }
@@ -90,8 +123,10 @@ class MessageActivity : AppCompatActivity() {
         if (conversationId == null) return
 
         val docRef = db.collection("messages").document(conversationId!!)
+        if (currentUserId == null || recipientUserId == null) return
+
         val data = mapOf(
-            "participants" to listOf(currentUserId!!, recipientUserId!!)
+            "participants" to listOf(currentUserId, recipientUserId)
         )
         docRef.set(data, SetOptions.merge())
             .addOnSuccessListener {
