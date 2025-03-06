@@ -25,6 +25,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
+import androidx.appcompat.widget.Toolbar
+
 
 class ForumPostsActivity : AppCompatActivity() {
     private lateinit var db: FirebaseFirestore
@@ -44,6 +46,10 @@ class ForumPostsActivity : AppCompatActivity() {
 
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
+
+        // ✅ Set up the toolbar as the action bar
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
 
         // 🔹 Initialize ProgressBar
         progressBar = findViewById(R.id.progressBar)
@@ -134,6 +140,11 @@ class ForumPostsActivity : AppCompatActivity() {
                         Toast.makeText(this, "Error fetching forum: ${e.message}", Toast.LENGTH_SHORT).show()
                         Log.e("Firestore", "Error fetching forum: ${e.message}")
                     }
+                true
+            }
+            R.id.action_sort -> {
+                val toolbar = findViewById<Toolbar>(R.id.toolbar) // 🔹 Get toolbar as anchor
+                showSortPopup(toolbar) // 🔥 Call the function
                 true
             }
             else -> super.onOptionsItemSelected(item)
