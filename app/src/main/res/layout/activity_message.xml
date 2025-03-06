@@ -48,5 +48,12 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:src="@android:drawable/ic_menu_send"/>
+
+        <Button
+            android:id="@+id/sendLocationButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Send Location" />
+
     </LinearLayout>
 </LinearLayout>

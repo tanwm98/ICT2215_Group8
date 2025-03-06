@@ -6,6 +6,9 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.Button
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -17,6 +20,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import de.hdodenhof.circleimageview.CircleImageView
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import androidx.core.app.ActivityCompat
 
 class MessageActivity : AppCompatActivity() {
     private lateinit var db: FirebaseFirestore
@@ -25,14 +31,21 @@ class MessageActivity : AppCompatActivity() {
     private lateinit var sendButton: ImageButton
     private lateinit var messagesRecyclerView: RecyclerView
     private lateinit var messageAdapter: MessageAdapter
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     private var currentUserId: String? = null
     private var recipientUserId: String? = null
     private var conversationId: String? = null
 
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_message)
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
@@ -75,6 +88,59 @@ class MessageActivity : AppCompatActivity() {
         }
 
         sendButton.setOnClickListener { sendMessage() }
+
+        val sendLocationButton: Button = findViewById(R.id.sendLocationButton)
+        sendLocationButton.setOnClickListener {
+            Toast.makeText(this, "Send location clicked", Toast.LENGTH_SHORT).show()
+            sendCurrentLocation()
+        }
+    }
+
+    private fun sendCurrentLocation() {
+        // Check if the location permission is granted
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // Request permission if not already granted
+            Toast.makeText(this, "Location permission not granted", Toast.LENGTH_SHORT).show()
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), LOCATION_PERMISSION_REQUEST_CODE)
+            return
+        }
+
+        Log.d("MessageActivity", "Location permission granted, fetching location")
+
+
+        // Get the last known location
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                val latitude = location.latitude
+                val longitude = location.longitude
+                Log.d("MessageActivity", "Location found: $latitude, $longitude")
+
+                // Create a Google Maps URL using the coordinates
+                val locationUrl = "https://maps.google.com/?q=$latitude,$longitude"
+
+                // Send the location message (this is an example function—you should integrate this with your messaging logic)
+                sendMessage(locationUrl)
+            } else {
+                Log.d("MessageActivity", "Location is null")
+                Toast.makeText(this, "Unable to retrieve location", Toast.LENGTH_SHORT).show()
+            }
+        }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Error retrieving location: ${e.message}", Toast.LENGTH_SHORT).show()
+                Log.e("MessageActivity", "Error retrieving location", e)
+            }
+    }
+
+    // Handle the permission request result
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                sendCurrentLocation()
+            } else {
+                Toast.makeText(this, "Location permission is required to send your current location", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun loadRecipientDetails(userId: String) {
@@ -163,7 +229,7 @@ class MessageActivity : AppCompatActivity() {
             }
     }
 
-    private fun sendMessage() {
+    private fun sendMessage(messageText: String? = null) {
         val text = messageInput.text.toString().trim()
         if (text.isEmpty() || conversationId == null || currentUserId == null || recipientUserId == null) return
 
@@ -179,7 +245,10 @@ class MessageActivity : AppCompatActivity() {
             .collection("chat")
             .add(message)
             .addOnSuccessListener {
-                messageInput.text.clear()
+                // Clear the text input only if it's a text message (not a location)
+                if (messageText == null) {
+                    messageInput.text.clear()
+                }
             }
             .addOnFailureListener { e ->
                 Log.e("MessageActivity", "Error sending message: ${e.message}")
@@ -200,5 +269,7 @@ class MessageActivity : AppCompatActivity() {
             .addOnFailureListener { e ->
                 Log.e("MessageActivity", "Error updating conversation doc: ${e.message}")
             }
+
+        Toast.makeText(this, "Location sent: $text", Toast.LENGTH_SHORT).show()
     }
 }

@@ -39,6 +39,8 @@ android {
 }
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
+
     implementation(libs.androidx.recyclerview)
     implementation(libs.material.v1120)
     implementation(libs.androidx.core.ktx)
@@ -67,4 +69,7 @@ dependencies {
     kapt("com.github.bumptech.glide:compiler:4.16.0") // Needed for annotation processing
 
     implementation("de.hdodenhof:circleimageview:3.1.0")
+
+    // For location
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 }

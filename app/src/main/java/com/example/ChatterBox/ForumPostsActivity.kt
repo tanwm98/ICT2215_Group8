@@ -66,8 +66,7 @@ class ForumPostsActivity : AppCompatActivity() {
         checkIfAdmin()
         loadPosts()
     }
-
-
+    
 
     /** 🔹 Setup RecyclerView */
     private fun setupRecyclerView() {
@@ -151,8 +150,6 @@ class ForumPostsActivity : AppCompatActivity() {
         }
     }
 
-
-
     private fun showSortPopup(anchor: View) {
         val popupMenu = PopupMenu(this, anchor) // Attach to clicked button
         popupMenu.menu.add(0, 0, 0, "Sort by Latest")
@@ -205,8 +202,6 @@ class ForumPostsActivity : AppCompatActivity() {
                 Log.e("Firestore", "Error fetching forum ID: ${e.message}")
             }
     }
-
-
 
     /** 🔹 Show Dialog for Creating a New Post */
     private fun showCreatePostDialog() {

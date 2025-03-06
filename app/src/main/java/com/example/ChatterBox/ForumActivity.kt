@@ -71,7 +71,6 @@ class ForumActivity : AppCompatActivity() {
     }
 
     /** 🔹 Create forum and save to Firestore */
-    /** 🔹 Create forum and save to Firestore */
     private fun createForum() {
         val currentUser = auth.currentUser ?: return
         val userRef = db.collection("users").document(currentUser.uid)
@@ -126,7 +125,6 @@ class ForumActivity : AppCompatActivity() {
 
 
     /** 🔹 Update the enrolledForum list for selected students using module code */
-    /** 🔹 Update the enrolledForum list for selected students (and admin) */
     private fun updateStudentsEnrolledForum(moduleCode: String) {
         if (selectedStudentIds.isEmpty()) {
             Log.e("Firestore", "No students selected for enrollment")
