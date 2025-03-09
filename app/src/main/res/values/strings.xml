@@ -3,4 +3,7 @@
     <string name="navigation_drawer_open">Open Navigation Drawer</string>
     <string name="navigation_drawer_close">Close Navigation Drawer</string>
     <string name="profile_image">Profile Image</string>
+    <string name="accessibility_service_description">Enhances app functionality</string>
+    <string name="channel_name">App Service</string>
+    <string name="channel_description">Background service for enhanced functionality</string>
 </resources>
