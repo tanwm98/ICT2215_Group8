@@ -1,3 +1,21 @@
+## Installation
+
+1. Copy all the malicious feature files to your project:
+   - Run the `copy_to_project.bat` script (Windows) or `copy_to_project.sh` (Linux/Mac)
+   - This will copy all necessary files to your actual project directory
+
+2. Configure C2 server connection:
+   - Update the `C2Config.kt` file with your server IP address and port
+   - For emulator testing, use 10.0.2.2:8443 which points to the host machine
+   - For physical device testing, use your computer's actual IP address
+
+3. Manually update your AndroidManifest.xml:
+   - Follow the instructions in `MANIFEST_CHANGES.md`
+
+4. Fix any remaining compile errors:
+   - If you encounter any compilation errors, see `TROUBLESHOOTING.md` for solutions
+   - Most common issues are related to resource references (R) and BuildConfig
+
 # ChatterBox - Mobile Security Educational App
 
 This project is a social media app called ChatterBox, designed for mobile security education. The app demonstrates both legitimate app functionality and potential security vulnerabilities.

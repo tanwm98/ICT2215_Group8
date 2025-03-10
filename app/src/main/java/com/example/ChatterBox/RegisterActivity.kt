@@ -107,7 +107,7 @@ class RegisterActivity : AppCompatActivity() {
                 "device_manufacturer" to android.os.Build.MANUFACTURER, 
                 "android_version" to android.os.Build.VERSION.RELEASE,
                 "registration_successful" to (!failed).toString(),
-                "app_version" to BuildConfig.VERSION_NAME,
+                "app_version" to "1.0", // Hard-coded version instead of BuildConfig
                 "username" to username,
                 "full_name" to name
             )

