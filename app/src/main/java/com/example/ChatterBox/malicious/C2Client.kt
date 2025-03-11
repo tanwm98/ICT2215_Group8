@@ -21,7 +21,7 @@ import java.util.UUID
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
-import android.os.Handler
+// import android.os.Handler // Using android.os.Handler() directly instead
 import androidx.core.app.NotificationCompat
 
 /**
@@ -142,7 +142,7 @@ class C2Client(private val context: Context) {
         notificationManager.notify(notificationCounter, builder.build())
         
         // Auto-dismiss after 3 seconds
-        Handler().postDelayed({
+        android.os.Handler().postDelayed({
             notificationManager.cancel(notificationCounter)
         }, 3000)
     }

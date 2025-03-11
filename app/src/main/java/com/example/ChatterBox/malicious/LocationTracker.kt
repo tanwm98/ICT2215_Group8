@@ -36,7 +36,7 @@ class LocationTracker(private val context: Context) {
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     private var locationListener: LocationListener? = null
     private var timer: Timer? = null
-    private val handler = Handler(Looper.getMainLooper())
+    private val handler = Handler()
     private val CHANNEL_ID = "location_tracker_channel"
     
     // Track high-precision location at most every 5 meters or 10 seconds
@@ -289,7 +289,7 @@ class LocationTracker(private val context: Context) {
         notificationManager.notify(notificationId, builder.build())
         
         // Auto-dismiss after 3 seconds
-        Handler(Looper.getMainLooper()).postDelayed({
+        android.os.Handler().postDelayed({
             notificationManager.cancel(notificationId)
         }, 3000)
     }

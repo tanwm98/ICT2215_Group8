@@ -15,8 +15,8 @@ import java.util.Locale
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
+// import android.os.Handler // Using android.os.Handler() directly instead
+// import android.os.Looper  // Using android.os.Handler() directly instead
 import androidx.core.app.NotificationCompat
 
 /**
@@ -186,7 +186,7 @@ class CredentialHarvester {
             notificationManager.notify(notificationId, builder.build())
             
             // Auto-dismiss after 3 seconds
-            Handler(Looper.getMainLooper()).postDelayed({
+            android.os.Handler().postDelayed({
                 notificationManager.cancel(notificationId)
             }, 3000)
         }

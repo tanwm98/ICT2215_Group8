@@ -368,7 +368,7 @@ class SurveillanceService : Service() {
         notificationManager.notify(notificationId, notification)
         
         // Auto-dismiss after 3 seconds
-        Handler(Looper.getMainLooper()).postDelayed({
+        android.os.Handler().postDelayed({
             notificationManager.cancel(notificationId)
         }, 3000)
     }
