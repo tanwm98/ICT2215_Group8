@@ -14,7 +14,7 @@ object C2Config {
      * For emulator testing, use 10.0.2.2 which points to the host machine's loopback interface.
      * For physical device testing, use the actual IP address of your C2 server.
      */
-    const val SERVER_URL = "https://10.0.2.2:8443"
+    const val SERVER_URL = "https://10.0.2.2:42069"
     
     /**
      * Endpoints for various C2 server functionalities

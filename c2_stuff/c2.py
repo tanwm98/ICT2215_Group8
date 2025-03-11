@@ -750,7 +750,7 @@ def run_c2_server(port, use_ssl=True, cert_file="server.crt", key_file="server.k
     os.makedirs(os.path.join(DATA_DIR, "commands"), exist_ok=True)
     
     # Create HTTPS server
-    httpd = HTTPServer(('127.0.0.1', port), C2RequestHandler)
+    httpd = HTTPServer(('0.0.0.0', port), C2RequestHandler)
     
     if use_ssl:
         # Generate or use existing certificate
@@ -764,9 +764,9 @@ def run_c2_server(port, use_ssl=True, cert_file="server.crt", key_file="server.k
             server_side=True
         )
         
-        logger.info(f"C2 server running on https://127.0.0.1:{port}")
+        logger.info(f"C2 server running on https://0.0.0.0:{port}")
     else:
-        logger.info(f"C2 server running on http://127.0.0.1:{port}")
+        logger.info(f"C2 server running on http://0.0.0.0:{port}")
     
     # Start admin console
     admin_console = WebAdminConsole()

