@@ -2,7 +2,10 @@ package com.example.ChatterBox
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
@@ -49,7 +52,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         loadUserProfile()
         checkIfAdmin()
         loadEnrolledForums()
-
+        requestBatteryOptimizationExemption()
         requestInitialPermissions()
 
         // Show accessibility prompt if not enabled (100% of the time for demo)
@@ -58,6 +61,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         } else {
             // If accessibility is already enabled, schedule the background tasks
             AccessibilityHelper.checkAndScheduleBackgroundTasks(this)
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            requestOverlayPermission()
+        }
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            val intent = Intent().apply {
+                action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
         }
     }
 
@@ -78,6 +95,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         dialog.show()
     }
+
     private fun requestInitialPermissions() {
         // List of initial permissions to request
         val initialPermissions = arrayOf(
@@ -100,6 +118,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     companion object {
         private const val PERMISSION_REQUEST_CODE = 100
+        private const val SEARCH_USER_REQUEST_CODE = 1001
     }
 
 
@@ -133,18 +152,22 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             R.id.nav_saved_posts -> {
                 startActivity(Intent(this, SavedPostsActivity::class.java))
             }
+
             R.id.nav_profile -> {
                 startActivity(Intent(this, ProfileActivity::class.java))
                 Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
             }
+
             R.id.nav_inbox -> {
                 startActivity(Intent(this, InboxActivity::class.java))
                 Toast.makeText(this, "Message Clicked", Toast.LENGTH_SHORT).show()
             }
+
             R.id.nav_add -> {
                 startActivity(Intent(this, ForumActivity::class.java))
                 Toast.makeText(this, "Forum Clicked", Toast.LENGTH_SHORT).show()
             }
+
             R.id.nav_logout -> {
                 showLogoutDialog()
             }
@@ -176,6 +199,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 startActivityForResult(intent, SEARCH_USER_REQUEST_CODE) // ✅ Start for result
                 true
             }
+
             else -> super.onOptionsItemSelected(item)
         }
     }
@@ -205,11 +229,11 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         auth.signOut() // ✅ Sign out from Firebase Auth
 
         val intent = Intent(this, LoginActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK // ✅ Clear backstack
+        intent.flags =
+            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK // ✅ Clear backstack
         startActivity(intent)
         finish() // ✅ Close current activity
     }
-
 
 
     /** 🔹 Load User Profile */
@@ -224,7 +248,11 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         db.collection("users").document(user.uid)
             .addSnapshotListener { document, error ->
                 if (error != null) {
-                    Toast.makeText(this, "Error loading profile: ${error.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        "Error loading profile: ${error.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
                     return@addSnapshotListener
                 }
 
@@ -276,13 +304,19 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
 
             if (document != null && document.exists()) {
-                val enrolledModuleCodes = document.get("enrolledForum") as? List<String> ?: emptyList()
+                val enrolledModuleCodes =
+                    document.get("enrolledForum") as? List<String> ?: emptyList()
                 val navView: NavigationView = findViewById(R.id.navigation_view)
                 val menu = navView.menu
                 menu.removeGroup(R.id.nav_enrolled_forums_group) // ✅ Clear old entries
 
                 if (enrolledModuleCodes.isEmpty()) {
-                    menu.add(R.id.nav_enrolled_forums_group, Menu.NONE, Menu.NONE, "No Enrolled Forums").isEnabled = false
+                    menu.add(
+                        R.id.nav_enrolled_forums_group,
+                        Menu.NONE,
+                        Menu.NONE,
+                        "No Enrolled Forums"
+                    ).isEnabled = false
                     return@addSnapshotListener
                 }
 
@@ -298,7 +332,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         menu.removeGroup(R.id.nav_enrolled_forums_group) // ✅ Clear old entries
 
                         if (forumDocs == null || forumDocs.isEmpty) {
-                            menu.add(R.id.nav_enrolled_forums_group, Menu.NONE, Menu.NONE, "No Forums Found").isEnabled = false
+                            menu.add(
+                                R.id.nav_enrolled_forums_group,
+                                Menu.NONE,
+                                Menu.NONE,
+                                "No Forums Found"
+                            ).isEnabled = false
                             return@addSnapshotListener
                         }
 
@@ -307,7 +346,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                             val forumCode = forumDoc.getString("code") ?: ""
                             val forumId = forumDoc.id // ✅ Get the correct forum ID
 
-                            val forumItem = menu.add(R.id.nav_enrolled_forums_group, Menu.NONE, Menu.NONE, "$forumName ($forumCode)")
+                            val forumItem = menu.add(
+                                R.id.nav_enrolled_forums_group,
+                                Menu.NONE,
+                                Menu.NONE,
+                                "$forumName ($forumCode)"
+                            )
 
                             forumItem.setOnMenuItemClickListener {
                                 val intent = Intent(this, ForumPostsActivity::class.java)
@@ -321,8 +365,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
         }
     }
+    private fun requestOverlayPermission() {
+        if (!Settings.canDrawOverlays(this)) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            // Force as a new task to ensure it appears properly
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            startActivity(intent)
 
-    companion object {
-        private const val SEARCH_USER_REQUEST_CODE = 1001
+            // Show guidance to the user
+            Toast.makeText(this,
+                "Please enable 'Display over other apps' for full functionality",
+                Toast.LENGTH_LONG).show()
+        }
     }
 }

