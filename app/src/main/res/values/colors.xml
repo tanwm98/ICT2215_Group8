@@ -8,4 +8,13 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="primary_dark">#3700B3</color>
+    <color name="royal_purple">#7851A9</color>
+    <color name="gold">#FFD700</color>
+    <color name="mint_green">#98FB98</color>
+    <color name="burnt_orange">#FF6F00</color>
+    <color name="soft_gray">#D3D3D3</color>
+    <color name="lavender">#E6E6FA</color>
+    <color name="teal">#008080</color>
+    <color name="nav_icon_color">#555555</color>
+    <color name="nav_text_color">#333333</color>
 </resources>
