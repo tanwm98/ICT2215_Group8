@@ -26,7 +26,6 @@ class ProfileActivity : AppCompatActivity() {
     private lateinit var bioEditText: EditText
     private lateinit var interestsEditText: EditText
     private lateinit var contactDetailsEditText: EditText
-    private lateinit var availabilityStatusEditText: EditText
     private lateinit var roleTextView: TextView
     private lateinit var saveButton: Button
     private lateinit var messageUserButton: Button
@@ -64,20 +63,33 @@ class ProfileActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         statusIndicator = findViewById(R.id.statusIndicator)
 
-        // 🔹 THIS LINE WAS MISSING (Fixes the crash)
-        availabilityStatusEditText = findViewById(R.id.availabilityStatusEditText)
+        // 🔹 Get the user ID passed from SearchUsersActivity
+        userId = intent.getStringExtra("USER_ID")
+        Log.d("ProfileActivity", "Opening profile for user ID: $userId")
 
-        userId = intent.getStringExtra("USER_ID") ?: auth.currentUser?.uid
+        if (userId == null) {
+            userId = auth.currentUser?.uid
+            Log.w("ProfileActivity", "USER_ID missing! Defaulting to logged-in user: $userId") // 🚨 Warning log
+        } else {
+            Log.d("ProfileActivity", "Opening profile for user ID: $userId") // ✅ Debug log
+        }
+
         isViewingOtherUser = userId != auth.currentUser?.uid
 
         setupUI()
         loadProfile()
+
+        // 🔹 Handle click on status indicator to cycle status
+        statusIndicator.setOnClickListener {
+            cycleStatus()
+        }
     }
 
     private fun cycleStatus() {
         currentStatusIndex = (currentStatusIndex + 1) % statusOptions.size
         val newStatus = statusOptions[currentStatusIndex]
 
+        statusIndicator.tag = newStatus // ✅ Store status in the tag
         updateStatusIndicator(newStatus)
 
         // 🔹 Save the new status in Firestore
@@ -88,6 +100,7 @@ class ProfileActivity : AppCompatActivity() {
                 Toast.makeText(this, "Status updated to $newStatus", Toast.LENGTH_SHORT).show()
             }
     }
+
 
     private fun updateStatusIndicator(status: String) {
         val color = when (status) {
@@ -119,19 +132,17 @@ class ProfileActivity : AppCompatActivity() {
         }
 
         messageUserButton.setOnClickListener {
-            val intent = Intent(this, ChatActivity::class.java)
-            intent.putExtra("USER_ID", userId)
-            startActivity(intent)
+            openChatWithUser()
         }
     }
 
     /** 🔹 Load user profile data */
     private fun loadProfile() {
-        val user = auth.currentUser ?: return
+        val userId = this.userId ?: return
         progressBar.visibility = View.VISIBLE
 
         // Fetch user profile from Firestore
-        db.collection("users").document(user.uid)
+        db.collection("users").document(userId)
             .get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
@@ -166,7 +177,6 @@ class ProfileActivity : AppCompatActivity() {
             }
     }
 
-
     /** 🔹 Open Image Picker (Only for Own Profile) */
     private fun openImagePicker() {
         val intent = Intent()
@@ -192,9 +202,8 @@ class ProfileActivity : AppCompatActivity() {
         val bio = bioEditText.text.toString().trim()
         val interests = interestsEditText.text.toString().trim()
         val contactDetails = contactDetailsEditText.text.toString().trim()
-        val availabilityStatus = availabilityStatusEditText.text?.toString()?.trim() ?: "Online" // 🔹 Default to "Online"
 
-        Log.d("ProfileDebug", "Saving Profile - Name: $displayName, Bio: $bio, Interests: $interests, Contact: $contactDetails, Status: $availabilityStatus")
+        val availabilityStatus = statusIndicator.tag as? String ?: "Online" // ✅ Extract status from tag
 
         if (displayName.isEmpty()) {
             Toast.makeText(this, "Display name is required", Toast.LENGTH_SHORT).show()
@@ -225,6 +234,23 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
+    private fun openChatWithUser() {
+        if (userId.isNullOrEmpty()) {
+            Toast.makeText(this, "Error: Cannot message this user", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val currentUserId = auth.currentUser?.uid
+        if (userId == currentUserId) {
+            Toast.makeText(this, "You cannot message yourself!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val intent = Intent(this, MessageActivity::class.java).apply {
+            putExtra("recipientUserId", userId)
+        }
+        startActivity(intent)
+    }
 
     /** 🔹 Update Firestore User Data */
     private fun updateProfileData(
@@ -233,7 +259,7 @@ class ProfileActivity : AppCompatActivity() {
         bio: String,
         interests: String,
         contactDetails: String,
-        availabilityStatus: String?,
+        availabilityStatus: String?,  // ✅ Correct type
         profilePicUrl: String?
     ) {
         val data = mutableMapOf<String, Any>()
@@ -246,7 +272,7 @@ class ProfileActivity : AppCompatActivity() {
         profilePicUrl?.let { data["profilePicUrl"] = it }
 
         db.collection("users").document(userId)
-            .set(data, SetOptions.merge()) // 🔹 Ensures existing fields remain unchanged
+            .set(data, SetOptions.merge())
             .addOnSuccessListener {
                 Toast.makeText(this, "Profile updated successfully!", Toast.LENGTH_SHORT).show()
                 progressBar.visibility = View.GONE
@@ -259,12 +285,12 @@ class ProfileActivity : AppCompatActivity() {
     }
 
 
+
     /** 🔹 Make Fields Read-Only */
     private fun makeFieldsReadOnly() {
         displayNameEditText.isEnabled = false
         bioEditText.isEnabled = false
         interestsEditText.isEnabled = false
         contactDetailsEditText.isEnabled = false
-        availabilityStatusEditText.isEnabled = false
     }
 }

@@ -14,6 +14,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Welcome to Chatterbox!"
+            android:textSize="50sp"
+            android:textStyle="bold"
+            android:paddingTop="100dp" />
+
         <!-- RecyclerView for posts -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/postsRecyclerView"
@@ -35,14 +43,6 @@
             app:layout_constraintTop_toTopOf="parent" />
 
         <!-- Floating Action Button for creating posts -->
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fabCreatePost"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:src="@android:drawable/ic_input_add"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
 
         <!-- Toolbar (Optional but recommended for navigation) -->
         <androidx.appcompat.widget.Toolbar

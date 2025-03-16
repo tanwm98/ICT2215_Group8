@@ -14,6 +14,15 @@
         android:textSize="20sp"
         android:textStyle="bold" />
 
+    <ImageView
+        android:id="@+id/postImage"
+        android:layout_width="match_parent"
+        android:layout_height="250dp"
+        android:scaleType="centerCrop"
+        android:layout_marginTop="8dp"
+        android:visibility="gone"/> <!-- Hide by default, shown only if image exists -->
+
+
     <TextView
         android:id="@+id/postContent"
         android:layout_width="match_parent"

@@ -18,4 +18,20 @@
         android:hint="Content"
         android:minLines="3" />
 
+    <ImageView
+        android:id="@+id/selectedImageView"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:scaleType="centerCrop"
+        android:visibility="gone"
+        android:layout_marginTop="10dp"
+        android:background="@android:color/darker_gray"/>
+
+    <Button
+        android:id="@+id/selectImageButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Select Image"
+        android:layout_marginTop="8dp"/>
+
 </LinearLayout>

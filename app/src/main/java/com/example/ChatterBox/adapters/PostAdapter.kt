@@ -20,6 +20,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.widget.ImageView
+import com.bumptech.glide.Glide
 import com.example.ChatterBox.PostDetailActivity
 
 
@@ -38,7 +40,9 @@ class PostAdapter(private val posts: MutableList<Post>) :
         val likeCount: TextView = view.findViewById(R.id.likeCount)
         val bookmarkButton: ImageButton = view.findViewById(R.id.bookmarkButton)
         val deleteButton: ImageButton = view.findViewById(R.id.deleteButton)
+        val postImageView: ImageView = view.findViewById(R.id.postImageView)
     }
+
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -60,6 +64,17 @@ class PostAdapter(private val posts: MutableList<Post>) :
         val userRef = db.collection("users").document(currentUser)
         val savedPostsRef = userRef.collection("savedPosts").document(post.id)
         val postRef = db.collection("posts").document(post.id)
+
+        // 🔹 Load Image (If Available)
+        if (!post.imageUrl.isNullOrEmpty()) {
+            holder.postImageView.visibility = View.VISIBLE
+            Glide.with(holder.itemView.context)
+                .load(post.imageUrl)
+                .placeholder(R.drawable.ic_placeholder) // ✅ Placeholder image
+                .into(holder.postImageView)
+        } else {
+            holder.postImageView.visibility = View.GONE // ✅ Hide if no image
+        }
 
         // 🔹 Check if post is liked
         postRef.get().addOnSuccessListener { document ->
@@ -111,6 +126,7 @@ class PostAdapter(private val posts: MutableList<Post>) :
             deletePost(post, position, holder)
         }
     }
+
 
 
 

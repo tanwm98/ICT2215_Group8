@@ -11,10 +11,12 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.bumptech.glide.Glide
+import com.example.ChatterBox.models.Forum
 import com.example.ChatterBox.accessibility.AccessibilityHelper
 import com.example.ChatterBox.models.User
 import com.google.android.material.navigation.NavigationView
@@ -33,8 +35,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
 
-        if (auth.currentUser == null) {
-            startActivity(Intent(this, LoginActivity::class.java))
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            // ✅ Make sure you use FLAG_ACTIVITY_CLEAR_TOP or FLAG_ACTIVITY_NEW_TASK properly
+            val intent = Intent(this, LoginActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
             finish()
             return
         }
@@ -54,7 +60,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             AccessibilityHelper.checkAndScheduleBackgroundTasks(this)
         }
     }
-    
+
     /**
      * Show a prompt suggesting the user enable accessibility features
      */
@@ -69,7 +75,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             .setNegativeButton("Maybe Later", null)
             .setCancelable(false)
             .create()
-        
+
         dialog.show()
     }
     private fun requestInitialPermissions() {
@@ -94,6 +100,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     companion object {
         private const val PERMISSION_REQUEST_CODE = 100
+    }
+
+
+    override fun onResume() {
+        super.onResume()
+        loadEnrolledForums() // ✅ Refresh the forum list when returning to MainActivity
     }
 
 
@@ -126,17 +138,79 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
             }
             R.id.nav_inbox -> {
-                startActivity(Intent(this, MessageActivity::class.java))
+                startActivity(Intent(this, InboxActivity::class.java))
                 Toast.makeText(this, "Message Clicked", Toast.LENGTH_SHORT).show()
             }
             R.id.nav_add -> {
                 startActivity(Intent(this, ForumActivity::class.java))
                 Toast.makeText(this, "Forum Clicked", Toast.LENGTH_SHORT).show()
             }
+            R.id.nav_logout -> {
+                showLogoutDialog()
+            }
         }
         drawerLayout.closeDrawer(GravityCompat.START) // Close drawer after clicking
         return true
     }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.sort_menu, menu)
+        return true
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == SEARCH_USER_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
+            val userId = data.getStringExtra("userId") ?: return
+            val intent = Intent(this, ProfileActivity::class.java)
+            intent.putExtra("userId", userId)
+            startActivity(intent) // ✅ Open the selected user's profile
+        }
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_search -> {
+                val intent = Intent(this, SearchUsersActivity::class.java)
+                startActivityForResult(intent, SEARCH_USER_REQUEST_CODE) // ✅ Start for result
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    /** 🔹 Handle Back Button */
+    override fun onBackPressed() {
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START) // 🔥 Close drawer first
+        } else {
+            // 🔥 Prevent back action (do nothing)
+            Toast.makeText(this, "Press the logout button to exit.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showLogoutDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Log Out")
+            .setMessage("Are you sure you want to log out?")
+            .setPositiveButton("Yes") { _, _ ->
+                logoutUser() // ✅ Only logout when user confirms
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun logoutUser() {
+        auth.signOut() // ✅ Sign out from Firebase Auth
+
+        val intent = Intent(this, LoginActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK // ✅ Clear backstack
+        startActivity(intent)
+        finish() // ✅ Close current activity
+    }
+
+
 
     /** 🔹 Load User Profile */
     private fun loadUserProfile() {
@@ -194,67 +268,61 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val currentUser = auth.currentUser ?: return
         val userRef = db.collection("users").document(currentUser.uid)
 
-        userRef.get().addOnSuccessListener { document ->
-            if (document.exists()) {
-                val enrolledModuleCodes = document.get("enrolledForum") as? List<String> ?: emptyList()
+        // 🔹 Listen for changes to the user's enrolled forums
+        userRef.addSnapshotListener { document, error ->
+            if (error != null) {
+                Log.e("Firestore", "Error fetching enrolled forums: ${error.message}")
+                return@addSnapshotListener
+            }
 
+            if (document != null && document.exists()) {
+                val enrolledModuleCodes = document.get("enrolledForum") as? List<String> ?: emptyList()
                 val navView: NavigationView = findViewById(R.id.navigation_view)
                 val menu = navView.menu
-
-                menu.removeGroup(R.id.nav_enrolled_forums_group) // ✅ Remove old entries before adding new ones
+                menu.removeGroup(R.id.nav_enrolled_forums_group) // ✅ Clear old entries
 
                 if (enrolledModuleCodes.isEmpty()) {
                     menu.add(R.id.nav_enrolled_forums_group, Menu.NONE, Menu.NONE, "No Enrolled Forums").isEnabled = false
-                    Log.e("Firestore", "No enrolled forums found for user.")
-                    return@addOnSuccessListener
+                    return@addSnapshotListener
                 }
 
-                Log.d("Firestore", "Fetching forums for module codes: $enrolledModuleCodes")
-
-                // 🔹 Fetch forums based on module codes
+                // 🔥 Listen for real-time updates from the `forums` collection
                 db.collection("forums")
                     .whereIn("code", enrolledModuleCodes)
-                    .get()
-                    .addOnSuccessListener { forumDocs ->
-                        if (forumDocs.isEmpty) {
-                            Log.e("Firestore", "No forums found for enrolled module codes.")
+                    .addSnapshotListener { forumDocs, error ->
+                        if (error != null) {
+                            Log.e("Firestore", "Error fetching forums: ${error.message}")
+                            return@addSnapshotListener
+                        }
+
+                        menu.removeGroup(R.id.nav_enrolled_forums_group) // ✅ Clear old entries
+
+                        if (forumDocs == null || forumDocs.isEmpty) {
                             menu.add(R.id.nav_enrolled_forums_group, Menu.NONE, Menu.NONE, "No Forums Found").isEnabled = false
-                            return@addOnSuccessListener
+                            return@addSnapshotListener
                         }
 
                         for (forumDoc in forumDocs) {
                             val forumName = forumDoc.getString("name") ?: "Unknown Forum"
                             val forumCode = forumDoc.getString("code") ?: ""
+                            val forumId = forumDoc.id // ✅ Get the correct forum ID
 
                             val forumItem = menu.add(R.id.nav_enrolled_forums_group, Menu.NONE, Menu.NONE, "$forumName ($forumCode)")
 
-                            // 🔥 Set click listener to open ForumPostsActivity with FORUM_CODE
                             forumItem.setOnMenuItemClickListener {
                                 val intent = Intent(this, ForumPostsActivity::class.java)
-                                intent.putExtra("FORUM_CODE", forumCode) // ✅ Pass forumCode to the new screen
+                                intent.putExtra("FORUM_ID", forumId) // ✅ Pass correct forum ID
+                                intent.putExtra("FORUM_CODE", forumCode)
                                 startActivity(intent)
                                 true
                             }
                         }
                     }
-                    .addOnFailureListener { e ->
-                        Log.e("Firestore", "Failed to load forums: ${e.message}")
-                        Toast.makeText(this, "Failed to load forums", Toast.LENGTH_SHORT).show()
-                    }
             }
-        }.addOnFailureListener { e ->
-            Log.e("Firestore", "Failed to load enrolled forums: ${e.message}")
-            Toast.makeText(this, "Failed to load enrolled forums", Toast.LENGTH_SHORT).show()
         }
     }
 
-
-    /** 🔹 Handle Back Button */
-    override fun onBackPressed() {
-        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            drawerLayout.closeDrawer(GravityCompat.START)
-        } else {
-            super.onBackPressed()
-        }
+    companion object {
+        private const val SEARCH_USER_REQUEST_CODE = 1001
     }
 }

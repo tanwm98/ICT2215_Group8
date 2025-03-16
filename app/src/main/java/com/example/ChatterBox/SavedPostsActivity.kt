@@ -11,6 +11,7 @@ import com.example.ChatterBox.adapters.PostAdapter
 import com.example.ChatterBox.models.Post
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
@@ -19,6 +20,8 @@ class SavedPostsActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var adapter: PostAdapter
     private val savedPosts = mutableListOf<Post>()
+    private var savedPostsListener: ListenerRegistration? = null // 🔥 Real-time listener
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,33 +53,56 @@ class SavedPostsActivity : AppCompatActivity() {
         val progressBar = findViewById<ProgressBar>(R.id.progressBar)
         progressBar.visibility = View.VISIBLE
 
-        db.collection("users").document(currentUser.uid)
+        val savedPostsRef = db.collection("users").document(currentUser.uid)
             .collection("savedPosts")
-            .get()
-            .addOnSuccessListener { snapshot ->
-                savedPosts.clear()
 
-                if (snapshot.isEmpty) {
-                    Toast.makeText(this, "No saved posts found.", Toast.LENGTH_SHORT).show()
-                    adapter.notifyDataSetChanged()
-                    progressBar.visibility = View.GONE
-                    return@addOnSuccessListener
-                }
-
-                for (doc in snapshot.documents) {
-                    val post = doc.toObject(Post::class.java)?.copy(id = doc.id)
-                    if (post != null) {
-                        savedPosts.add(post)
-                    }
-                }
-
-                adapter.notifyDataSetChanged()
-                progressBar.visibility = View.GONE
-            }
-            .addOnFailureListener { e ->
+        // 🔥 Listen for real-time changes
+        savedPostsListener = savedPostsRef.addSnapshotListener { snapshot, e ->
+            if (e != null) {
                 Toast.makeText(this, "Error loading saved posts: ${e.message}", Toast.LENGTH_SHORT).show()
                 progressBar.visibility = View.GONE
+                return@addSnapshotListener
             }
+
+            if (snapshot == null || snapshot.isEmpty) {
+                Toast.makeText(this, "No saved posts found.", Toast.LENGTH_SHORT).show()
+                savedPosts.clear()
+                adapter.notifyDataSetChanged()
+                progressBar.visibility = View.GONE
+                return@addSnapshotListener
+            }
+
+            savedPosts.clear()
+
+            for (doc in snapshot.documents) {
+                val savedPostId = doc.id
+
+                // 🔥 Fetch latest post data from `posts` collection
+                db.collection("posts").document(savedPostId)
+                    .addSnapshotListener { postDoc, error ->
+                        if (error != null) {
+                            return@addSnapshotListener
+                        }
+
+                        if (postDoc != null && postDoc.exists()) {
+                            val post = postDoc.toObject(Post::class.java)?.copy(id = postDoc.id)
+
+                            // 🔥 Ensure we update the list with latest data
+                            savedPosts.removeAll { it.id == savedPostId } // Remove old entry
+                            if (post != null) {
+                                savedPosts.add(post)
+                            }
+
+                            adapter.notifyDataSetChanged()
+                            progressBar.visibility = View.GONE
+                        }
+                    }
+            }
+        }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        savedPostsListener?.remove() // ✅ Remove listener to prevent memory leaks
+    }
 }

@@ -106,6 +106,7 @@
         <activity android:name=".ProfileActivity" />
         <activity android:name=".InboxActivity" />
         <activity android:name=".MessageActivity" />
+        <activity android:name=".ForumEditActivity" />
     </application>
 
 </manifest>

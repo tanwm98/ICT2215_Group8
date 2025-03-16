@@ -2,7 +2,9 @@ package com.example.ChatterBox
 
 import android.app.AlertDialog
 import android.os.Bundle
+import android.view.View
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -13,6 +15,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import android.widget.TextView
+import com.bumptech.glide.Glide
 import com.example.ChatterBox.adapters.CommentAdapter
 
 
@@ -112,9 +115,23 @@ class PostDetailActivity : AppCompatActivity() {
                     findViewById<TextView>(R.id.postTitle).text = post.title
                     findViewById<TextView>(R.id.postContent).text = post.content
                     findViewById<TextView>(R.id.postAuthor).text = "Posted by: ${post.authorEmail}"
+
+                    val postImageView = findViewById<ImageView>(R.id.postImage)
+
+                    // 🔥 Check if image URL exists and load image using Glide
+                    if (!post.imageUrl.isNullOrEmpty()) {
+                        postImageView.visibility = View.VISIBLE
+                        Glide.with(this)
+                            .load(post.imageUrl)
+                            .placeholder(R.drawable.ic_placeholder) // Show placeholder while loading
+                            .into(postImageView)
+                    } else {
+                        postImageView.visibility = View.GONE // Hide if no image
+                    }
                 }
             }
     }
+
 
 
     /** 🔹 Load Comments from Firebase */

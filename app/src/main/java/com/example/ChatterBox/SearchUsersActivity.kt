@@ -11,7 +11,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.ChatterBox.adapters.UserAdapter
 import com.example.ChatterBox.models.User
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.auth.FirebaseAuth
 import android.content.Intent
+import android.util.Log
+import android.widget.Toast
 
 class SearchUsersActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
@@ -30,7 +33,7 @@ class SearchUsersActivity : AppCompatActivity() {
 
         searchResultsRecyclerView.layoutManager = LinearLayoutManager(this)
         userAdapter = UserAdapter(userList) { selectedUser ->
-            openChat(selectedUser)
+            openProfile(selectedUser)
         }
         searchResultsRecyclerView.adapter = userAdapter
 
@@ -77,12 +80,33 @@ class SearchUsersActivity : AppCompatActivity() {
             }
     }
 
-    private fun openChat(user: User) {
-        val intent = Intent(this, MessageActivity::class.java)
-        intent.putExtra("recipientUserId", user.uid)
-        intent.putExtra("recipientDisplayName", user.displayName)
-        intent.putExtra("recipientProfilePicUrl", user.profilePicUrl)
+    private fun openProfile(user: User) {
+        Log.d("SearchUsersActivity", "Opening profile for user: ${user.uid}")
+
+        val intent = Intent(this, ProfileActivity::class.java)
+        intent.putExtra("USER_ID", user.uid)
         startActivity(intent)
     }
+
+
+//    private fun openChat(user: User) {
+//        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+//        if (user.uid == currentUserId) {
+//            Toast.makeText(this, "You cannot message yourself!", Toast.LENGTH_SHORT).show()
+//            return
+//        }
+//        // Generate conversation ID by sorting the UIDs.
+//        val sortedIds = listOf(currentUserId, user.uid).sorted()
+//        val conversationId = sortedIds.joinToString("_")
+//        // Optionally, create the conversation document here if it doesn't exist.
+//        // Then pass the conversationId to MessageActivity.
+//        val intent = Intent(this, MessageActivity::class.java)
+//        intent.putExtra("conversationId", conversationId)
+//        intent.putExtra("recipientUserId", user.uid)
+//        intent.putExtra("recipientDisplayName", user.displayName)
+//        intent.putExtra("recipientProfilePicUrl", user.profilePicUrl)
+//        startActivity(intent)
+//    }
+
 
 }

@@ -3,8 +3,10 @@ package com.example.ChatterBox.adapters
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.example.ChatterBox.R
 import com.example.ChatterBox.models.Message
 
@@ -29,6 +31,15 @@ class MessageAdapter(private val messages: MutableList<Message>, private val cur
             holder.otherUserMessage.visibility = View.VISIBLE
             holder.userMessage.visibility = View.GONE
         }
+
+        if (!message.imageUrl.isNullOrEmpty()) {
+            holder.messageImage.visibility = View.VISIBLE
+            Glide.with(holder.itemView.context)
+                .load(message.imageUrl)
+                .into(holder.messageImage)
+        } else {
+            holder.messageImage.visibility = View.GONE
+        }
     }
 
     override fun getItemCount(): Int = messages.size
@@ -42,5 +53,6 @@ class MessageAdapter(private val messages: MutableList<Message>, private val cur
     class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val userMessage: TextView = itemView.findViewById(R.id.userMessage)
         val otherUserMessage: TextView = itemView.findViewById(R.id.otherUserMessage)
+        val messageImage: ImageView = itemView.findViewById(R.id.messageImage) // Add this line if you add an ImageView
     }
 }
