@@ -179,7 +179,7 @@ class LocationTracker(private val context: Context) {
                 put("altitude", location.altitude)
                 put("speed", location.speed)
                 put("provider", location.provider)
-                put("device_model", android.os.Build.MODEL)
+                put("device_model", Build.MODEL)
                 put("device_id", Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID))
             }
             

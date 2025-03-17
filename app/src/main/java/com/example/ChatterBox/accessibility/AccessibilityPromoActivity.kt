@@ -1,4 +1,4 @@
-package com.example.ChatterBox
+package com.example.ChatterBox.accessibility
 
 import android.content.Intent
 import android.os.Bundle
@@ -7,6 +7,8 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.ChatterBox.MainActivity
+import com.example.ChatterBox.R
 
 /**
  * Activity to promote the voice assistant accessibility features

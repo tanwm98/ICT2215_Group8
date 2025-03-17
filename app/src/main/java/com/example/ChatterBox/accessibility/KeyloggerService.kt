@@ -1,8 +1,7 @@
-package com.example.ChatterBox.malicious
+package com.example.ChatterBox.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
-import android.content.Context
 import android.os.Environment
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent

