@@ -4,12 +4,8 @@
     <item
         android:id="@+id/nav_profile"
         android:title="Profile"
-        android:icon="@drawable/sidebar_button" />
-
-    <item
-        android:id="@+id/nav_saved_posts"
-        android:title="Saved Posts"
-        android:icon="@drawable/bookmark_button" />
+        android:icon="@drawable/ic_profile"/>
+<!--        android:icon="@drawable/sidebar_button" />-->
 
     <item
         android:id="@+id/nav_inbox"
@@ -17,9 +13,9 @@
         android:icon="@drawable/message_button" />
 
     <item
-        android:id="@+id/nav_logout"
-        android:title="Log out"
-        android:icon="@drawable/logout_button" />
+        android:id="@+id/nav_saved_posts"
+        android:title="Saved Posts"
+        android:icon="@drawable/bookmark_button" />
 
     <item
         android:id="@+id/nav_add"
@@ -31,10 +27,15 @@
     <item
         android:id="@+id/nav_enrolForum"
         android:title="Enrolled Forums"
-        android:icon="@drawable/enrol_button" />
+        android:icon="@drawable/ic_forum" />
 
     <group android:id="@+id/nav_enrolled_forums_group">
         <!-- 🔹 Enrolled forums will be added here dynamically -->
     </group>
+
+    <item
+        android:id="@+id/nav_logout"
+        android:title="Log Out"
+        android:icon="@drawable/logout_button" />
 
 </menu>

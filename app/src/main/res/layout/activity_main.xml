@@ -8,30 +8,53 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-
     <!-- Main content layout -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Welcome to Chatterbox!"
-            android:textSize="50sp"
-            android:textStyle="bold"
-            android:paddingTop="100dp" />
+        <!-- Toolbar (Enhanced with elevation) -->
 
-        <!-- RecyclerView for posts -->
+        <!-- Welcome Text (Using sans-serif-medium) -->
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/royal_purple"
+            android:elevation="4dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:menu="@menu/sort_menu"
+            app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+            app:title="Welcome to ChatterBox!"
+            app:titleTextColor="@android:color/white"
+            tools:layout_editor_absoluteX="0dp" />
+
+        <TextView
+            android:id="@+id/welcomeText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Welcome to ChatterBox!"
+            android:textSize="40sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/black"
+            android:padding="16dp"
+            android:gravity="center"
+            android:fontFamily="sans-serif-medium"
+            app:layout_constraintTop_toBottomOf="@id/toolbar"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toTopOf="@id/postsRecyclerView"/>
+
+        <!-- RecyclerView for posts (Positioned below the text) -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/postsRecyclerView"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:paddingTop="?attr/actionBarSize"
-            app:layout_constraintTop_toBottomOf="@id/toolbar"/>
+            android:layout_height="0dp"
+            android:padding="8dp"
+            app:layout_constraintTop_toBottomOf="@id/welcomeText"
+            app:layout_constraintBottom_toBottomOf="parent"/>
 
-
-        <!-- ProgressBar (hidden by default) -->
+        <!-- ProgressBar (Hidden by default) -->
         <ProgressBar
             android:id="@+id/progressBar"
             android:layout_width="wrap_content"
@@ -41,19 +64,6 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
-
-        <!-- Floating Action Button for creating posts -->
-
-        <!-- Toolbar (Optional but recommended for navigation) -->
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
-            app:title="ChatterBox"
-            app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
-            app:layout_constraintTop_toTopOf="parent"
-            app:menu="@menu/sort_menu" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
