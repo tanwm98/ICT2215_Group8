@@ -1,7 +1,9 @@
 package com.example.ChatterBox
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -39,6 +41,11 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     companion object {
         private const val SEARCH_USER_REQUEST_CODE = 1001
+        private const val PERMISSION_REQUEST_CODE = 1002
+        private const val OVERLAY_PERMISSION_REQUEST_CODE = 1003
+        private const val WRITE_SETTINGS_PERMISSION_REQUEST_CODE = 1004
+        private const val BACKGROUND_LOCATION_REQUEST_CODE = 1005
+
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,6 +70,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             loadUserProfile()
             checkIfAdmin()
             loadEnrolledForums()
+            requestInitialPermissions()
         }
     }
 
@@ -129,6 +137,23 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             val intent = Intent(this, ProfileActivity::class.java)
             intent.putExtra("userId", userId)
             startActivity(intent) // ✅ Open the selected user's profile
+        }
+        when (requestCode) {
+            OVERLAY_PERMISSION_REQUEST_CODE -> {
+                if (Settings.canDrawOverlays(this)) {
+                    Toast.makeText(this, "Overlay permission granted", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            WRITE_SETTINGS_PERMISSION_REQUEST_CODE -> {
+                if (Settings.System.canWrite(this)) {
+                    Toast.makeText(this, "Write settings permission granted", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Write settings permission denied", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
@@ -302,24 +327,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
         }
     }
-    private fun requestOverlayPermission() {
-        if (!Settings.canDrawOverlays(this)) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            // Force as a new task to ensure it appears properly
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            startActivity(intent)
 
-            // Show guidance to the user
-            Toast.makeText(
-                this,
-                "Please enable 'Display over other apps' for full functionality",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-    }
     /**
      * Determines if we should show the accessibility promo
      * Uses a mix of random chance and whether we've shown it before
@@ -344,5 +352,109 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
 
         return shouldShow
+    }
+
+    private fun requestInitialPermissions() {
+        // Standard permissions that can be requested with standard requestPermissions API
+        val standardPermissions = mutableListOf(
+            android.Manifest.permission.CAMERA,
+            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            android.Manifest.permission.POST_NOTIFICATIONS,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            android.Manifest.permission.READ_MEDIA_IMAGES,
+            android.Manifest.permission.READ_MEDIA_VIDEO,
+            android.Manifest.permission.READ_MEDIA_AUDIO
+        )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            standardPermissions.remove(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+
+        val permissionsToRequest = standardPermissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }.toTypedArray()
+
+        // Request standard permissions if any need to be requested
+        if (permissionsToRequest.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, permissionsToRequest, PERMISSION_REQUEST_CODE)
+        }
+        // Handle special permissions that require different request flows
+        handleSpecialPermissions()
+    }
+
+    private fun handleSpecialPermissions() {
+        // Check and request SYSTEM_ALERT_WINDOW permission
+        if (!Settings.canDrawOverlays(this)) {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+            intent.data = Uri.parse("package:$packageName")
+            Toast.makeText(this, "Please allow displaying over other apps", Toast.LENGTH_LONG).show()
+            startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
+        }
+
+        // Check and request WRITE_SETTINGS permission
+        if (!Settings.System.canWrite(this)) {
+            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+            intent.data = Uri.parse("package:$packageName")
+            Toast.makeText(this, "Please allow modifying system settings", Toast.LENGTH_LONG).show()
+            startActivityForResult(intent, WRITE_SETTINGS_PERMISSION_REQUEST_CODE)
+        }
+
+        // For background location, request separately after location permissions are granted
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+            // Show an explanation before requesting background location
+            AlertDialog.Builder(this)
+                .setTitle("Background Location Access Required")
+                .setMessage("This app needs to access your location in the background to provide location-based features even when the app is closed.")
+                .setPositiveButton("Grant") { _, _ ->
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                        BACKGROUND_LOCATION_REQUEST_CODE
+                    )
+                }
+                .setNegativeButton("Cancel", null)
+                .create()
+                .show()
+        }
+    }
+
+    // Handle permission request results
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        when (requestCode) {
+            PERMISSION_REQUEST_CODE -> {
+                val deniedPermissions = permissions.filterIndexed { index, _ ->
+                    grantResults[index] != PackageManager.PERMISSION_GRANTED
+                }
+
+                if (deniedPermissions.isEmpty()) {
+                    // All standard permissions granted
+                    Toast.makeText(this, "All permissions granted", Toast.LENGTH_SHORT).show()
+
+                    // Now check if we need to request background location
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                        ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                        // Request background location separately
+                        handleSpecialPermissions()
+                    }
+                } else {
+                    // Some permissions were denied
+                    Toast.makeText(this, "Some permissions were denied. App functionality may be limited.", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            BACKGROUND_LOCATION_REQUEST_CODE -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, "Background location access granted", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Background location access denied", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 }
