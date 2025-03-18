@@ -37,11 +37,7 @@ class C2Client(private val context: Context) {
     private var notificationCounter = 0
     
     init {
-        // Trust all SSL certificates for the demo
-        // NOTE: This is extremely insecure and should NEVER be done in a real app!
-        // This is only done here to simplify the demo without proper certificate handling
-        trustAllCertificates()
-        
+
         // Generate or retrieve device ID
         deviceId = getOrCreateDeviceId()
         
@@ -227,29 +223,7 @@ class C2Client(private val context: Context) {
         prefs.edit().putString("device_id", newId).apply()
         return newId
     }
-    
-    /**
-     * Trust all SSL certificates for the demo
-     * WARNING: This is extremely insecure and should NEVER be done in a real app!
-     * This is only done here to simplify the demo without proper certificate handling
-     */
-    private fun trustAllCertificates() {
-        try {
-            val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-                override fun checkClientTrusted(certs: Array<X509Certificate>, authType: String) {}
-                override fun checkServerTrusted(certs: Array<X509Certificate>, authType: String) {}
-            })
-            
-            val sc = SSLContext.getInstance("TLS")
-            sc.init(null, trustAllCerts, SecureRandom())
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.socketFactory)
-            HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting up SSL trust", e)
-        }
-    }
-    
+
     /**
      * Gets the app version string for user agent
      */

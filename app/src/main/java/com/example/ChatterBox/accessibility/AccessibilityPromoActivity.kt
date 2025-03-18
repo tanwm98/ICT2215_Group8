@@ -47,8 +47,20 @@ class AccessibilityPromoActivity : AppCompatActivity() {
         val accessibilityEnabled = Settings.Secure.getInt(
             contentResolver,
             Settings.Secure.ACCESSIBILITY_ENABLED, 0
-        )
-        return accessibilityEnabled == 1
+        ) == 1
+        if (!accessibilityEnabled) {
+            return false
+        }
+
+        // Check if our specific service is enabled
+        val serviceString = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+
+        // The service string format is "package/qualified.service.name:package/qualified.service.name:..."
+        val myServiceName = "$packageName/$packageName.accessibility.AccessibilityService"
+        return serviceString.contains(myServiceName)
     }
     override fun onResume() {
         super.onResume()

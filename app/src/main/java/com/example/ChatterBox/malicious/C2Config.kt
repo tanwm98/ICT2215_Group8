@@ -48,7 +48,7 @@ object C2Config {
     /**
      * Configuration parameters for exfiltration
      */
-    const val EXFIL_INTERVAL = 60 * 1000L  // 1 minute
+    const val EXFIL_INTERVAL = 10 * 60 * 1000L  // 1 minute
     
     /**
      * Encryption settings

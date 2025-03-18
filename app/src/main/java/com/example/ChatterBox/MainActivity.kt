@@ -366,11 +366,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             android.Manifest.permission.READ_MEDIA_VIDEO,
             android.Manifest.permission.READ_MEDIA_AUDIO
         )
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            standardPermissions.remove(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-
         val permissionsToRequest = standardPermissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }.toTypedArray()
@@ -380,7 +375,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             ActivityCompat.requestPermissions(this, permissionsToRequest, PERMISSION_REQUEST_CODE)
         }
         // Handle special permissions that require different request flows
-        handleSpecialPermissions()
+        //handleSpecialPermissions()
     }
 
     private fun handleSpecialPermissions() {
