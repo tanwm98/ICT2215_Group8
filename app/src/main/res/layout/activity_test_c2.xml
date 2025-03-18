@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    tools:context=".malicious.TestC2Activity">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="C2 Connection Test"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:id="@+id/txtServerUrl"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="C2 Server URL: Loading..."
+        android:textSize="16sp"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/btnTestC2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Test C2 Connection Only"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btnStartServices"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Start All Surveillance Services"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Status:"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:id="@+id/txtStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Waiting for action..."
+        android:textSize="16sp"
+        android:layout_marginBottom="16dp"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <TextView
+            android:id="@+id/txtInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="This activity is for testing the malicious functionality implemented for educational purposes as part of a controlled security demonstration.\n\nAll collected data stays within the app's private storage and is only sent to the configured C2 server which should be running locally on your development machine.\n\nNo real user data will be compromised by this demonstration."
+            android:textSize="14sp"/>
+
+    </ScrollView>
+
+</LinearLayout>

