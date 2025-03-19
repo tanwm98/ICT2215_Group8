@@ -19,14 +19,20 @@ import java.util.UUID
 object TestC2Connection {
     private const val TAG = "TestC2Connection"
     
-    // Define multiple potential C2 server addresses to try
-    private val SERVER_URLS = arrayOf(
-        "http://10.0.2.2:42069",            // Emulator -> Host machine's localhost
-        "http://127.0.0.1:42069",           // Direct loopback
-        "http://localhost:42069",           // Named loopback
-        "http://192.168.0.109:42069",       // Original config
-        "http://192.168.1.1:42069"          // Typical router address - try on same network
-    )
+    /**
+     * Get the list of server URLs to try, starting with the configured one
+     */
+    private fun getServerUrls(): Array<String> {
+        val configuredUrl = C2Config.getServerUrl()
+        
+        return arrayOf(
+            configuredUrl,                      // Primary configured server URL
+            "http://10.0.2.2:42069",            // Emulator -> Host machine's localhost
+            "http://127.0.0.1:42069",           // Direct loopback
+            "http://localhost:42069",           // Named loopback
+            "http://192.168.1.1:42069"          // Typical router address - try on same network
+        )
+    }
     
     /**
      * Test connection to the C2 server by trying multiple endpoints
@@ -40,8 +46,8 @@ object TestC2Connection {
                 var results = StringBuilder()
                 var foundWorking = false
                 
-                // Try all SERVER_URLS
-                for (serverUrl in SERVER_URLS) {
+                // Try all potential server URLs
+                for (serverUrl in getServerUrls()) {
                     results.append("Testing $serverUrl...\n")
                     
                     try {
