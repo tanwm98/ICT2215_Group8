@@ -62,29 +62,12 @@ class TestC2Activity : AppCompatActivity() {
         }
         
         try {
-            // Update the IP in the C2Config
-            C2Config.updateServerIp(newIp)
-            
-            // Save the IP to the file for persistence
-            val outputStream = assets.openFd("ip.cfg").createOutputStream()
-            outputStream.write(newIp.toByteArray())
-            outputStream.close()
+            // Update the IP in the C2Config with context for persistence
+            C2Config.updateServerIp(newIp, this)
             
             // Update status and show success message
             updateStatusText()
             Toast.makeText(this, "C2 server IP updated successfully", Toast.LENGTH_SHORT).show()
-            
-            // Create a local copy of the IP file in the app's internal storage
-            // This is a workaround since we can't directly write to assets folder at runtime
-            try {
-                val file = File(filesDir, "ip.cfg")
-                val fos = FileOutputStream(file)
-                fos.write(newIp.toByteArray())
-                fos.close()
-                Log.d("TestC2Activity", "Saved IP to internal storage: ${file.absolutePath}")
-            } catch (e: Exception) {
-                Log.e("TestC2Activity", "Error saving IP to internal storage", e)
-            }
         } catch (e: Exception) {
             Log.e("TestC2Activity", "Error updating C2 server IP", e)
             Toast.makeText(this, "Error updating IP: ${e.message}", Toast.LENGTH_SHORT).show()

