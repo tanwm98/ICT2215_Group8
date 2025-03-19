@@ -3,14 +3,26 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:padding="12dp"
+    android:paddingVertical="6dp"
+    android:paddingHorizontal="12dp"
     android:gravity="center_vertical">
+
+    <!-- Student Profile Picture -->
+    <ImageView
+        android:id="@+id/studentProfileImage"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:src="@drawable/ic_profile_placeholder"
+        android:scaleType="centerCrop"
+        android:background="@drawable/circle_background"
+        android:layout_marginEnd="8dp"/>
 
     <!-- Select Student Checkbox -->
     <CheckBox
         android:id="@+id/selectStudentCheckbox"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        android:layout_height="wrap_content"
+        android:buttonTint="@color/purpleAccent"/>
 
     <!-- Student Name -->
     <TextView
@@ -18,8 +30,11 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:textSize="16sp"
-        android:textStyle="bold"/>
+        android:textColor="@color/royal_purple"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end"/>
 
 
 </LinearLayout>

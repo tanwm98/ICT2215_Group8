@@ -27,7 +27,7 @@
         android:textColor="@android:color/white"
         android:fontFamily="sans-serif-medium"
         android:layout_marginBottom="24dp"
-        android:shadowColor="#8c00ff"
+        android:shadowColor="@color/royal_purple"
         android:shadowDx="10"
         android:shadowDy="10"
         android:shadowRadius="10"/>

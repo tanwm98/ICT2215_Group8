@@ -1,37 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
     android:padding="16dp"
-    xmlns:android="http://schemas.android.com/apk/res/android">
+    android:background="@drawable/dark_purple_gradient">
 
-    <EditText
-        android:id="@+id/titleInput"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Title" />
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="16dp">
 
-    <EditText
-        android:id="@+id/contentInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Content"
-        android:minLines="3" />
+        <!-- Post Title Input -->
+        <EditText
+            android:id="@+id/titleInput"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:hint="Enter Post Title"
+            android:padding="12dp"
+            android:background="@drawable/rounded_input"
+            android:textColor="@android:color/black"
+            android:textColorHint="@android:color/darker_gray"
+            android:layout_marginBottom="12dp"/>
 
-    <ImageView
-        android:id="@+id/selectedImageView"
-        android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:scaleType="centerCrop"
-        android:visibility="gone"
-        android:layout_marginTop="10dp"
-        android:background="@android:color/darker_gray"/>
+        <!-- Post Content Input -->
+        <EditText
+            android:id="@+id/contentInput"
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:hint="Write something..."
+            android:padding="12dp"
+            android:background="@drawable/rounded_input"
+            android:textColor="@android:color/black"
+            android:textColorHint="@android:color/darker_gray"
+            android:minLines="3"
+            android:gravity="top"
+            android:layout_marginBottom="12dp"/>
 
-    <Button
-        android:id="@+id/selectImageButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Select Image"
-        android:layout_marginTop="8dp"/>
+        <!-- Image Preview -->
+        <ImageView
+            android:id="@+id/selectedImageView"
+            android:layout_width="match_parent"
+            android:layout_height="250dp"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/rounded_card"/>
 
-</LinearLayout>
+        <!-- Select Image Button -->
+        <Button
+            android:id="@+id/selectImageButton"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:text="Select Image"
+            android:textSize="16sp"
+            android:textColor="@android:color/white"
+            android:background="@drawable/purple_button"
+            android:elevation="4dp"
+            android:layout_marginBottom="12dp"/>
+
+<!--        &lt;!&ndash; Submit Post Button &ndash;&gt;-->
+<!--        <Button-->
+<!--            android:id="@+id/postButton"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="55dp"-->
+<!--            android:text="Post"-->
+<!--            android:textSize="18sp"-->
+<!--            android:textColor="@android:color/white"-->
+<!--            android:background="@drawable/purple_button"-->
+<!--            android:elevation="4dp"/>-->
+
+    </LinearLayout>
+</ScrollView>

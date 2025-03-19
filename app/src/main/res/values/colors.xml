@@ -17,4 +17,5 @@
     <color name="teal">#008080</color>
     <color name="nav_icon_color">#555555</color>
     <color name="nav_text_color">#333333</color>
+    <color name="purpleAccent">#8E44AD</color>
 </resources>
