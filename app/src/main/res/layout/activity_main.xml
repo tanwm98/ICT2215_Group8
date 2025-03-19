@@ -27,6 +27,7 @@
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
             app:title="Welcome to ChatterBox!"
             app:titleTextColor="@android:color/white"
+            android:shadowColor="@color/royal_purple"
             tools:layout_editor_absoluteX="0dp" />
 
         <TextView

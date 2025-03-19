@@ -2,44 +2,60 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:background="@drawable/dark_purple_gradient">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:gravity="center_horizontal">
+        android:gravity="center_horizontal"
+        android:padding="20dp">
 
         <!-- Module Name -->
         <EditText
             android:id="@+id/moduleNameInput"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="55dp"
             android:hint="Module Name"
-            android:layout_marginBottom="10dp"/>
+            android:padding="12dp"
+            android:background="@drawable/rounded_input"
+            android:textColor="@color/royal_purple"
+            android:textColorHint="@android:color/darker_gray"
+            android:layout_marginBottom="12dp"/>
 
         <!-- Module Code -->
         <EditText
             android:id="@+id/moduleCodeInput"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="55dp"
             android:hint="Module Code"
-            android:layout_marginBottom="10dp"/>
+            android:padding="12dp"
+            android:background="@drawable/rounded_input"
+            android:textColor="@color/royal_purple"
+            android:textColorHint="@android:color/darker_gray"
+            android:layout_marginBottom="12dp"/>
 
         <!-- Module Description -->
         <EditText
             android:id="@+id/moduleDescriptionInput"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="100dp"
             android:hint="Module Description"
+            android:padding="12dp"
+            android:background="@drawable/rounded_input"
+            android:textColor="@color/royal_purple"
+            android:textColorHint="@android:color/darker_gray"
             android:minLines="3"
-            android:layout_marginBottom="10dp"/>
+            android:gravity="top"
+            android:layout_marginBottom="12dp"/>
 
         <!-- Student Selection List -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Select Students"
+            android:text="Select students:"
+            android:textSize="16sp"
             android:textStyle="bold"
             android:layout_marginBottom="8dp"/>
 
@@ -47,13 +63,22 @@
             android:id="@+id/studentsRecyclerView"
             android:layout_width="match_parent"
             android:layout_height="200dp"
-            android:layout_marginBottom="10dp"/>
+            android:background="@drawable/rounded_card"
+            android:padding="8dp"
+            android:elevation="2dp"
+            android:layout_marginBottom="12dp"/>
 
         <!-- Create Forum Button -->
         <Button
             android:id="@+id/createForumButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Create Forum"/>
+            android:layout_height="55dp"
+            android:text="Create Forum"
+            android:textSize="18sp"
+            android:textColor="@android:color/white"
+            android:background="@drawable/purple_button"
+            android:elevation="4dp"
+            android:layout_marginTop="12dp"/>
+
     </LinearLayout>
 </ScrollView>
