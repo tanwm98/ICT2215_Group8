@@ -8,5 +8,6 @@
         android:id="@+id/lastMessageTextView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:shape="rectangle"
         android:textSize="16sp"/>
 </LinearLayout>

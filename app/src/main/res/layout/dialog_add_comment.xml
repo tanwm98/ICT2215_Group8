@@ -3,13 +3,16 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
+    android:background="@drawable/dark_purple_gradient"
     android:padding="16dp">
 
     <EditText
         android:id="@+id/commentInput"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/rounded_input"
         android:hint="Enter your comment"
+        android:textColor="@color/royal_purple"
         android:minLines="2"
         android:maxLines="5" />
 

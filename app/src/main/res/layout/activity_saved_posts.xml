@@ -8,13 +8,15 @@
     tools:context=".SavedPostsActivity">
 
     <!-- RecyclerView to Display Saved Posts -->
+
+    <!-- Progress Bar (Hidden by Default) -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/savedPostsRecyclerView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        tools:layout_editor_absoluteX="0dp" />
 
-    <!-- Progress Bar (Hidden by Default) -->
     <ProgressBar
         android:id="@+id/progressBar"
         android:layout_width="wrap_content"

@@ -32,23 +32,27 @@
         android:shadowDy="10"
         android:shadowRadius="10"/>
 
-    <Button
+    <android.widget.Button
         android:id="@+id/btnLogin"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textSize="16sp"
-        android:textColor="@android:color/white"
+        android:textColor="@color/lavender"
+        android:textStyle="bold"
         android:background="@drawable/purple_button"
+        android:backgroundTint="@color/purple_500"
         android:layout_marginBottom="10dp"
         android:text="Login"/>
 
-    <Button
+    <android.widget.Button
         android:id="@+id/btnRegister"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textSize="16sp"
-        android:textColor="@android:color/white"
+        android:textColor="@color/lavender"
+        android:textStyle="bold"
         android:background="@drawable/purple_button"
+        android:backgroundTint="@color/purple_500"
         android:layout_marginBottom="10dp"
         android:text="Register"/>
         android:text="Register"

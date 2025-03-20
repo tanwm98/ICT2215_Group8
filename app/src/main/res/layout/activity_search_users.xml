@@ -4,6 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:background="@drawable/rounded_box"
+    android:backgroundTint="@drawable/purple_gradient"
     android:padding="16dp">
 
     <!-- Search Bar Container -->
@@ -11,9 +13,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:background="@android:color/white"
+        android:background="@drawable/rounded_input"
         android:elevation="4dp"
-        android:padding="8dp">
+        android:layout_marginBottom="5dp"
+        android:padding="4dp">
 
         <!-- Search Input Field -->
         <EditText
@@ -22,7 +25,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:hint="Search users..."
-            android:padding="10dp"
+            android:textColor="@color/royal_purple"
+            android:padding="5dp"
             android:background="@android:color/transparent"
             android:textSize="16sp" />
 
@@ -31,10 +35,10 @@
             android:id="@+id/cancelButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Cancel"
-            android:textSize="14sp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:textColor="@android:color/holo_red_dark"/>
+            android:text="Cancel"
+            android:textColor="@color/royal_purple"
+            android:textSize="14sp" />
     </LinearLayout>
 
     <!-- RecyclerView for displaying search results -->

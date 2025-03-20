@@ -11,7 +11,9 @@
         android:autoLink="web"
         android:linksClickable="true"
         android:textSize="16sp"
-        android:background="@android:color/holo_blue_light"
+        android:background="@drawable/rounded_box"
+        android:backgroundTint="@color/royal_purple"
+        android:textColor="@color/lavender"
         android:padding="8dp"
         android:visibility="gone"/>
 
@@ -26,7 +28,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="16sp"
-        android:background="@android:color/darker_gray"
+        android:background="@drawable/rounded_box"
+        android:backgroundTint="#f5e8ff"
         android:padding="8dp"
         android:visibility="gone"/>
 </LinearLayout>
