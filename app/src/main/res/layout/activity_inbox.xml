@@ -3,6 +3,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="10dp"
+    android:background="@drawable/purple_gradient"
     android:focusableInTouchMode="true">
 
     <EditText
@@ -10,8 +11,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Search Users"
+        android:textSize="14dp"
         android:padding="8dp"
-        android:background="@android:drawable/editbox_background"/>
+        android:background="@drawable/rounded_input"/>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/usersRecyclerView"

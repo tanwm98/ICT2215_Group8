@@ -13,9 +13,9 @@
     <color name="mint_green">#98FB98</color>
     <color name="burnt_orange">#FF6F00</color>
     <color name="soft_gray">#D3D3D3</color>
-    <color name="lavender">#E6E6FA</color>
+    <color name="lavender">#f1e6fa</color>
     <color name="teal">#008080</color>
     <color name="nav_icon_color">#555555</color>
     <color name="nav_text_color">#333333</color>
-    <color name="purpleAccent">#8E44AD</color>
+    <color name="purpleAccent">#625070</color>
 </resources>

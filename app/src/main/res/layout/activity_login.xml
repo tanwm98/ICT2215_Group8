@@ -23,7 +23,7 @@
         android:layout_height="wrap_content"
         android:hint="Email"
         android:inputType="textEmailAddress"
-        android:padding="10dp"
+        android:padding="15dp"
         android:textSize="16sp"
         android:background="@drawable/rounded_input"
         android:textColor="@color/royal_purple"
@@ -37,7 +37,7 @@
         android:layout_height="wrap_content"
         android:hint="Password"
         android:inputType="textPassword"
-        android:padding="10dp"
+        android:padding="15dp"
         android:textSize="16sp"
         android:background="@drawable/rounded_input"
         android:textColor="@color/royal_purple"
@@ -45,15 +45,17 @@
         android:layout_marginBottom="12dp"
         />
 
-    <Button
+    <android.widget.Button
         android:id="@+id/loginButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Login"
+        android:textStyle="bold"
         android:padding="10dp"
         android:textSize="16sp"
-        android:background="@drawable/rounded_input"
-        android:textColor="@android:color/white"
+        android:background="@drawable/purple_button"
+        android:backgroundTint="@color/purple_500"
+        android:textColor="@color/lavender"
         android:textColorHint="@android:color/darker_gray"
         android:layout_marginBottom="12dp" />
 

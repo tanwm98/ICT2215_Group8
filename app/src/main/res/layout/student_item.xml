@@ -5,10 +5,11 @@
     android:orientation="horizontal"
     android:paddingVertical="6dp"
     android:paddingHorizontal="12dp"
+    android:background="@color/lavender"
     android:gravity="center_vertical">
 
     <!-- Student Profile Picture -->
-    <ImageView
+    <de.hdodenhof.circleimageview.CircleImageView
         android:id="@+id/studentProfileImage"
         android:layout_width="36dp"
         android:layout_height="36dp"

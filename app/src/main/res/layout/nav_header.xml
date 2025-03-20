@@ -3,7 +3,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@color/royal_purple">
+    android:background="@color/purpleAccent">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -13,7 +13,7 @@
         android:padding="16dp">
 
         <!-- User Profile Picture -->
-        <ImageView
+        <de.hdodenhof.circleimageview.CircleImageView
             android:id="@+id/user_profile_image"
             android:layout_width="80dp"
             android:layout_height="80dp"
@@ -30,7 +30,7 @@
             android:text="User Name"
             android:textStyle="bold"
             android:textSize="20sp"
-            android:textColor="@android:color/white"
+            android:textColor="@color/lavender"
             android:fontFamily="sans-serif-medium"
             android:layout_marginTop="8dp"
             android:gravity="center"/>

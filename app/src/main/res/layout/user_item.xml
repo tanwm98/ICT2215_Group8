@@ -2,23 +2,44 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="12dp"
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:layout_margin="4dp"
+    android:backgroundTint="@color/royal_purple"
+    android:background="@drawable/rounded_box"
     android:clickable="true">
 
-    <TextView
-        android:id="@+id/usernameText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textStyle="bold"
-        android:textSize="16sp"
-        android:focusable="false"/>
+    <de.hdodenhof.circleimageview.CircleImageView
+        android:id="@+id/profileImageView"
+        android:layout_width="54dp"
+        android:layout_height="57dp"
+        android:src="@drawable/ic_profile_placeholder" />
 
-    <TextView
-        android:id="@+id/displayNameText"
-        android:layout_width="match_parent"
+    <!-- Text Container (Username + Display Name) -->
+    <LinearLayout
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textSize="14sp"
-        android:textColor="@android:color/darker_gray"
-        android:focusable="false"/>
+        android:orientation="vertical"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="5dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/usernameText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textStyle="bold"
+            android:textSize="20sp"
+            android:textColor="@color/lavender"
+            android:focusable="false"/>
+
+        <TextView
+            android:id="@+id/displayNameText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="@color/lavender"
+            android:focusable="false"/>
+    </LinearLayout>
+
 </LinearLayout>

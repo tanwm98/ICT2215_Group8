@@ -3,6 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/purple_gradient"
     android:orientation="vertical">
 
     <!-- 🔹 Toolbar for menu -->
@@ -10,9 +11,14 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
-        android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
-        app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+        android:background="@color/royal_purple"
+        android:elevation="4dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:menu="@menu/sort_menu"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+        app:title="Welcome to ChatterBox!"
+        app:titleTextColor="@android:color/white"
+        android:shadowColor="@color/royal_purple"/>
 
     <ProgressBar
         android:id="@+id/progressBar"
@@ -35,5 +41,6 @@
         android:layout_height="wrap_content"
         android:layout_gravity="end|bottom"
         android:layout_margin="16dp"
+        android:backgroundTint="@color/purple_200"
         android:src="@android:drawable/ic_input_add"/>
 </LinearLayout>

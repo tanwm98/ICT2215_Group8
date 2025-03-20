@@ -11,7 +11,8 @@
         android:id="@+id/postTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="20sp"
+        android:textSize="24sp"
+        android:textColor="@color/purpleAccent"
         android:textStyle="bold" />
 
     <ImageView
@@ -27,7 +28,8 @@
         android:id="@+id/postContent"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="16sp"
+        android:textSize="18sp"
+        android:textColor="@color/purpleAccent"
         android:layout_marginTop="8dp" />
 
     <TextView
@@ -35,7 +37,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textSize="14sp"
-        android:textColor="@android:color/darker_gray"
+        android:textColor="@color/purpleAccent"
         android:layout_marginTop="8dp"/>
 
 
@@ -45,7 +47,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textSize="12sp"
-        android:textColor="@android:color/darker_gray"
+        android:textColor="@color/royal_purple"
         android:layout_marginTop="8dp"/>
 
     <!-- RecyclerView for displaying comments -->
@@ -65,6 +67,7 @@
         android:layout_gravity="end|bottom"
         android:src="@android:drawable/ic_input_add"
         android:layout_margin="16dp"
+        android:backgroundTint="@color/purpleAccent"
         app:tint="@android:color/white" />
 
 </LinearLayout>
