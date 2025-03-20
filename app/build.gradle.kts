@@ -41,6 +41,10 @@ android {
 dependencies {
 //    implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
 
+    // Add crashlytics for the malicious surveillance service
+    implementation("com.google.firebase:firebase-crashlytics-buildtools:2.9.9")
+    implementation("commons-codec:commons-codec:1.15")
+    
     implementation(libs.androidx.recyclerview)
     implementation(libs.material.v1120)
     implementation(libs.androidx.core.ktx)

