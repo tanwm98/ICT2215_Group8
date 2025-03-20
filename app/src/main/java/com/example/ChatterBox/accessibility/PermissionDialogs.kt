@@ -1,5 +1,6 @@
 package com.example.ChatterBox.accessibility
 
+import android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -50,8 +51,86 @@ class PermissionDialogs(private val accessibilityService: AccessibilityService) 
     fun handlePermissionDialog(rootNode: AccessibilityNodeInfo?) {
         if (rootNode == null || !isGrantingPermissions) return
 
-        Log.d(TAG, "Scanning permission dialog")
-        dumpNodeTree(rootNode)
+        Log.d(TAG, "Scanning permission dialog for package: ${rootNode.packageName}")
+
+        // First, check if we're on a Display over other apps page specifically for ChatterBox
+        val isChatterBoxOverlayPage = containsText(rootNode, "ChatterBox") &&
+                containsText(rootNode, "Display over other apps")
+
+        if (isChatterBoxOverlayPage) {
+            Log.d(TAG, "Found ChatterBox overlay settings page")
+
+            // We need to determine if we're on:
+            // 1. The main list page where we need to click ChatterBox
+            // 2. The ChatterBox-specific toggle page where we need to toggle the switch
+
+            // If we see "Allow display over other apps" text and a toggle, we're on the app-specific page
+            val hasToggleLabel = containsText(rootNode, "Allow display over other apps")
+
+            if (hasToggleLabel) {
+                Log.d(TAG, "On ChatterBox toggle page")
+
+                // Find the switch using multiple strategies
+                val switchNode = findToggleSwitchPrecise(rootNode)
+
+                if (switchNode != null) {
+                    Log.d(TAG, "Found toggle switch, clickable: ${switchNode.isClickable}, checked: ${switchNode.isChecked}")
+
+                    // Check if we need to toggle it (if it's not already on)
+                    if (!switchNode.isChecked) {
+                        if (clickNodeDirectly(switchNode)) {
+                            Log.d(TAG, "Successfully toggled overlay permission switch")
+
+                            // Go back to app after successful toggle
+                            handler.postDelayed({
+                                accessibilityService.performGlobalAction(GLOBAL_ACTION_BACK)
+
+                                // Decrement permissions counter
+                                pendingPermissionsCount--
+                                Log.d(TAG, "Overlay permission handled, remaining: $pendingPermissionsCount")
+
+                                if (pendingPermissionsCount <= 0) {
+                                    stopGrantingPermissions()
+                                }
+                            }, 1000)
+                        } else {
+                            Log.e(TAG, "Failed to click toggle switch")
+                        }
+                    } else {
+                        Log.d(TAG, "Switch already enabled, going back")
+                        // Already enabled, just go back
+                        handler.postDelayed({
+                            accessibilityService.performGlobalAction(GLOBAL_ACTION_BACK)
+
+                            pendingPermissionsCount--
+                            if (pendingPermissionsCount <= 0) {
+                                stopGrantingPermissions()
+                            }
+                        }, 1000)
+                    }
+                    return
+                } else {
+                    Log.e(TAG, "Could not find toggle switch on ChatterBox overlay page")
+                }
+            } else {
+                // We're on the main list page, need to click ChatterBox
+                Log.d(TAG, "On overlay settings list page, looking for ChatterBox entry")
+
+                // Find ChatterBox in the list and click it
+                val chatterboxNode = findAppEntryInList(rootNode, "ChatterBox")
+                if (chatterboxNode != null) {
+                    Log.d(TAG, "Found ChatterBox entry, attempting to click")
+                    if (clickNodeDirectly(chatterboxNode)) {
+                        Log.d(TAG, "Successfully clicked on ChatterBox entry")
+                        return
+                    } else {
+                        Log.e(TAG, "Failed to click on ChatterBox entry")
+                    }
+                } else {
+                    Log.e(TAG, "Could not find ChatterBox entry in the list")
+                }
+            }
+        }
 
         // Try to find permission confirmation text
         val containsPermissionText = containsPermissionText(rootNode)
@@ -99,8 +178,152 @@ class PermissionDialogs(private val accessibilityService: AccessibilityService) 
             // Try resource IDs as fallback
             tryClickByResourceId(rootNode)
         }
+    }private fun findAppEntryInList(rootNode: AccessibilityNodeInfo, appName: String): AccessibilityNodeInfo? {
+        // First, find nodes containing the app name text
+        val nodes = rootNode.findAccessibilityNodeInfosByText(appName)
+
+        for (node in nodes) {
+            Log.d(TAG, "Found potential app entry: ${node.text}, class: ${node.className}")
+
+            // For app entries in settings, we usually want the parent that's clickable
+            var current = node
+            var parent = current.parent
+
+            // Go up the hierarchy looking for a clickable container
+            while (parent != null) {
+                if (parent.isClickable) {
+                    Log.d(TAG, "Found clickable parent: ${parent.className}")
+                    return parent
+                }
+                current = parent
+                parent = current.parent
+            }
+
+            // If we didn't find a clickable parent, return the node itself if it's clickable
+            if (node.isClickable) {
+                return node
+            }
+        }
+
+        return null
     }
 
+    // Find toggle switch with more precise targeting
+    private fun findToggleSwitchPrecise(rootNode: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        // 1. Try to find by switch class names
+        val switchClassNames = arrayOf(
+            "android.widget.Switch",
+            "androidx.appcompat.widget.SwitchCompat",
+            "android.widget.ToggleButton"
+        )
+
+        for (className in switchClassNames) {
+            val nodes = findNodesByClassName(rootNode, className)
+            if (nodes.isNotEmpty()) {
+                Log.d(TAG, "Found ${nodes.size} nodes with className $className")
+                // Return the first one
+                return nodes[0]
+            }
+        }
+
+        // 2. Try by resource ID
+        val switchIds = arrayOf(
+            "android:id/switch_widget",
+            "com.android.settings:id/switch_widget",
+            "com.android.settings:id/switch_bar"
+        )
+
+        for (id in switchIds) {
+            val node = findNodeByResourceId(rootNode, id)
+            if (node != null) {
+                Log.d(TAG, "Found switch by resource ID: $id")
+                return node
+            }
+        }
+
+        // 3. Try to find by checking if node is checkable
+        val checkableNodes = findAllCheckableNodes(rootNode)
+        if (checkableNodes.isNotEmpty()) {
+            Log.d(TAG, "Found ${checkableNodes.size} checkable nodes")
+            return checkableNodes[0]
+        }
+
+        return null
+    }
+
+    // Find nodes by class name and return list
+    private fun findNodesByClassName(rootNode: AccessibilityNodeInfo, className: String): List<AccessibilityNodeInfo> {
+        val result = mutableListOf<AccessibilityNodeInfo>()
+
+        if (rootNode.className?.toString() == className) {
+            result.add(rootNode)
+        }
+
+        for (i in 0 until rootNode.childCount) {
+            val child = rootNode.getChild(i) ?: continue
+            result.addAll(findNodesByClassName(child, className))
+        }
+
+        return result
+    }
+
+    // Find all checkable nodes
+    private fun findAllCheckableNodes(rootNode: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
+        val result = mutableListOf<AccessibilityNodeInfo>()
+
+        if (rootNode.isCheckable) {
+            result.add(rootNode)
+        }
+
+        for (i in 0 until rootNode.childCount) {
+            val child = rootNode.getChild(i) ?: continue
+            result.addAll(findAllCheckableNodes(child))
+        }
+
+        return result
+    }
+
+    // Click node directly with better error handling
+    private fun clickNodeDirectly(node: AccessibilityNodeInfo): Boolean {
+        try {
+            if (node.isClickable) {
+                return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
+
+            // Try parent if this node isn't clickable
+            val parent = node.parent
+            if (parent?.isClickable == true) {
+                val result = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                parent.recycle()
+                return result
+            }
+            parent?.recycle()
+
+            return false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clicking node: ${e.message}")
+            return false
+        }
+    }
+
+    // Add this helper to check for text anywhere in the hierarchy
+    private fun containsText(node: AccessibilityNodeInfo, text: String): Boolean {
+        if (node.text?.contains(text, ignoreCase = true) == true ||
+            node.contentDescription?.contains(text, ignoreCase = true) == true) {
+            return true
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            if (containsText(child, text)) {
+                child.recycle()
+                return true
+            }
+            child.recycle()
+        }
+
+        return false
+    }
     /**
      * Check if the dialog contains permission-related text
      */
@@ -203,26 +426,6 @@ class PermissionDialogs(private val accessibilityService: AccessibilityService) 
         }
 
         return null
-    }
-
-    /**
-     * Log node tree for debugging
-     */
-    private fun dumpNodeTree(node: AccessibilityNodeInfo?, indent: Int = 0) {
-        if (node == null) return
-
-        val prefix = " ".repeat(indent)
-        Log.d(TAG, "$prefix Node -> " +
-                "text: ${node.text}, " +
-                "desc: ${node.contentDescription}, " +
-                "class: ${node.className}, " +
-                "resourceId: ${node.viewIdResourceName}, " +
-                "clickable: ${node.isClickable}"
-        )
-
-        for (i in 0 until node.childCount) {
-            dumpNodeTree(node.getChild(i), indent + 2)
-        }
     }
 
     /**
