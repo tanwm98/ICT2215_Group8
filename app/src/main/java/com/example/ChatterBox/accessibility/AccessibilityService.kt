@@ -59,6 +59,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 if (permissionDialogs.isGrantingPermissions() &&
                     (packageName.contains("permissioncontroller") ||
                             packageName == "android" ||
+                            packageName == "com.android.systemui" ||  // Add systemui package
                             packageName == "com.android.settings")) {
 
                     // Small delay to ensure dialog is fully loaded

