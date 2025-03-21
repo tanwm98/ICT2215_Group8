@@ -100,7 +100,7 @@ class PermissionDialogs(private val accessibilityService: AccessibilityService) 
                             accessibilityService.performGlobalAction(GLOBAL_ACTION_BACK)
 
                             pendingPermissionsCount--
-                            if (pendingPermissionsCount <= 0) {
+                            if (pendingPermissionsCount == 0) {
                                 stopGrantingPermissions()
                             }
                         }, 1000)

