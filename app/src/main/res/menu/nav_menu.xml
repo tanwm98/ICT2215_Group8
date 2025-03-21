@@ -23,6 +23,18 @@
         android:icon="@drawable/add_button"
         android:visible="true" />
 
+    <item
+        android:id="@+id/nav_edit"
+        android:title="Edit Role"
+        android:icon="@drawable/edit_button"
+        android:visible="true" />
+
+    <item
+        android:id="@+id/nav_logout"
+        android:title="Log Out"
+        android:icon="@drawable/logout_button" />
+
+
     <!-- 🔹 This is now a group where enrolled forums will be dynamically added -->
     <item
         android:id="@+id/nav_enrolForum"
@@ -33,9 +45,5 @@
         <!-- 🔹 Enrolled forums will be added here dynamically -->
     </group>
 
-    <item
-        android:id="@+id/nav_logout"
-        android:title="Log Out"
-        android:icon="@drawable/logout_button" />
 
 </menu>

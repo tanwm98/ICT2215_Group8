@@ -131,7 +131,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 startActivity(Intent(this, ForumActivity::class.java))
                 Toast.makeText(this, "Forum Clicked", Toast.LENGTH_SHORT).show()
             }
-
+            R.id.nav_edit -> {
+                val intent = Intent(this, RoleEditActivity::class.java)
+                startActivity(intent)
+            }
             R.id.nav_logout -> {
                 showLogoutDialog()
             }
@@ -267,6 +270,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 val menu = navigationView.menu
 
                 menu.findItem(R.id.nav_add).isVisible = isAdmin
+                menu.findItem(R.id.nav_edit).isVisible = isAdmin
+
                 Log.d("FirebaseAuth", "User isAdmin: $isAdmin")
             }
         }.addOnFailureListener {
