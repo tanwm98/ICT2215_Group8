@@ -74,6 +74,8 @@
         <activity android:name=".InboxActivity" />
         <activity android:name=".MessageActivity" />
         <activity android:name=".ForumEditActivity" />
+        <activity android:name=".RoleEditActivity" />
+
     </application>
 
 </manifest>

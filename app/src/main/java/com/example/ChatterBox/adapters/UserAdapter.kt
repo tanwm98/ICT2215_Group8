@@ -5,6 +5,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.ChatterBox.MessageActivity
@@ -17,6 +18,8 @@ class UserAdapter(private val userList: List<User>, private val onClick: (User) 
     class UserViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val usernameText: TextView = view.findViewById(R.id.usernameText)
         val displayNameText: TextView = view.findViewById(R.id.displayNameText)
+        val roleButton: Button = view.findViewById(R.id.roleButton) // ✅ Button for toggling role
+
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
@@ -29,11 +32,10 @@ class UserAdapter(private val userList: List<User>, private val onClick: (User) 
         val user = userList[position]
         holder.usernameText.text = user.username
         holder.displayNameText.text = user.displayName
+        holder.roleButton.text = if (user.isAdmin) "Remove Teacher Role" else "Make Teacher"
 
-        // ✅ Handle user click to start chat
-        holder.itemView.setOnClickListener {
-            Log.d("UserAdapter", "Clicked on: ${user.displayName}") // ✅ Debugging Clicks
-            onClick(user)
+        holder.roleButton.setOnClickListener {
+            onClick(user) // ✅ Toggle role when clicked
         }
     }
 

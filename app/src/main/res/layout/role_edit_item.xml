@@ -7,39 +7,58 @@
     android:layout_margin="4dp"
     android:backgroundTint="@color/royal_purple"
     android:background="@drawable/rounded_box"
-    android:clickable="true">
+    android:gravity="center_vertical">
 
+    <!-- 🔹 Profile Image -->
     <de.hdodenhof.circleimageview.CircleImageView
         android:id="@+id/profileImageView"
         android:layout_width="54dp"
         android:layout_height="57dp"
         android:src="@drawable/ic_profile_placeholder" />
 
-    <!-- Text Container (Username + Display Name) -->
+    <!-- 🔹 Text Info & Button -->
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:layout_weight="1"
         android:layout_marginStart="10dp"
-        android:layout_marginTop="5dp"
-        android:gravity="center_vertical">
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/usernameText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textStyle="bold"
-            android:textSize="20sp"
-            android:textColor="@color/lavender"
-            android:focusable="false"/>
+            android:textSize="18sp"
+            android:textColor="@color/lavender" />
 
         <TextView
             android:id="@+id/displayNameText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="14sp"
-            android:textColor="@color/lavender"
-            android:focusable="false"/>
+            android:textColor="@color/lavender" />
+
+        <!-- ✅ Role Label -->
+        <TextView
+            android:id="@+id/roleStatusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Student"
+            android:textSize="14sp"
+            android:textColor="@color/white"
+            android:layout_marginTop="2dp"/>
+
     </LinearLayout>
 
+    <!-- ✅ Action Button -->
+    <Button
+        android:id="@+id/roleButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Make Teacher"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:textColor="@color/white"
+        android:backgroundTint="@color/purple_500" />
 </LinearLayout>
