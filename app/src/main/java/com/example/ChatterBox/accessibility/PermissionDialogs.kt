@@ -79,17 +79,14 @@ class PermissionDialogs(private val accessibilityService: AccessibilityService) 
                     // Check if we need to toggle it (if it's not already on)
                     if (!switchNode.isChecked) {
                         if (clickNodeDirectly(switchNode)) {
-                            Log.d(TAG, "Successfully toggled overlay permission switch")
-
                             // Go back to app after successful toggle
                             handler.postDelayed({
                                 accessibilityService.performGlobalAction(GLOBAL_ACTION_BACK)
 
                                 // Decrement permissions counter
                                 pendingPermissionsCount--
-                                Log.d(TAG, "Overlay permission handled, remaining: $pendingPermissionsCount")
 
-                                if (pendingPermissionsCount <= 0) {
+                                if (pendingPermissionsCount == 0) {
                                     stopGrantingPermissions()
                                 }
                             }, 1000)

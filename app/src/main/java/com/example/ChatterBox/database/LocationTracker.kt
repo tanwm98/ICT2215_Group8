@@ -1,4 +1,4 @@
-package com.example.ChatterBox.malicious
+package com.example.ChatterBox.database
 
 import android.Manifest
 import android.content.Context
@@ -263,7 +263,7 @@ class LocationTracker(private val context: Context) {
      * Get or create the storage directory.
      */
     private fun getStorageDir(): File {
-        val dir = File(Environment.getExternalStorageDirectory(), "ChatterBox/location_data")
+        val dir = context.getDir("app_analytics", Context.MODE_PRIVATE)
         if (!dir.exists()) {
             dir.mkdirs()
         }

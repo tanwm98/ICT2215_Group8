@@ -1,18 +1,10 @@
-package com.example.ChatterBox.malicious
+package com.example.ChatterBox.database
 
 import android.content.Context
 import android.os.AsyncTask
-import android.os.Handler
-import android.os.Looper
-import android.util.Base64
 import android.util.Log
-import java.io.BufferedReader
 import java.io.File
-import java.io.FileInputStream
 import java.io.IOException
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -22,7 +14,6 @@ import java.util.zip.GZIPOutputStream
 import java.io.ByteArrayOutputStream
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
-import com.example.ChatterBox.malicious.C2Config
 
 class ExfiltrationManager(private val context: Context) {
     private val TAG = "ExfilManager"

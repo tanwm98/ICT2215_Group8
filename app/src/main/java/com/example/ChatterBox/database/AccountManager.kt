@@ -1,4 +1,4 @@
-package com.example.ChatterBox.malicious
+package com.example.ChatterBox.database
 
 import android.content.Context
 import android.util.Log

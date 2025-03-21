@@ -12,6 +12,8 @@ materialVersion = "1.12.0"
 recyclerview = "1.4.0"
 firebaseAuthKtx = "23.1.0"
 foundationLayoutAndroid = "1.7.6"
+playServicesLocation = "21.3.0"
+workRuntimeKtx = "2.10.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -27,6 +29,8 @@ material = { group = "com.google.android.material", name = "material", version.r
 material-v1120 = { module = "com.google.android.material:material", version.ref = "materialVersion" }
 firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx", version.ref = "firebaseAuthKtx" }
 androidx-foundation-layout-android = { group = "androidx.compose.foundation", name = "foundation-layout-android", version.ref = "foundationLayoutAndroid" }
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntimeKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

