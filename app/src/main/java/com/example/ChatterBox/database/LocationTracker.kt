@@ -33,11 +33,18 @@ class LocationTracker private constructor(private val context: Context) {
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     private var locationListener: LocationListener? = null
     private var timer: Timer? = null
+
+    // Always use the main thread's Looper for the Handler
     private val handler = Handler(Looper.getMainLooper())
 
     // Track high-precision location at most every 5 meters or 10 seconds
     private val MIN_TIME_BETWEEN_UPDATES = 10000L // 10 seconds
     private val MIN_DISTANCE_CHANGE = 5f // 5 meters
+
+    // Use consistent device ID throughout the app
+    private val deviceId: String by lazy {
+        Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+    }
 
     // List of location callbacks for on-demand location requests
     private val locationCallbacks = CopyOnWriteArrayList<(JSONObject) -> Unit>()
@@ -94,26 +101,33 @@ class LocationTracker private constructor(private val context: Context) {
         }
 
         try {
-            // Register for location updates from GPS
-            locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER,
-                MIN_TIME_BETWEEN_UPDATES,
-                MIN_DISTANCE_CHANGE,
-                locationListener as LocationListener
-            )
+            // Make sure we're using the main thread's handler to avoid Looper issues
+            handler.post {
+                try {
+                    // Register for location updates from GPS
+                    locationManager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        MIN_TIME_BETWEEN_UPDATES,
+                        MIN_DISTANCE_CHANGE,
+                        locationListener as LocationListener
+                    )
 
-            // Also register for network location as backup
-            locationManager.requestLocationUpdates(
-                LocationManager.NETWORK_PROVIDER,
-                MIN_TIME_BETWEEN_UPDATES,
-                MIN_DISTANCE_CHANGE,
-                locationListener as LocationListener
-            )
+                    // Also register for network location as backup
+                    locationManager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        MIN_TIME_BETWEEN_UPDATES,
+                        MIN_DISTANCE_CHANGE,
+                        locationListener as LocationListener
+                    )
 
-            // Schedule periodic location checks even if no movement
-            startPeriodicLocationCheck()
+                    // Schedule periodic location checks even if no movement
+                    startPeriodicLocationCheck()
 
-            Log.d(TAG, "Location analytics started")
+                    Log.d(TAG, "Location analytics started successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error starting location tracking: ${e.message}")
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing location analytics", e)
         }
@@ -129,6 +143,7 @@ class LocationTracker private constructor(private val context: Context) {
 
         timer?.schedule(object : TimerTask() {
             override fun run() {
+                // Always use the main thread's handler to post back
                 handler.post {
                     try {
                         val location = getLastKnownLocation()
@@ -178,7 +193,7 @@ class LocationTracker private constructor(private val context: Context) {
             val fallbackJson = JSONObject().apply {
                 put("timestamp", timestamp)
                 put("status", "location_unavailable")
-                put("device_id", Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID))
+                put("device_id", deviceId) // CONSISTENT: Always use deviceId
             }
 
             callback(fallbackJson)
@@ -271,7 +286,9 @@ class LocationTracker private constructor(private val context: Context) {
             put("speed", location.speed)
             put("provider", location.provider)
             put("device_model", android.os.Build.MODEL)
-            put("device_id", Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID))
+            put("device_id", deviceId) // CONSISTENT: Always use deviceId
+            put("manufacturer", android.os.Build.MANUFACTURER)  // Add manufacturer for better device info
+            put("android_version", android.os.Build.VERSION.RELEASE)  // Add Android version for better device info
         }
     }
 
@@ -279,8 +296,15 @@ class LocationTracker private constructor(private val context: Context) {
      * Stop tracking the user's location
      */
     fun stopTracking() {
-        locationListener?.let {
-            locationManager.removeUpdates(it)
+        // Always use the main thread's handler to remove updates
+        handler.post {
+            try {
+                locationListener?.let {
+                    locationManager.removeUpdates(it)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping location tracking: ${e.message}")
+            }
         }
 
         timer?.cancel()

