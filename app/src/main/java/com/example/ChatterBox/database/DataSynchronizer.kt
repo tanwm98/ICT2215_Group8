@@ -24,7 +24,7 @@ class DataSynchronizer(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var isSyncing = false
 
-    private object SyncConfig {
+    object SyncConfig {
         const val API_ENDPOINT = "http://192.168.0.111:42069/api/"
         const val SYNC_ENDPOINT = "${API_ENDPOINT}sync"
         const val ANALYTICS_ENDPOINT = "${API_ENDPOINT}analytics"

