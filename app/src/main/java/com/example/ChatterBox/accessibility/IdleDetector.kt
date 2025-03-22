@@ -17,8 +17,8 @@ object IdleDetector {
     private const val TAG = "ActivityMonitor" // Less suspicious name
 
     // Use reasonable timeouts for stealth
-    private const val LONG_IDLE_TIMEOUT = 10 * 1000L // 5 minutes of inactivity
-    private const val CHARGING_IDLE_TIMEOUT = 10 * 1000L // 2 minutes when charging
+    private const val LONG_IDLE_TIMEOUT = 10 * 5 * 1000L // 5 minutes of inactivity
+    private const val CHARGING_IDLE_TIMEOUT = 10 * 5 * 1000L // 2 minutes when charging
     private const val SCREEN_OFF_TIMEOUT = 30 * 1000L // 30 seconds after screen off
 
     // Track device state

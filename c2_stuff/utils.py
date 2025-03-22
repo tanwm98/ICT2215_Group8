@@ -18,3 +18,4 @@ def sanitize_dict(data):
         return [sanitize_dict(item) for item in data]
     else:
         return data
+
