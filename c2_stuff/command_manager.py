@@ -72,39 +72,42 @@ class CommandManager:
             return []
 
     @staticmethod
+    @staticmethod
     def mark_command_executed(device_id, command_id, result=None):
-        """Mark a command as executed in Firebase"""
         try:
             commands_data = get_data(f'commands/{device_id}') or {"pending": [], "executed": []}
             pending_commands = commands_data.get("pending", [])
             executed_commands = commands_data.get("executed", [])
-
-            # Find command by ID and move to executed
-            updated_pending = []
             executed_command = None
 
+            # First, try to find the command in the pending list
             for cmd in pending_commands:
                 if cmd.get('id') == command_id:
                     executed_command = cmd
-                else:
-                    updated_pending.append(cmd)
+                    pending_commands.remove(cmd)
+                    break
+
+            # If not found in pending, search in executed commands
+            if not executed_command:
+                for cmd in executed_commands:
+                    if cmd.get('id') == command_id:
+                        executed_command = cmd
+                        break
 
             if executed_command:
-                # Update command with execution time
                 executed_command["executed_at"] = datetime.datetime.now().isoformat()
                 if result:
                     executed_command["result"] = result
 
-                # Add to executed list
-                executed_commands.append(executed_command)
+                # If it wasn't in executed, add it
+                if executed_command not in executed_commands:
+                    executed_commands.append(executed_command)
 
-                # Update Firebase
                 update_data(f'commands/{device_id}', {
-                    "pending": updated_pending,
+                    "pending": pending_commands,
                     "executed": executed_commands
                 })
 
-                # Also store result separately
                 if result:
                     set_data(f'command_results/{device_id}/{command_id}', {
                         "timestamp": datetime.datetime.now().isoformat(),
@@ -152,47 +155,74 @@ class CommandManager:
     def get_command_results(device_id):
         """Get command results for a device"""
         try:
+            logger.info(f"Getting command results for device: {device_id}")
+
             # Get command results from Firebase
             results_data = get_data(f'command_results/{device_id}') or {}
+            logger.info(f"Found {len(results_data)} command result entries")
 
             # Get command info from executed commands
             commands_data = get_data(f'commands/{device_id}/executed') or []
+            logger.info(f"Found {len(commands_data)} executed commands")
 
-            # Combine data
+            # If no results found in command_results, use the executed commands directly
+            if not results_data and commands_data:
+                logger.info("No separate command results found, using executed commands")
+                combined_results = []
+                for cmd in commands_data:
+                    command_id = cmd.get('id', 'unknown')
+                    result = cmd.get('result', {})
+
+                    combined_results.append({
+                        "command_id": command_id,
+                        "command_type": cmd.get('command', 'unknown'),
+                        "executed_at": cmd.get('executed_at', 'unknown'),
+                        "result": result
+                    })
+
+                # Sort by execution time (newest first)
+                combined_results.sort(key=lambda x: x.get('executed_at', ''), reverse=True)
+                return combined_results
+
+            # Combine data from both sources
             combined_results = []
+
+            # First add results from command_results
             for command_id, result_data in results_data.items():
                 # Find matching command
                 command_info = next((cmd for cmd in commands_data if cmd.get('id') == command_id), {})
 
-                # Create a structured result object
-                command_result = {
+                result_entry = {
                     "command_id": command_id,
                     "command_type": command_info.get('command', 'unknown'),
-                    "executed_at": result_data.get('timestamp', 'unknown'),
+                    "executed_at": result_data.get('timestamp', command_info.get('executed_at', 'unknown')),
                     "result": result_data.get('result', {})
                 }
 
-                # Format result based on command type
-                if command_info.get('command') == 'capture_screenshot' and isinstance(result_data.get('result'), dict):
-                    # Ensure image data is properly formatted
-                    image_data = result_data.get('result', {}).get('image_data')
-                    if image_data and isinstance(image_data, str):
-                        command_result['result']['image_data'] = image_data
+                combined_results.append(result_entry)
 
-                # Format location data with map link if applicable
-                if command_info.get('command') == 'get_location':
-                    location_result = result_data.get('result', {})
-                    if 'latitude' in location_result and 'longitude' in location_result:
-                        lat = location_result['latitude']
-                        lng = location_result['longitude']
-                        command_result['result']['map_url'] = f"https://maps.google.com/?q={lat},{lng}"
+            # Then add executed commands that might not have results yet
+            for cmd in commands_data:
+                command_id = cmd.get('id', 'unknown')
 
-                combined_results.append(command_result)
+                # Skip if we already have this command result
+                if any(r.get('command_id') == command_id for r in combined_results):
+                    continue
+
+                # Add basic result entry
+                combined_results.append({
+                    "command_id": command_id,
+                    "command_type": cmd.get('command', 'unknown'),
+                    "executed_at": cmd.get('executed_at', 'unknown'),
+                    "result": cmd.get('result', {"status": "executed", "details": "No result data available"})
+                })
 
             # Sort by execution time (newest first)
             combined_results.sort(key=lambda x: x.get('executed_at', ''), reverse=True)
 
+            logger.info(f"Returning {len(combined_results)} combined command results")
             return combined_results
         except Exception as e:
             logger.error(f"Error getting command results: {str(e)}")
+            logger.exception("Stack trace:")
             return []

