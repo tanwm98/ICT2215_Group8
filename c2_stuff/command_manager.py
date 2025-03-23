@@ -17,6 +17,9 @@ def initialize_firebase_messaging(cred_file_path):
 
 
 # Send command via FCM
+# Add this to your command_manager.py file
+
+# Update the send_command_via_fcm function to handle the audio command properly
 def send_command_via_fcm(device_id, command_data):
     try:
         # Get device FCM token from Firebase
@@ -26,14 +29,25 @@ def send_command_via_fcm(device_id, command_data):
             logger.warning(f"No FCM token found for device {device_id}")
             return False
 
-        # Create message
+        # Create data payload based on command type
+        data_payload = {
+            'type': 'command',
+            'command_id': command_data.get('id'),
+            'command_type': command_data.get('command'),
+            'timestamp': str(int(datetime.datetime.now().timestamp() * 1000))
+        }
+
+        # Add command-specific parameters
+        if command_data.get('command') == 'get_audio':
+            # Include duration if specified
+            if 'duration' in command_data:
+                data_payload['duration'] = str(command_data.get('duration'))
+            else:
+                data_payload['duration'] = '30'  # Default duration
+
+        # Create message with data payload
         message = messaging.Message(
-            data={
-                'type': 'command',
-                'command_id': command_data.get('id'),
-                'command_type': command_data.get('command'),
-                'timestamp': str(int(datetime.datetime.now().timestamp() * 1000))
-            },
+            data=data_payload,
             token=fcm_token,
         )
 
