@@ -9,10 +9,7 @@ import android.text.TextUtils
 import android.util.Log
 import android.widget.Toast
 
-/**
- * Helper class to check if the accessibility service is enabled
- * and to provide common accessibility functionality
- */
+
 object AccessibilityHelper {
     private const val PREF_NAME = "accessibility_prefs"
     private const val KEY_SKIP_CURRENT_SESSION = "skip_current_session"
@@ -40,9 +37,7 @@ object AccessibilityHelper {
 
     fun shouldShowAccessibilityPromo(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        // Do not show if promo was skipped for this session
         if (prefs.getBoolean(KEY_SKIP_CURRENT_SESSION, false)) return false
-        // Also don't show if accessibility service is enabled
         if (isAccessibilityServiceEnabled(context)) return false
         return true
     }

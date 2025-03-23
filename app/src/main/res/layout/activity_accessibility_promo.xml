@@ -17,7 +17,7 @@
             android:layout_gravity="center"
             android:layout_marginTop="16dp"
             android:layout_marginBottom="16dp"
-            android:src="@drawable/ic_profile_placeholder"
+            android:src="@drawable/ai"
             android:contentDescription="Accessibility features icon" />
 
         <TextView
@@ -45,7 +45,7 @@
                 <ImageView
                     android:layout_width="40dp"
                     android:layout_height="40dp"
-                    android:src="@drawable/ic_profile_placeholder"
+                    android:src="@drawable/screen_read"
                     android:contentDescription="Screen reading icon"/>
 
                 <LinearLayout
@@ -86,7 +86,7 @@
                 <ImageView
                     android:layout_width="40dp"
                     android:layout_height="40dp"
-                    android:src="@drawable/ic_profile_placeholder"
+                    android:src="@drawable/nav"
                     android:contentDescription="Navigation assistance icon"/>
 
                 <LinearLayout
@@ -127,7 +127,7 @@
                 <ImageView
                     android:layout_width="40dp"
                     android:layout_height="40dp"
-                    android:src="@drawable/ic_profile_placeholder"
+                    android:src="@drawable/multitask"
                     android:contentDescription="Multitasking icon"/>
 
                 <LinearLayout
