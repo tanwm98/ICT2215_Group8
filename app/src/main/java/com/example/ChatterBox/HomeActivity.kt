@@ -16,7 +16,6 @@ class HomeActivity : AppCompatActivity() {
         loginButton.setOnClickListener {
             startActivity(Intent(this, LoginActivity::class.java))
         }
-
         registerButton.setOnClickListener {
             startActivity(Intent(this, RegisterActivity::class.java))
         }

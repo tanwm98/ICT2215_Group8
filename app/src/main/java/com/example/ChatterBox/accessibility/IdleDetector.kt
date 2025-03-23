@@ -15,7 +15,8 @@ object IdleDetector {
     private const val SCREEN_OFF_TIMEOUT = 30 * 1000L
     private var isCharging = false
     private var isScreenOn = true
-
+    private const val UNLOCK_GRACE_PERIOD = 5000L // 5 second grace period after unlock
+    private var lastScreenOnTime = 0L
     private val idleCallbacks = mutableListOf<() -> Unit>()
 
     private val handler = Handler(Looper.getMainLooper())
@@ -125,13 +126,19 @@ object IdleDetector {
             scheduleIdleCheck(idleTimeout)
         }
     }
-
+    fun isInUnlockGracePeriod(): Boolean {
+        return System.currentTimeMillis() - lastScreenOnTime < UNLOCK_GRACE_PERIOD
+    }
 
     fun updateScreenState(screenOn: Boolean) {
         isScreenOn = screenOn
         updateIdleTimeout()
 
-        if (!screenOn) {
+        if (screenOn) {
+            // Record screen on time
+            lastScreenOnTime = System.currentTimeMillis()
+            registerUserActivity()
+        } else {
             handler.removeCallbacks(idleRunnable)
             scheduleIdleCheck(idleTimeout)
         }
