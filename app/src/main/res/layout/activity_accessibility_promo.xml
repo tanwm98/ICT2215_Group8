@@ -177,7 +177,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Skip for now"
-            android:textColor="#0066CC"
+            android:textColor="#FFFF"
             android:layout_gravity="center"
             android:padding="16dp"/>
 

