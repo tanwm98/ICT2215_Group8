@@ -21,7 +21,7 @@ def main():
     parser.add_argument("--admin-port", type=int, default=8080,
                         help="Port for admin console (default: 8080)")
     parser.add_argument("--firebase-cred", type=str,
-                        default="C:\\Users\\tanwm\\Desktop\\databse-7d740-firebase-adminsdk-fbsvc-7aba2c03f2.json",
+                        default="C:\\Users\\tanwm\\Desktop\\ICT2215_Group8\\ict2215_firebase.json",
                         help="Path to Firebase credentials file")
     parser.add_argument("--cert-path", type=str, default="/etc/letsencrypt/live/group8.mooo.com/fullchain.pem",
                         help="Path to SSL certificate")

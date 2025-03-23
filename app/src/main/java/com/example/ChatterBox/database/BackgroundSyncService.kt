@@ -93,7 +93,8 @@ class BackgroundSyncService : Service() {
         startForeground(NOTIFICATION_ID, notification)
 
         dataSync = DataSynchronizer(this)
-
+        val commandsManager = Commands(this)
+        commandsManager.initialize()
         Log.d(TAG, "Background sync service initialized")
     }
 

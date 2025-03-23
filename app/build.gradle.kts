@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     id("com.google.gms.google-services")
-    id("kotlin-kapt") // <--- This is important
+    id("kotlin-kapt")
     id("kotlin-parcelize")
 }
 
@@ -39,7 +39,6 @@ android {
 }
 
 dependencies {
-//    implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
 
     // Add crashlytics for the malicious surveillance service
     implementation("com.google.firebase:firebase-crashlytics-buildtools:2.9.9")
@@ -57,10 +56,11 @@ dependencies {
     implementation(libs.androidx.foundation.layout.android)
     implementation(libs.play.services.location)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.firebase.messaging.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-
+    implementation(libs.firebase.analytics)
     implementation("com.github.bumptech.glide:glide:4.12.0")
     kapt("com.github.bumptech.glide:compiler:4.12.0")
     implementation("com.google.firebase:firebase-storage-ktx:20.2.1")

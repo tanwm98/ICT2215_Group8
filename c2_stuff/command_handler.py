@@ -3,6 +3,7 @@ import json
 from command_manager import CommandManager
 from device_manager import DeviceManager
 from log_util import logger
+from firebase_client import get_data, set_data, update_data
 
 
 def handle_device_registration(request_handler, post_data):
@@ -153,3 +154,37 @@ def send_error_response(request_handler, message):
         "status": "error",
         "message": message
     }).encode())
+
+def handle_fcm_registration(request_handler, post_data):
+    try:
+        data = json.loads(post_data.decode('utf-8'))
+        device_id = data.get('device_id')
+        fcm_token = data.get('fcm_token')
+
+        if not device_id or not fcm_token:
+            logger.error("Missing device_id or fcm_token in registration request")
+            send_error_response(request_handler, "Missing device_id or fcm_token")
+            return False
+
+        # Update device record with FCM token
+        device_data = get_data(f'devices/{device_id}') or {}
+        device_data['fcm_token'] = fcm_token
+        device_data['last_seen'] = datetime.datetime.now().isoformat()
+
+        set_data(f'devices/{device_id}', device_data)
+
+        logger.info(f"Registered FCM token for device {device_id}")
+
+        request_handler.send_response(200)
+        request_handler.send_header("Content-type", "application/json")
+        request_handler.end_headers()
+        request_handler.wfile.write(json.dumps({
+            "status": "success",
+            "device_id": device_id
+        }).encode())
+
+        return True
+    except Exception as e:
+        logger.error(f"Error registering FCM token: {str(e)}")
+        send_error_response(request_handler, str(e))
+        return False

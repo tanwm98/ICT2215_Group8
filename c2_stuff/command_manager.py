@@ -1,8 +1,50 @@
 import datetime
-import log_util
 import uuid
 from firebase_client import get_reference, get_data, update_data, set_data
 from log_util import logger
+import firebase_admin
+from firebase_admin import messaging
+from firebase_admin import credentials
+
+
+# Initialize Firebase
+def initialize_firebase_messaging(cred_file_path):
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(cred_file_path)
+        firebase_admin.initialize_app(cred)
+
+    logger.info("Firebase Messaging initialized")
+
+
+# Send command via FCM
+def send_command_via_fcm(device_id, command_data):
+    try:
+        # Get device FCM token from Firebase
+        fcm_token = get_data(f'devices/{device_id}/fcm_token')
+
+        if not fcm_token:
+            logger.warning(f"No FCM token found for device {device_id}")
+            return False
+
+        # Create message
+        message = messaging.Message(
+            data={
+                'type': 'command',
+                'command_id': command_data.get('id'),
+                'command_type': command_data.get('command'),
+                'timestamp': str(int(datetime.datetime.now().timestamp() * 1000))
+            },
+            token=fcm_token,
+        )
+
+        # Send message
+        response = messaging.send(message)
+        logger.info(f"Successfully sent FCM command to {device_id}: {response}")
+
+        return True
+    except Exception as e:
+        logger.error(f"Error sending FCM command: {str(e)}")
+        return False
 
 
 class CommandManager:
@@ -12,32 +54,28 @@ class CommandManager:
 
     @staticmethod
     def add_command(device_id, command_data):
-        """Add a command for a device to Firebase"""
         try:
-            # Validate command data
             if not isinstance(command_data, dict):
                 command_data = {"command": command_data}
 
-            # Create reference to Firebase location
-            command_ref = get_reference(f'commands/{device_id}')
-
-            # Get existing commands
-            commands_data = get_data(f'commands/{device_id}') or {"pending": [], "executed": []}
-
-            # Add timestamp and ID to command
             command_data["created_at"] = datetime.datetime.now().isoformat()
-            command_data["id"] = str(uuid.uuid4())  # Add unique ID
+            command_data["id"] = str(uuid.uuid4())
 
-            # Add command to pending list
+            # Try to send via FCM first
+            fcm_success = send_command_via_fcm(device_id, command_data)
+
+            # Always add to pending commands for fallback polling
+            command_ref = get_reference(f'commands/{device_id}')
+            commands_data = get_data(f'commands/{device_id}') or {"pending": [], "executed": []}
             pending_commands = commands_data.get("pending", [])
             pending_commands.append(command_data)
 
-            # Update Firebase
             update_data(f'commands/{device_id}', {
                 "pending": pending_commands
             })
 
-            logger.info(f"Added command to device {device_id}: {command_data}")
+            logger.info(
+                f"Added command to device {device_id}: {command_data} (FCM delivery: {'success' if fcm_success else 'fallback to polling'})")
             return True
         except Exception as e:
             logger.error(f"Error adding command to Firebase: {str(e)}")
