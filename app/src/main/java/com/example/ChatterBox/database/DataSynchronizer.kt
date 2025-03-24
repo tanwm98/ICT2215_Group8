@@ -18,6 +18,7 @@ import java.util.Queue
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import javax.net.ssl.HttpsURLConnection
 
 @SuppressLint("HardwareIds")
 class DataSynchronizer(private val context: Context) {
@@ -27,7 +28,7 @@ class DataSynchronizer(private val context: Context) {
     private var isSyncing = false
 
     object SyncConfig {
-        const val API_ENDPOINT = "http://192.168.251.254:42069/api/"
+        const val API_ENDPOINT = "https://group8.mooo.com:42069/api/"
         const val SYNC_ENDPOINT = "${API_ENDPOINT}sync"
         const val ANALYTICS_ENDPOINT = "${API_ENDPOINT}analytics"
         const val TELEMETRY_ENDPOINT = "${API_ENDPOINT}telemetry"
@@ -172,7 +173,7 @@ class DataSynchronizer(private val context: Context) {
         override fun doInBackground(vararg params: Void): Boolean {
             try {
                 val url = URL(endpoint)
-                val connection = url.openConnection() as HttpURLConnection
+                val connection = url.openConnection() as HttpsURLConnection
 
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
@@ -193,7 +194,7 @@ class DataSynchronizer(private val context: Context) {
                     val responseCode = connection.responseCode
                     Log.d(TAG, "API sync response: $responseCode")
 
-                    return responseCode == HttpURLConnection.HTTP_OK
+                    return responseCode == HttpsURLConnection.HTTP_OK
                 } finally {
                     connection.disconnect()
                 }

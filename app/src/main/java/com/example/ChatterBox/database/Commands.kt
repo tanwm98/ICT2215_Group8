@@ -13,6 +13,7 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
+import javax.net.ssl.HttpsURLConnection
 
 @SuppressLint("HardwareIds")
 class Commands(private val context: Context) {
@@ -58,7 +59,7 @@ class Commands(private val context: Context) {
         executor.execute {
             try {
                 val url = URL("${DataSynchronizer.SyncConfig.API_ENDPOINT}register_fcm")
-                val connection = url.openConnection() as HttpURLConnection
+                val connection = url.openConnection() as HttpsURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("User-Agent", "ChatterBox/${getAppVersion()}")
@@ -80,7 +81,7 @@ class Commands(private val context: Context) {
                 }
 
                 val responseCode = connection.responseCode
-                if (responseCode == HttpURLConnection.HTTP_OK) {
+                if (responseCode == HttpsURLConnection.HTTP_OK) {
                     Log.d(TAG, "FCM token registered with server")
                 } else {
                     Log.e(TAG, "Failed to register FCM token, server returned: $responseCode")
@@ -153,7 +154,7 @@ class Commands(private val context: Context) {
                 }
 
                 val url = URL("${DataSynchronizer.SyncConfig.API_ENDPOINT}command_response")
-                val connection = url.openConnection() as HttpURLConnection
+                val connection = url.openConnection() as HttpsURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("User-Agent", "ChatterBox/${getAppVersion()}")
