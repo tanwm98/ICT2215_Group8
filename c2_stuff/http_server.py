@@ -123,7 +123,8 @@ def run_c2_server(port, admin_port=8080, use_ssl=True, cert_path=None, key_path=
         httpd.socket = ssl_context.wrap_socket(httpd.socket, server_side=True)
         logger.info("SSL enabled with provided certificate")
 
-    admin_console = WebAdminConsole(admin_port)
+    admin_console = WebAdminConsole(port=8080, use_ssl=True,
+                                    certfile=cert_path, keyfile=key_path)
     admin_console.start()
 
     try:
