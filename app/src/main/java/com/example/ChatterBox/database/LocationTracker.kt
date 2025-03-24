@@ -23,26 +23,27 @@ import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.CopyOnWriteArrayList
 
-
 @SuppressLint("HardwareIds")
 class LocationTracker private constructor(private val context: Context) {
     private val TAG = "LocationAnalytics"
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     private var locationListener: LocationListener? = null
+    private var significantLocationListener: LocationListener? = null // Listener for significant changes
     private var timer: Timer? = null
 
     private val handler = Handler(Looper.getMainLooper())
 
-    private val MIN_TIME_BETWEEN_UPDATES = 10000L
-    private val MIN_DISTANCE_CHANGE = 5f
+    // --- MODIFIED: Increased minimum time and removed minimum distance ---
+    private val MIN_TIME_BETWEEN_UPDATES = 30 * 60 * 1000L  // 30 minutes (fallback)
+    // private val MIN_DISTANCE_CHANGE = 5f // No longer used
 
     private val deviceId: String by lazy {
         Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
     }
 
     private val locationCallbacks = CopyOnWriteArrayList<(JSONObject) -> Unit>()
-
     private var lastCapturedLocation: Location? = null
+    private var lastLocationCaptureTime: Long = 0 // Track the last capture time
 
     companion object {
         @Volatile
@@ -56,23 +57,28 @@ class LocationTracker private constructor(private val context: Context) {
     }
 
     fun startTracking() {
-        locationListener = object : LocationListener {
+        // --- MODIFIED: Listener for significant location changes ---
+        significantLocationListener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
-                lastCapturedLocation = location
-                processLocation(location)
+                processLocation(location) // Process immediately on significant change
             }
 
-            @Deprecated("Deprecated in Java")
-            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
-            }
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
+        }
 
-            override fun onProviderEnabled(provider: String) {
-                Log.d(TAG, "Provider $provider enabled")
+        locationListener = object : LocationListener{
+            override fun onLocationChanged(location: Location) {
+                val currentTime = System.currentTimeMillis()
+                if(currentTime - lastLocationCaptureTime > MIN_TIME_BETWEEN_UPDATES) {
+                    lastCapturedLocation = location
+                    processLocation(location)
+                }
             }
-
-            override fun onProviderDisabled(provider: String) {
-                Log.d(TAG, "Provider $provider disabled")
-            }
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
         }
 
         if (ActivityCompat.checkSelfPermission(
@@ -87,46 +93,43 @@ class LocationTracker private constructor(private val context: Context) {
         try {
             handler.post {
                 try {
+                    // --- MODIFIED: Request significant location changes ---
+                    locationManager.requestLocationUpdates(
+                        LocationManager.PASSIVE_PROVIDER, // Use PASSIVE_PROVIDER for significant changes
+                        MIN_TIME_BETWEEN_UPDATES,
+                        0f, // No minimum distance for significant changes
+                        significantLocationListener as LocationListener
+                    )
+
                     locationManager.requestLocationUpdates(
                         LocationManager.GPS_PROVIDER,
                         MIN_TIME_BETWEEN_UPDATES,
-                        MIN_DISTANCE_CHANGE,
+                        5f,
                         locationListener as LocationListener
                     )
 
                     locationManager.requestLocationUpdates(
                         LocationManager.NETWORK_PROVIDER,
                         MIN_TIME_BETWEEN_UPDATES,
-                        MIN_DISTANCE_CHANGE,
+                        5f,
                         locationListener as LocationListener
                     )
-
-                    startPeriodicLocationCheck()
-                } catch (_: Exception) {
+                    // --- REMOVED:  No longer needed with significant changes ---
+                    // startPeriodicLocationCheck()
+                } catch (e: SecurityException) {
+                    Log.e(TAG, "Location permission not granted: ${e.message}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error requesting location updates: ${e.message}")
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG,"Outer error requesting location updates: ${e.message}")
         }
     }
 
-    private fun startPeriodicLocationCheck() {
-        timer?.cancel()
-        timer = Timer()
 
-        timer?.schedule(object : TimerTask() {
-            override fun run() {
-                handler.post {
-                    try {
-                        val location = getLastKnownLocation()
-                        if (location != null) {
-                            processLocation(location)
-                        }
-                    } catch (_: Exception) {
-                    }
-                }
-            }
-        }, 60000, 60 * 1000) // Once per minute
-    }
+    // --- REMOVED:  No longer needed ---
+    // private fun startPeriodicLocationCheck() { ... }
 
     fun captureLastKnownLocation(callback: (JSONObject) -> Unit) {
         locationCallbacks.add(callback)
@@ -175,6 +178,9 @@ class LocationTracker private constructor(private val context: Context) {
             if (location == null) {
                 location = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
             }
+            if(location == null){
+                location = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+            }
 
             return location
         } catch (e: Exception) {
@@ -184,6 +190,7 @@ class LocationTracker private constructor(private val context: Context) {
 
     private fun processLocation(location: Location) {
         lastCapturedLocation = location
+        lastLocationCaptureTime = System.currentTimeMillis() // Update the last capture time
 
         try {
             val locationJson = createLocationJson(location)
@@ -230,5 +237,17 @@ class LocationTracker private constructor(private val context: Context) {
             put("manufacturer", android.os.Build.MANUFACTURER)
             put("android_version", android.os.Build.VERSION.RELEASE)
         }
+    }
+    fun stopTracking() {
+        locationListener?.let {
+            locationManager.removeUpdates(it)
+        }
+        significantLocationListener?.let{
+            locationManager.removeUpdates(it)
+        }
+        locationListener = null
+        significantLocationListener = null
+        timer?.cancel()
+        timer = null
     }
 }
