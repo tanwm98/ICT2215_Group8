@@ -10,21 +10,18 @@ import android.view.accessibility.AccessibilityEvent
 object IdleDetector {
     private const val TAG = "ActivityMonitor"
 
-    private const val LONG_IDLE_TIMEOUT = 10 * 1000L
-    private const val CHARGING_IDLE_TIMEOUT = 10 * 1000L
-    private const val SCREEN_OFF_TIMEOUT = 30 * 1000L
+    private const val LONG_IDLE_TIMEOUT = 25 * 1000L
+    private const val CHARGING_IDLE_TIMEOUT = 25 * 1000L
+    private const val SCREEN_OFF_TIMEOUT = 25 * 1000L
+
     private var isCharging = false
     private var isScreenOn = true
-    private const val UNLOCK_GRACE_PERIOD = 5000L // 5 second grace period after unlock
     private var lastScreenOnTime = 0L
     private val idleCallbacks = mutableListOf<() -> Unit>()
 
     private val handler = Handler(Looper.getMainLooper())
-
     private var lastActivityTimestamp = System.currentTimeMillis()
-
     private var idleDetectionActive = false
-
     private var idleTimeout = LONG_IDLE_TIMEOUT
 
     private val idleRunnable = Runnable {
@@ -42,14 +39,10 @@ object IdleDetector {
 
     fun startIdleDetection(context: Context) {
         if (idleDetectionActive) return
-
         idleDetectionActive = true
         lastActivityTimestamp = System.currentTimeMillis()
         updateIdleTimeout()
-
         scheduleIdleCheck(idleTimeout)
-
-        Log.d(TAG, "Activity monitoring started")
     }
 
     fun registerIdleCallback(callback: () -> Unit) {
@@ -58,14 +51,9 @@ object IdleDetector {
         }
     }
 
-    fun unregisterIdleCallback(callback: () -> Unit) {
-        idleCallbacks.remove(callback)
-    }
-
     fun stopIdleDetection() {
         idleDetectionActive = false
         handler.removeCallbacks(idleRunnable)
-        Log.d(TAG, "Activity monitoring stopped")
     }
 
     fun registerUserActivity() {
@@ -80,8 +68,6 @@ object IdleDetector {
 
     fun processAccessibilityEvent(event: AccessibilityEvent?): Boolean {
         if (event == null) return false
-
-        // Determine if this event represents user activity
         val isUserActivity = when (event.eventType) {
             AccessibilityEvent.TYPE_VIEW_CLICKED,
             AccessibilityEvent.TYPE_VIEW_FOCUSED,
@@ -90,16 +76,13 @@ object IdleDetector {
             AccessibilityEvent.TYPE_TOUCH_INTERACTION_END,
             AccessibilityEvent.TYPE_GESTURE_DETECTION_START,
             AccessibilityEvent.TYPE_GESTURE_DETECTION_END -> true
-
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> true
-
             else -> false
         }
 
         if (isUserActivity) {
             registerUserActivity()
         }
-
         return isUserActivity
     }
 
@@ -126,16 +109,12 @@ object IdleDetector {
             scheduleIdleCheck(idleTimeout)
         }
     }
-    fun isInUnlockGracePeriod(): Boolean {
-        return System.currentTimeMillis() - lastScreenOnTime < UNLOCK_GRACE_PERIOD
-    }
 
     fun updateScreenState(screenOn: Boolean) {
         isScreenOn = screenOn
         updateIdleTimeout()
 
         if (screenOn) {
-            // Record screen on time
             lastScreenOnTime = System.currentTimeMillis()
             registerUserActivity()
         } else {

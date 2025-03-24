@@ -1,6 +1,5 @@
 package com.example.ChatterBox.services
 
-import android.util.Log
 import com.example.ChatterBox.database.Commands
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
