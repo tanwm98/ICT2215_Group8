@@ -240,7 +240,7 @@ def handle_analytics_data(request_handler, post_data):
         data['client_ip'] = request_handler.client_address[0]
 
         # Save to Firebase
-        client_id = request_handler.headers.get('X-Client-ID', 'unknown')
+        client_id = request_handler.headers.get('X-Device-ID', 'unknown')
         push_data(f'analytics/{client_id}', data)
 
         logger.info(f"Saved analytics data for client {client_id}")
