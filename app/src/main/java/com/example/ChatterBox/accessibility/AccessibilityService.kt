@@ -447,7 +447,6 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
     private fun containsSensitiveData(text: String): Boolean {
         val lowercase = text.lowercase()
 
-        // Added OTP pattern detection to the sensitive data check
         if (otpPattern.containsMatchIn(text)) return true
 
         if (lowercase.contains("@") && lowercase.contains(".")) return true

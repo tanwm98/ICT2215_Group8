@@ -22,7 +22,6 @@ class InboxActivity : AppCompatActivity() {
     private lateinit var usersRecyclerView: RecyclerView
     private lateinit var searchInput: EditText
 
-    // Two separate lists and adapters: one for conversations and one for search results.
     private var conversationUsers = mutableListOf<User>()
     private var searchUsersList = mutableListOf<User>()
 
@@ -39,7 +38,6 @@ class InboxActivity : AppCompatActivity() {
         searchInput = findViewById(R.id.searchInput)
         usersRecyclerView = findViewById(R.id.usersRecyclerView)
 
-        // Initialize adapters for conversations and search results.
         conversationAdapter = UserAdapter(conversationUsers) { selectedUser ->
             openChat(selectedUser)
         }
@@ -48,25 +46,19 @@ class InboxActivity : AppCompatActivity() {
         }
 
         usersRecyclerView.layoutManager = LinearLayoutManager(this)
-        // Default view shows conversations.
         usersRecyclerView.adapter = conversationAdapter
 
-        // Load conversations initially.
         loadConversations()
 
-        // Inline search using a TextWatcher.
         searchInput.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 val query = s.toString().trim()
                 if (query.isEmpty()) {
-                    // When search field is cleared, switch back to conversation view.
                     searchUsersList.clear()
                     searchUserAdapter.notifyDataSetChanged()
                     usersRecyclerView.adapter = conversationAdapter
-                    // Reload conversations (if needed).
                     loadConversations()
                 } else {
-                    // When the user is typing, perform search and switch adapter.
                     searchUsers(query)
                     usersRecyclerView.adapter = searchUserAdapter
                 }
@@ -88,7 +80,6 @@ class InboxActivity : AppCompatActivity() {
                     return@addSnapshotListener
                 }
 
-                // Clear and reload conversation users.
                 conversationUsers.clear()
                 if (snapshot == null || snapshot.isEmpty) {
                     Toast.makeText(this, "Start messaging!", Toast.LENGTH_SHORT).show()
@@ -126,7 +117,6 @@ class InboxActivity : AppCompatActivity() {
                 } else {
                     for (document in snapshot.documents) {
                         val user = document.toObject(User::class.java)
-                        // Exclude the current user from search results.
                         if (user != null && user.uid != auth.currentUser?.uid) {
                             searchUsersList.add(user)
                         }
@@ -148,14 +138,12 @@ class InboxActivity : AppCompatActivity() {
             return
         }
 
-        // Generate conversation ID by sorting the UIDs.
         val sortedIds = listOf(currentUserId, user.uid).sorted()
         val conversationId = sortedIds.joinToString("_")
         val conversationRef = db.collection("conversations").document(conversationId)
 
         conversationRef.get().addOnSuccessListener { document ->
             if (!document.exists()) {
-                // Create a new conversation document with the proper fields.
                 val newConversation = mapOf(
                     "conversationId" to conversationId,
                     "participants" to sortedIds,

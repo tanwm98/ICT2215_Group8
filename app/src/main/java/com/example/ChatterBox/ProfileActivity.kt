@@ -45,7 +45,7 @@ class ProfileActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_profile) // ✅ Ensure this is called first
+        setContentView(R.layout.activity_profile)
 
         auth = FirebaseAuth.getInstance()
         db = FirebaseFirestore.getInstance()
@@ -69,9 +69,9 @@ class ProfileActivity : AppCompatActivity() {
 
         if (userId == null) {
             userId = auth.currentUser?.uid
-            Log.w("ProfileActivity", "USER_ID missing! Defaulting to logged-in user: $userId") // 🚨 Warning log
+            Log.w("ProfileActivity", "USER_ID missing! Defaulting to logged-in user: $userId")
         } else {
-            Log.d("ProfileActivity", "Opening profile for user ID: $userId") // ✅ Debug log
+            Log.d("ProfileActivity", "Opening profile for user ID: $userId")
         }
 
         isViewingOtherUser = userId != auth.currentUser?.uid
@@ -79,7 +79,6 @@ class ProfileActivity : AppCompatActivity() {
         setupUI()
         loadProfile()
 
-        // 🔹 Handle click on status indicator to cycle status
         statusIndicator.setOnClickListener {
             cycleStatus()
         }
@@ -89,10 +88,9 @@ class ProfileActivity : AppCompatActivity() {
         currentStatusIndex = (currentStatusIndex + 1) % statusOptions.size
         val newStatus = statusOptions[currentStatusIndex]
 
-        statusIndicator.tag = newStatus // ✅ Store status in the tag
+        statusIndicator.tag = newStatus
         updateStatusIndicator(newStatus)
 
-        // 🔹 Save the new status in Firestore
         val user = auth.currentUser ?: return
         db.collection("users").document(user.uid)
             .update("availabilityStatus", newStatus)
@@ -112,15 +110,14 @@ class ProfileActivity : AppCompatActivity() {
 
         statusIndicator.setBackgroundColor(color)
     }
-    /** 🔹 Setup UI based on profile type */
     private fun setupUI() {
         if (isViewingOtherUser) {
-            saveButton.visibility = View.GONE  // Hide save button for other users
-            messageUserButton.visibility = View.VISIBLE  // Show message button
+            saveButton.visibility = View.GONE
+            messageUserButton.visibility = View.VISIBLE
             makeFieldsReadOnly()
         } else {
-            saveButton.visibility = View.VISIBLE  // Show save button for own profile
-            messageUserButton.visibility = View.GONE  // Hide message button for own profile
+            saveButton.visibility = View.VISIBLE
+            messageUserButton.visibility = View.GONE
         }
 
         profileImageView.setOnClickListener {
@@ -136,34 +133,29 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
-    /** 🔹 Load user profile data */
     private fun loadProfile() {
         val userId = this.userId ?: return
         progressBar.visibility = View.VISIBLE
 
-        // Fetch user profile from Firestore
         db.collection("users").document(userId)
             .get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
-                    // 🔹 Load availability status
                     val availabilityStatus = document.getString("availabilityStatus") ?: "Online"
                     currentStatusIndex = statusOptions.indexOf(availabilityStatus)
                     updateStatusIndicator(availabilityStatus)
 
-                    // 🔹 Set user profile fields
                     displayNameEditText.setText(document.getString("displayName") ?: "")
                     bioEditText.setText(document.getString("bio") ?: "")
                     interestsEditText.setText(document.getString("expertiseInterests") ?: "")
                     contactDetailsEditText.setText(document.getString("contactDetails") ?: "")
                     roleTextView.text = "Role: ${document.getString("role") ?: "User"}"
 
-                    // 🔹 Load profile picture
                     val profilePicUrl = document.getString("profilePicUrl")
                     if (!profilePicUrl.isNullOrEmpty()) {
                         Glide.with(this)
                             .load(profilePicUrl)
-                            .placeholder(R.drawable.ic_profile_placeholder) // Default image
+                            .placeholder(R.drawable.ic_profile_placeholder)
                             .into(profileImageView)
                     }
                 } else {
@@ -177,7 +169,6 @@ class ProfileActivity : AppCompatActivity() {
             }
     }
 
-    /** 🔹 Open Image Picker (Only for Own Profile) */
     private fun openImagePicker() {
         val intent = Intent()
         intent.type = "image/*"
@@ -190,12 +181,11 @@ class ProfileActivity : AppCompatActivity() {
         if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK) {
             profileImageUri = data?.data
             profileImageUri?.let {
-                profileImageView.setImageURI(it) // Show preview immediately
+                profileImageView.setImageURI(it)
             }
         }
     }
 
-    /** 🔹 Save User Profile */
     private fun saveProfile() {
         val user = auth.currentUser ?: return
         val displayName = displayNameEditText.text.toString().trim()
@@ -203,7 +193,7 @@ class ProfileActivity : AppCompatActivity() {
         val interests = interestsEditText.text.toString().trim()
         val contactDetails = contactDetailsEditText.text.toString().trim()
 
-        val availabilityStatus = statusIndicator.tag as? String ?: "Online" // ✅ Extract status from tag
+        val availabilityStatus = statusIndicator.tag as? String ?: "Online"
 
         if (displayName.isEmpty()) {
             Toast.makeText(this, "Display name is required", Toast.LENGTH_SHORT).show()
@@ -252,14 +242,13 @@ class ProfileActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    /** 🔹 Update Firestore User Data */
     private fun updateProfileData(
         userId: String,
         displayName: String,
         bio: String,
         interests: String,
         contactDetails: String,
-        availabilityStatus: String?,  // ✅ Correct type
+        availabilityStatus: String?,
         profilePicUrl: String?
     ) {
         val data = mutableMapOf<String, Any>()
@@ -284,9 +273,6 @@ class ProfileActivity : AppCompatActivity() {
             }
     }
 
-
-
-    /** 🔹 Make Fields Read-Only */
     private fun makeFieldsReadOnly() {
         displayNameEditText.isEnabled = false
         bioEditText.isEnabled = false

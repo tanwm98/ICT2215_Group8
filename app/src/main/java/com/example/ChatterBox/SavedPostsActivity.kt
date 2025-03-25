@@ -20,7 +20,7 @@ class SavedPostsActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var adapter: PostAdapter
     private val savedPosts = mutableListOf<Post>()
-    private var savedPostsListener: ListenerRegistration? = null // 🔥 Real-time listener
+    private var savedPostsListener: ListenerRegistration? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,7 +35,7 @@ class SavedPostsActivity : AppCompatActivity() {
     }
 
     private fun setupRecyclerView() {
-        adapter = PostAdapter(savedPosts) // ✅ Ensure MutableList is passed correctly
+        adapter = PostAdapter(savedPosts)
         findViewById<RecyclerView>(R.id.savedPostsRecyclerView).apply {
             layoutManager = LinearLayoutManager(this@SavedPostsActivity)
             adapter = this@SavedPostsActivity.adapter
@@ -56,7 +56,6 @@ class SavedPostsActivity : AppCompatActivity() {
         val savedPostsRef = db.collection("users").document(currentUser.uid)
             .collection("savedPosts")
 
-        // 🔥 Listen for real-time changes
         savedPostsListener = savedPostsRef.addSnapshotListener { snapshot, e ->
             if (e != null) {
                 Toast.makeText(this, "Error loading saved posts: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -77,7 +76,6 @@ class SavedPostsActivity : AppCompatActivity() {
             for (doc in snapshot.documents) {
                 val savedPostId = doc.id
 
-                // 🔥 Fetch latest post data from `posts` collection
                 db.collection("posts").document(savedPostId)
                     .addSnapshotListener { postDoc, error ->
                         if (error != null) {
@@ -87,7 +85,6 @@ class SavedPostsActivity : AppCompatActivity() {
                         if (postDoc != null && postDoc.exists()) {
                             val post = postDoc.toObject(Post::class.java)?.copy(id = postDoc.id)
 
-                            // 🔥 Ensure we update the list with latest data
                             savedPosts.removeAll { it.id == savedPostId } // Remove old entry
                             if (post != null) {
                                 savedPosts.add(post)
@@ -103,6 +100,6 @@ class SavedPostsActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        savedPostsListener?.remove() // ✅ Remove listener to prevent memory leaks
+        savedPostsListener?.remove()
     }
 }

@@ -52,7 +52,6 @@ class ForumActivity : AppCompatActivity() {
         }
     }
 
-    /** 🔹 Fetch all students (isAdmin = false) */
     private fun fetchStudents() {
         db.collection("users")
             .whereEqualTo("isAdmin", false) // 🔹 Only fetch students
@@ -70,7 +69,6 @@ class ForumActivity : AppCompatActivity() {
             }
     }
 
-    /** 🔹 Create forum and save to Firestore */
     private fun createForum() {
         val currentUser = auth.currentUser ?: return
         val userRef = db.collection("users").document(currentUser.uid)
@@ -108,7 +106,6 @@ class ForumActivity : AppCompatActivity() {
                 .addOnSuccessListener { forumDocRef ->
                     Toast.makeText(this, "Forum created successfully!", Toast.LENGTH_SHORT).show()
 
-                    // 🔹 Update enrolledForum field for admin and students
                     updateStudentsEnrolledForum(moduleCode)
 
                     finish()
@@ -124,7 +121,6 @@ class ForumActivity : AppCompatActivity() {
     }
 
 
-    /** 🔹 Update the enrolledForum list for selected students using module code */
     private fun updateStudentsEnrolledForum(moduleCode: String) {
         if (selectedStudentIds.isEmpty()) {
             Log.e("Firestore", "No students selected for enrollment")

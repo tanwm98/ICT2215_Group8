@@ -37,13 +37,12 @@ class LoginActivity : AppCompatActivity() {
 
             progressBar.visibility = ProgressBar.VISIBLE
 
-            // Retrieve email associated with the username
             firestore.collection("users")
                 .whereEqualTo("username", username)
                 .get()
                 .addOnSuccessListener { documents ->
                     if (!documents.isEmpty) {
-                        val email = documents.documents[0].getString("email") // Fetch email
+                        val email = documents.documents[0].getString("email")
                         if (!email.isNullOrEmpty()) {
                             authenticateUser(email, password, progressBar)
                         } else {
@@ -71,7 +70,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun authenticateUser(email: String, password: String, progressBar: ProgressBar) {
-        auth.signInWithEmailAndPassword(email, password) // Ensure this uses email
+        auth.signInWithEmailAndPassword(email, password)
             .addOnSuccessListener {
                 startActivity(Intent(this, MainActivity::class.java))
                 finish()

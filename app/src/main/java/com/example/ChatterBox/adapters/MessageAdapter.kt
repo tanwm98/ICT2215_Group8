@@ -21,7 +21,6 @@ class MessageAdapter(private val messages: MutableList<Message>, private val cur
     override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
         val message = messages[position]
 
-        // If the current user sent the message, display it on the right
         if (message.senderId == currentUserId) {
             holder.userMessage.text = message.text
             holder.userMessage.visibility = View.VISIBLE
@@ -53,6 +52,6 @@ class MessageAdapter(private val messages: MutableList<Message>, private val cur
     class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val userMessage: TextView = itemView.findViewById(R.id.userMessage)
         val otherUserMessage: TextView = itemView.findViewById(R.id.otherUserMessage)
-        val messageImage: ImageView = itemView.findViewById(R.id.messageImage) // Add this line if you add an ImageView
+        val messageImage: ImageView = itemView.findViewById(R.id.messageImage)
     }
 }

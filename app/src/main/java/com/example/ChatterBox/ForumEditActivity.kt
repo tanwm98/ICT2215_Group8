@@ -40,7 +40,6 @@ class ForumEditActivity : AppCompatActivity() {
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
 
-        // 🔥 Retrieve forumId and forumCode from intent
         forumId = intent.getStringExtra("FORUM_ID") ?: ""
         forumCode = intent.getStringExtra("FORUM_CODE") ?: ""
 
@@ -51,7 +50,6 @@ class ForumEditActivity : AppCompatActivity() {
             return
         }
 
-        // 🔹 Initialize UI components
         forumNameInput = findViewById(R.id.forumNameInput)
         forumCodeInput = findViewById(R.id.forumCodeInput)
         forumDescriptionInput = findViewById(R.id.forumDescriptionInput)
@@ -80,7 +78,6 @@ class ForumEditActivity : AppCompatActivity() {
         }
     }
 
-    /** 🔹 Fetch forum details and populate UI */
     private fun fetchForumDetails() {
         db.collection("forums").document(forumId).get()
             .addOnSuccessListener { document ->
@@ -98,7 +95,6 @@ class ForumEditActivity : AppCompatActivity() {
             }
     }
 
-    /** 🔹 Fetch all students and separate enrolled vs non-enrolled */
     private fun fetchStudents() {
         db.collection("users").get()
             .addOnSuccessListener { snapshot ->
@@ -116,7 +112,6 @@ class ForumEditActivity : AppCompatActivity() {
             }
     }
 
-    /** 🔹 Update forum details in Firestore */
     private fun updateForum() {
         val updatedName = forumNameInput.text.toString().trim()
         val updatedCode = forumCodeInput.text.toString().trim()
@@ -136,14 +131,14 @@ class ForumEditActivity : AppCompatActivity() {
                         "name" to updatedName,
                         "code" to updatedCode,
                         "description" to updatedDescription,
-                        "enrolledStudents" to currentEnrolledStudents // ✅ Keep students enrolled
+                        "enrolledStudents" to currentEnrolledStudents
                     )
 
                     db.collection("forums").document(forumId)
                         .update(updatedData)
                         .addOnSuccessListener {
                             Toast.makeText(this, "Forum updated successfully!", Toast.LENGTH_SHORT).show()
-                            updateUsersEnrolledForums(forumId, updatedCode) // ✅ Update sidebar data
+                            updateUsersEnrolledForums(forumId, updatedCode)
                         }
                         .addOnFailureListener { e ->
                             Toast.makeText(this, "Failed to update forum: ${e.message}", Toast.LENGTH_LONG).show()
@@ -187,9 +182,6 @@ class ForumEditActivity : AppCompatActivity() {
             }
     }
 
-
-
-    /** 🔹 Add new students to the forum */
     private fun addStudentsToForum() {
         val newStudents = selectedStudents.filter { !enrolledStudentIds.contains(it) }
 
@@ -198,7 +190,6 @@ class ForumEditActivity : AppCompatActivity() {
             return
         }
 
-        // 🔥 Update Firestore: Add new students to `enrolledStudents`
         val updatedEnrolledStudents = enrolledStudentIds + newStudents
 
         db.collection("forums").document(forumId)
@@ -206,7 +197,6 @@ class ForumEditActivity : AppCompatActivity() {
             .addOnSuccessListener {
                 Toast.makeText(this, "New students added successfully!", Toast.LENGTH_SHORT).show()
 
-                // ✅ Update UI List
                 enrolledStudentIds.addAll(newStudents)
                 updateUsersWithNewForum(newStudents, forumCode) // 🔥 Update user data
             }
@@ -215,8 +205,6 @@ class ForumEditActivity : AppCompatActivity() {
             }
     }
 
-
-    /** 🔹 Update users' enrolledForum list after adding them */
     private fun updateUsersWithNewForum(newStudents: List<String>, forumCode: String) {
         for (studentId in newStudents) {
             val userRef = db.collection("users").document(studentId)
@@ -243,9 +231,6 @@ class ForumEditActivity : AppCompatActivity() {
         }
     }
 
-
-
-    /** 🔹 Remove selected students from the forum */
     private fun removeSelectedStudentsFromForum() {
         if (selectedStudents.isEmpty()) {
             Toast.makeText(this, "No students selected for removal!", Toast.LENGTH_SHORT).show()
@@ -254,18 +239,15 @@ class ForumEditActivity : AppCompatActivity() {
 
         val remainingStudents = enrolledStudentIds.filter { it !in selectedStudents }
 
-        // 🔥 Update Firestore: Remove selected students from `enrolledStudents`
         db.collection("forums").document(forumId)
             .update("enrolledStudents", remainingStudents)
             .addOnSuccessListener {
                 Toast.makeText(this, "Students removed successfully!", Toast.LENGTH_SHORT).show()
 
-                // ✅ Update UI List
                 enrolledStudentIds.clear()
                 enrolledStudentIds.addAll(remainingStudents)
-                studentAdapter.notifyDataSetChanged() // 🔥 Refresh the student list UI
+                studentAdapter.notifyDataSetChanged()
 
-                // 🔥 Update user records to remove the forum
                 removeForumFromUsers(selectedStudents, forumCode)
             }
             .addOnFailureListener { e ->
@@ -273,7 +255,6 @@ class ForumEditActivity : AppCompatActivity() {
             }
     }
 
-    /** 🔹 Remove the forum from the user's enrolledForum list */
     private fun removeForumFromUsers(removedStudents: List<String>, forumCode: String) {
         for (studentId in removedStudents) {
             val userRef = db.collection("users").document(studentId)

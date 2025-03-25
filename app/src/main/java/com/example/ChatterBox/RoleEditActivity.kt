@@ -29,7 +29,6 @@ class RoleEditActivity : AppCompatActivity() {
         loadUsers()
     }
 
-    /** 🔥 Load Users from Firestore */
     private fun loadUsers() {
         val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 

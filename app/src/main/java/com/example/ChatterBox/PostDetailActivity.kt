@@ -24,7 +24,7 @@ class PostDetailActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var commentsRecyclerView: RecyclerView
     private val comments = mutableListOf<Comment>()
-    private lateinit var postId: String  // ID of the post being viewed
+    private lateinit var postId: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,23 +40,19 @@ class PostDetailActivity : AppCompatActivity() {
             return
         }
 
-        // 🔹 Initialize RecyclerView and Adapter
         commentsRecyclerView = findViewById(R.id.commentsRecyclerView)
         commentsRecyclerView.layoutManager = LinearLayoutManager(this)
-        commentsRecyclerView.adapter = CommentAdapter(comments) // ✅ Ensure adapter is set
+        commentsRecyclerView.adapter = CommentAdapter(comments)
 
-        // 🔹 Load Data
         loadPostDetails()
         loadComments()
 
-        // 🔹 Handle Add Comment Button Click
         findViewById<FloatingActionButton>(R.id.addCommentButton).setOnClickListener {
             showAddCommentDialog()
         }
     }
 
 
-    /** 🔹 Show Dialog to Add Comment */
     private fun showAddCommentDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_add_comment, null)
         val commentInput = dialogView.findViewById<EditText>(R.id.commentInput)
@@ -76,8 +72,6 @@ class PostDetailActivity : AppCompatActivity() {
             .show()
     }
 
-
-    /** 🔹 Save the Comment in Firebase */
     private fun postComment(commentText: String) {
         val currentUser = auth.currentUser
         if (currentUser == null) {
@@ -97,15 +91,13 @@ class PostDetailActivity : AppCompatActivity() {
             .add(comment)
             .addOnSuccessListener {
                 Toast.makeText(this, "Comment added!", Toast.LENGTH_SHORT).show()
-                loadComments() // ✅ Refresh comments instantly
+                loadComments()
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Error posting comment: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
-
-    /** 🔹 Load Post Details */
     private fun loadPostDetails() {
         db.collection("posts").document(postId)
             .get()
@@ -118,27 +110,23 @@ class PostDetailActivity : AppCompatActivity() {
 
                     val postImageView = findViewById<ImageView>(R.id.postImage)
 
-                    // 🔥 Check if image URL exists and load image using Glide
                     if (!post.imageUrl.isNullOrEmpty()) {
                         postImageView.visibility = View.VISIBLE
                         Glide.with(this)
                             .load(post.imageUrl)
-                            .placeholder(R.drawable.ic_placeholder) // Show placeholder while loading
+                            .placeholder(R.drawable.ic_placeholder)
                             .into(postImageView)
                     } else {
-                        postImageView.visibility = View.GONE // Hide if no image
+                        postImageView.visibility = View.GONE
                     }
                 }
             }
     }
 
-
-
-    /** 🔹 Load Comments from Firebase */
     private fun loadComments() {
         db.collection("posts").document(postId)
             .collection("comments")
-            .orderBy("timestamp") // ✅ Ensures newest comments appear last
+            .orderBy("timestamp")
             .get()
             .addOnSuccessListener { snapshot ->
                 comments.clear()

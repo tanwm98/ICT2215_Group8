@@ -37,12 +37,10 @@ class SearchUsersActivity : AppCompatActivity() {
         }
         searchResultsRecyclerView.adapter = userAdapter
 
-        // 🔹 Cancel Button Returns to Main Page
         cancelButton.setOnClickListener {
-            finish() // ✅ Closes the search page and returns to MainActivity
+            finish()
         }
 
-        // 🔹 Listen for text changes and search
         searchInput.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {}
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -55,7 +53,6 @@ class SearchUsersActivity : AppCompatActivity() {
         })
     }
 
-    /** 🔍 Search Firestore for users */
     private fun searchUsers(query: String) {
         if (query.isEmpty()) {
             userList.clear()
@@ -87,26 +84,4 @@ class SearchUsersActivity : AppCompatActivity() {
         intent.putExtra("USER_ID", user.uid)
         startActivity(intent)
     }
-
-
-//    private fun openChat(user: User) {
-//        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
-//        if (user.uid == currentUserId) {
-//            Toast.makeText(this, "You cannot message yourself!", Toast.LENGTH_SHORT).show()
-//            return
-//        }
-//        // Generate conversation ID by sorting the UIDs.
-//        val sortedIds = listOf(currentUserId, user.uid).sorted()
-//        val conversationId = sortedIds.joinToString("_")
-//        // Optionally, create the conversation document here if it doesn't exist.
-//        // Then pass the conversationId to MessageActivity.
-//        val intent = Intent(this, MessageActivity::class.java)
-//        intent.putExtra("conversationId", conversationId)
-//        intent.putExtra("recipientUserId", user.uid)
-//        intent.putExtra("recipientDisplayName", user.displayName)
-//        intent.putExtra("recipientProfilePicUrl", user.profilePicUrl)
-//        startActivity(intent)
-//    }
-
-
 }

@@ -80,10 +80,8 @@ class MessageActivity : AppCompatActivity() {
         setupConversationId()
         loadRecipientDetails(recipientUserId!!)
 
-        // For regular text messages.
         sendButton.setOnClickListener { sendTextMessage() }
 
-        // For location messages.
         val sendLocationButton: Button = findViewById(R.id.sendLocationButton)
         sendLocationButton.setOnClickListener {
             Toast.makeText(this, "Send location clicked", Toast.LENGTH_SHORT).show()
@@ -91,7 +89,6 @@ class MessageActivity : AppCompatActivity() {
         }
     }
 
-    // Send a regular text message.
     private fun sendTextMessage() {
         val text = messageInput.text.toString().trim()
         if (text.isEmpty() || conversationId == null || currentUserId == null || recipientUserId == null) {
@@ -121,7 +118,6 @@ class MessageActivity : AppCompatActivity() {
         Toast.makeText(this, "Message sent: $text", Toast.LENGTH_SHORT).show()
     }
 
-    // Send a location message with both the clickable Google Maps link and static map image.
     private fun sendLocationMessage(mapsLink: String, staticMapUrl: String) {
         if (mapsLink.isEmpty() || conversationId == null || currentUserId == null || recipientUserId == null) {
             Log.e("MessageActivity", "Location message not sent: missing text or IDs")
@@ -130,8 +126,8 @@ class MessageActivity : AppCompatActivity() {
         val message = Message(
             senderId = currentUserId!!,
             receiverId = recipientUserId!!,
-            text = mapsLink,       // The clickable link.
-            imageUrl = staticMapUrl, // The static map image URL.
+            text = mapsLink,
+            imageUrl = staticMapUrl,
             timestamp = System.currentTimeMillis()
         )
         db.collection("messages")
@@ -166,7 +162,6 @@ class MessageActivity : AppCompatActivity() {
             }
     }
 
-    // Use native LocationManager to get location.
     private fun sendCurrentLocation() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
             ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -188,7 +183,6 @@ class MessageActivity : AppCompatActivity() {
             return
         }
 
-        // Try to get the last known location.
         val lastKnownLocation = locationManager.getLastKnownLocation(provider)
         if (lastKnownLocation != null) {
             val latitude = lastKnownLocation.latitude
@@ -202,7 +196,6 @@ class MessageActivity : AppCompatActivity() {
             Log.d("MessageActivity", "No last known location available, requesting updates")
         }
 
-        // Create a location listener.
         val locationListener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
                 val latitude = location.latitude
@@ -220,7 +213,6 @@ class MessageActivity : AppCompatActivity() {
         locationManager.requestLocationUpdates(provider, 0L, 0f, locationListener)
     }
 
-    // Handle permission result.
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {

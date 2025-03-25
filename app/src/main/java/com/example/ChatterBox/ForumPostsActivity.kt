@@ -47,11 +47,9 @@ class ForumPostsActivity : AppCompatActivity() {
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
 
-        // ✅ Set up the toolbar as the action bar
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
 
-        // 🔹 Initialize ProgressBar
         progressBar = findViewById(R.id.progressBar)
 
         forumCode = intent.getStringExtra("FORUM_CODE") ?: ""
@@ -68,7 +66,6 @@ class ForumPostsActivity : AppCompatActivity() {
     }
     
 
-    /** 🔹 Setup RecyclerView */
     private fun setupRecyclerView() {
         adapter = PostAdapter(posts)
         findViewById<RecyclerView>(R.id.postsRecyclerView).apply {
@@ -77,7 +74,6 @@ class ForumPostsActivity : AppCompatActivity() {
         }
     }
 
-    /** 🔹 Floating Action Button to Create Post */
     private fun setupFab() {
         findViewById<FloatingActionButton>(R.id.fabCreatePost).setOnClickListener {
             showCreatePostDialog()
@@ -92,7 +88,7 @@ class ForumPostsActivity : AppCompatActivity() {
                     if (document.exists()) {
                         val isAdmin = document.getBoolean("isAdmin") ?: false
                         val settingsItem = menu?.findItem(R.id.action_setting)
-                        settingsItem?.isVisible = isAdmin // ✅ Show only if admin
+                        settingsItem?.isVisible = isAdmin
                     }
                 }
                 .addOnFailureListener {
@@ -113,19 +109,16 @@ class ForumPostsActivity : AppCompatActivity() {
             R.id.action_setting -> {
                 Log.d("Firestore", "Fetching forum ID for forumCode: $forumCode")
 
-                // 🔥 Always fetch the latest forumId from Firestore before opening edit screen
                 db.collection("forums")
-                    .whereEqualTo("code", forumCode) // ✅ Find forum by its code
+                    .whereEqualTo("code", forumCode)
                     .get()
                     .addOnSuccessListener { documents ->
                         if (!documents.isEmpty) {
                             val document = documents.documents[0]
                             val forumId = document.id // ✅ Correctly fetch forum ID
 
-                            // 🔥 Debugging Log
                             Log.d("Firestore", "Found Forum ID: $forumId for forumCode: $forumCode")
 
-                            // ✅ Now open the edit screen with the correct forumId
                             val intent = Intent(this, ForumEditActivity::class.java)
                             intent.putExtra("FORUM_ID", forumId) // ✅ Pass forum ID
                             intent.putExtra("FORUM_CODE", forumCode) // ✅ Pass forum code
@@ -157,15 +150,14 @@ class ForumPostsActivity : AppCompatActivity() {
 
         popupMenu.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
-                0 -> loadPosts(orderByLikes = false) // Sort by latest
-                1 -> loadPosts(orderByLikes = true) // Sort by most likes
+                0 -> loadPosts(orderByLikes = false)
+                1 -> loadPosts(orderByLikes = true)
             }
             true
         }
         popupMenu.show()
     }
 
-    /** 🔹 Check if User is Admin */
     private fun checkIfAdmin() {
         val currentUser = auth.currentUser ?: return
         val userRef = db.collection("users").document(currentUser.uid)
@@ -175,9 +167,8 @@ class ForumPostsActivity : AppCompatActivity() {
                 val isAdmin = document.getBoolean("isAdmin") ?: false
                 Log.d("FirebaseAuth", "User isAdmin: $isAdmin")
 
-                // 🔥 Save isAdmin value for later use
                 runOnUiThread {
-                    invalidateOptionsMenu() // ✅ This will call onPrepareOptionsMenu()
+                    invalidateOptionsMenu()
                 }
             }
         }.addOnFailureListener {
@@ -187,12 +178,12 @@ class ForumPostsActivity : AppCompatActivity() {
 
     private fun fetchForumId() {
         db.collection("forums")
-            .whereEqualTo("code", forumCode) // 🔥 Query using forumCode
+            .whereEqualTo("code", forumCode)
             .get()
             .addOnSuccessListener { documents ->
                 if (!documents.isEmpty) {
                     val document = documents.documents[0]
-                    forumId = document.id // ✅ Set the forumId correctly
+                    forumId = document.id
                     Log.d("Firestore", "Forum ID found: $forumId")
                 } else {
                     Log.e("Firestore", "Forum not found for code: $forumCode")
@@ -203,7 +194,6 @@ class ForumPostsActivity : AppCompatActivity() {
             }
     }
 
-    /** 🔹 Show Dialog for Creating a New Post */
     private fun showCreatePostDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_create_post, null)
         val titleInput = dialogView.findViewById<EditText>(R.id.titleInput)
@@ -237,13 +227,11 @@ class ForumPostsActivity : AppCompatActivity() {
             .show()
     }
 
-    /** 🔥 Handle Image Selection Result */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == IMAGE_PICK_REQUEST_CODE && resultCode == RESULT_OK) {
             selectedImageUri = data?.data
 
-            // 🔥 Ensure `selectedImageView` is valid before using it
             selectedImageView?.let {
                 it.visibility = View.VISIBLE
                 it.setImageURI(selectedImageUri)
@@ -255,7 +243,6 @@ class ForumPostsActivity : AppCompatActivity() {
         private const val IMAGE_PICK_REQUEST_CODE = 1001
     }
 
-    /** 🔥 Upload Image to Firebase Storage */
     private fun uploadImageAndCreatePost(title: String, content: String, imageUri: Uri) {
         val storageRef = FirebaseStorage.getInstance().reference.child("post_images/${System.currentTimeMillis()}.jpg")
 
@@ -273,7 +260,6 @@ class ForumPostsActivity : AppCompatActivity() {
             }
     }
 
-    /** 🔹 Create and Upload a New Post to Firestore */
     private fun createPost(title: String, content: String, imageUrl: String?) {
         val currentUser = auth.currentUser ?: return
 
@@ -302,9 +288,6 @@ class ForumPostsActivity : AppCompatActivity() {
             }
     }
 
-
-
-
     private fun loadPosts(orderByLikes: Boolean = false) {
         if (forumCode.isEmpty()) {
             Toast.makeText(this, "Invalid forum!", Toast.LENGTH_SHORT).show()
@@ -312,9 +295,8 @@ class ForumPostsActivity : AppCompatActivity() {
         }
 
         var query: Query = db.collection("posts")
-            .whereEqualTo("forumCode", forumCode) // ✅ Ensure only posts from this forum are fetched
+            .whereEqualTo("forumCode", forumCode)
 
-        // 🔥 Order results properly
         query = if (orderByLikes) {
             query.orderBy("likes", Query.Direction.DESCENDING)
         } else {
@@ -323,7 +305,6 @@ class ForumPostsActivity : AppCompatActivity() {
 
         query.addSnapshotListener { snapshot, e ->
             if (e != null) {
-                //Toast.makeText(this, "Error loading posts: ${e.message}", Toast.LENGTH_SHORT).show()
                 return@addSnapshotListener
             }
 
@@ -331,11 +312,11 @@ class ForumPostsActivity : AppCompatActivity() {
             for (doc in snapshot?.documents ?: emptyList()) {
                 val post = doc.toObject(Post::class.java)?.copy(id = doc.id)
                 if (post != null) {
-                    posts.add(post) // ✅ Only add posts from this forum
+                    posts.add(post)
                 }
             }
 
-            Log.d("ForumPosts", "Loaded ${posts.size} posts for forum: $forumCode") // Debugging
+            Log.d("ForumPosts", "Loaded ${posts.size} posts for forum: $forumCode")
 
             adapter.notifyDataSetChanged()
         }

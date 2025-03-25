@@ -29,17 +29,14 @@ class RoleAdapter(
         holder.usernameText.text = user.username
         holder.displayNameText.text = user.displayName
 
-        // Show current role
         val roleLabel = if (user.isAdmin) "Teacher" else "Student"
         holder.roleStatusText.text = roleLabel
 
-        // Load profile picture
         Glide.with(holder.itemView.context)
             .load(user.profilePicUrl)
             .placeholder(R.drawable.ic_profile_placeholder)
             .into(holder.profileImageView)
 
-        // Update button text
         holder.roleButton.text = if (user.isAdmin) "Make Student" else "Make Teacher"
 
         holder.roleButton.setOnClickListener {

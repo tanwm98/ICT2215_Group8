@@ -70,13 +70,12 @@ class PostAdapter(private val posts: MutableList<Post>) :
             holder.postImageView.visibility = View.VISIBLE
             Glide.with(holder.itemView.context)
                 .load(post.imageUrl)
-                .placeholder(R.drawable.ic_placeholder) // ✅ Placeholder image
+                .placeholder(R.drawable.ic_placeholder)
                 .into(holder.postImageView)
         } else {
-            holder.postImageView.visibility = View.GONE // ✅ Hide if no image
+            holder.postImageView.visibility = View.GONE
         }
 
-        // 🔹 Check if post is liked
         postRef.get().addOnSuccessListener { document ->
             if (document.exists()) {
                 val likedByList = document.get("likedBy") as? List<String> ?: emptyList()
@@ -88,12 +87,10 @@ class PostAdapter(private val posts: MutableList<Post>) :
             }
         }
 
-        // 🔹 Handle Like Button Click
         holder.likeButton.setOnClickListener {
             toggleLike(post, holder.likeButton, holder.likeCount)
         }
 
-        // 🔹 Check if the post is saved in Firestore and update UI
         savedPostsRef.get().addOnSuccessListener { document ->
             if (document.exists()) {
                 holder.bookmarkButton.setImageResource(R.drawable.bookmarked_button)
@@ -102,34 +99,26 @@ class PostAdapter(private val posts: MutableList<Post>) :
             }
         }
 
-        // 🔹 Handle Bookmark Button Click
         holder.bookmarkButton.setOnClickListener {
             toggleSavePost(post, holder.bookmarkButton, isFromSavedPosts = false)
         }
 
-        // 🔹 Open Post Details when clicked
         holder.itemView.setOnClickListener {
             val intent = Intent(holder.itemView.context, PostDetailActivity::class.java)
             intent.putExtra("POST_ID", post.id)
             holder.itemView.context.startActivity(intent)
         }
 
-        // 🔹 Show Delete Button only for the Post Author
         if (post.authorId == currentUser) {
             holder.deleteButton.visibility = View.VISIBLE
         } else {
             holder.deleteButton.visibility = View.GONE
         }
 
-        // 🔹 Handle Delete Button Click
         holder.deleteButton.setOnClickListener {
             deletePost(post, position, holder)
         }
     }
-
-
-
-
 
     override fun getItemCount() = posts.size
 
@@ -155,16 +144,15 @@ class PostAdapter(private val posts: MutableList<Post>) :
             val newLikes = if (isLiked) currentLikes - 1 else currentLikes + 1
 
             if (isLiked) {
-                likedByList.remove(userId) // Remove user from liked list
+                likedByList.remove(userId)
             } else {
-                likedByList.add(userId) // Add user to liked list
+                likedByList.add(userId)
             }
 
-            // 🔹 Update Firestore `posts/`
             transaction.update(postRef, "likes", newLikes)
             transaction.update(postRef, "likedBy", likedByList)
 
-            newLikes // Return updated like count
+            newLikes
         }.addOnSuccessListener { newLikes ->
             likeCountView.text = newLikes.toString()
             likeButton.setImageResource(
@@ -190,18 +178,15 @@ class PostAdapter(private val posts: MutableList<Post>) :
 
         savedPostsRef.get().addOnSuccessListener { document ->
             if (document.exists()) {
-                // 🔹 Remove from saved posts
                 savedPostsRef.delete().addOnSuccessListener {
                     saveButton.setImageResource(R.drawable.bookmark_button)
                     Toast.makeText(saveButton.context, "Removed from saved", Toast.LENGTH_SHORT).show()
 
-                    // ✅ Remove from "Saved Posts" list only (NOT Main Page)
                     if (isFromSavedPosts && savedPostsList != null && adapter != null) {
                         savedPostsList.remove(post)
                         adapter.notifyDataSetChanged()
                     }
 
-                    // 🔹 Notify MainActivity to refresh bookmark icons
                     val intent = Intent("REFRESH_MAIN")
                     saveButton.context.sendBroadcast(intent)
 
@@ -209,7 +194,6 @@ class PostAdapter(private val posts: MutableList<Post>) :
                     Toast.makeText(saveButton.context, "Error removing post", Toast.LENGTH_SHORT).show()
                 }
             } else {
-                // 🔹 Save the post
                 val postData = hashMapOf(
                     "id" to post.id,
                     "title" to post.title,
@@ -241,7 +225,6 @@ class PostAdapter(private val posts: MutableList<Post>) :
 
         val postRef = db.collection("posts").document(post.id)
 
-        // 🔹 Show confirmation dialog before deleting
         AlertDialog.Builder(holder.itemView.context)
             .setTitle("Delete Post")
             .setMessage("Are you sure you want to delete this post?")

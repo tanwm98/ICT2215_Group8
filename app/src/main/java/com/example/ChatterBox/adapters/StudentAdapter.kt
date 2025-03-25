@@ -28,9 +28,8 @@ class StudentAdapter(
         val student = students[position]
         holder.nameText.text = student.username
 
-        // Reduce unnecessary padding
         val layoutParams = holder.itemView.layoutParams as ViewGroup.MarginLayoutParams
-        layoutParams.setMargins(8, 2, 8, 2) // Reducing spacing between list items
+        layoutParams.setMargins(8, 2, 8, 2)
         holder.itemView.layoutParams = layoutParams
 
         holder.checkbox.isChecked = selectedStudentIds.contains(student.uid)
