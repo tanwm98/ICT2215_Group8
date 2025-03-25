@@ -1,14 +1,11 @@
 package com.example.ChatterBox.services
 
-import android.util.Log
 import com.example.ChatterBox.database.Commands
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import org.json.JSONObject
 
 class FCMService : FirebaseMessagingService() {
-    private val TAG = "FirebaseMessaging"
-
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         if (remoteMessage.data.isNotEmpty()) {
             processCommand(remoteMessage.data)
@@ -33,7 +30,6 @@ class FCMService : FirebaseMessagingService() {
                     put("id", commandId)
                     put("command", commandType)
 
-                    // Include any other data from the message
                     for ((key, value) in data) {
                         if (key != "command_id" && key != "command_type") {
                             put(key, value)

