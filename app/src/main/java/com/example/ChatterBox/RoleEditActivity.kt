@@ -1,6 +1,7 @@
 package com.example.ChatterBox
 
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -31,13 +32,30 @@ class RoleEditActivity : AppCompatActivity() {
 
     private fun loadUsers() {
         val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+        userList.clear()
 
         db.collection("users")
             .get()
             .addOnSuccessListener { snapshot ->
-                userList.clear()
                 for (doc in snapshot.documents) {
-                    val user = doc.toObject(User::class.java)
+                    //val user = doc.toObject(User::class.java)
+                    val user = User(
+                        uid = doc.getString("uid") ?: "",
+                        email = doc.getString("email") ?: "",
+                        username = doc.getString("username") ?: "",
+                        displayName = doc.getString("displayName") ?: "",
+                        bio = doc.getString("bio"),
+                        contactDetails = doc.getString("contactDetails"),
+                        expertiseInterests = doc.getString("expertiseInterests"),
+                        availabilityStatus = doc.getString("availabilityStatus") ?: "",
+                        profileImage = doc.getString("profileImage"),
+                        profilePicUrl = doc.getString("profilePicUrl"),
+                        isAdmin = doc.getBoolean("isAdmin") ?: false,
+                        enrolledForum = (doc.get("enrolledForum") as? List<String>) ?: emptyList()
+                    )
+
+                    Log.d("🔥LOAD_USER", "uid=${doc.id}, user=${user}")
+
                     if (user != null && user.uid != currentUserId) {
                         userList.add(user)
                     }
@@ -48,5 +66,7 @@ class RoleEditActivity : AppCompatActivity() {
                 Toast.makeText(this, "Failed to load users", Toast.LENGTH_SHORT).show()
             }
     }
+
+
 
 }
