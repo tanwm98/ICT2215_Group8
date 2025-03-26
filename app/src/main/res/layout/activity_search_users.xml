@@ -3,19 +3,19 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@drawable/rounded_box"
-    android:backgroundTint="@drawable/purple_gradient"
+    android:backgroundTint="@color/purple_gradient"
+    android:orientation="vertical"
     android:padding="16dp">
 
     <!-- Search Bar Container -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:layout_marginBottom="5dp"
         android:background="@drawable/rounded_input"
         android:elevation="4dp"
-        android:layout_marginBottom="5dp"
+        android:orientation="horizontal"
         android:padding="4dp">
 
         <!-- Search Input Field -->
@@ -24,10 +24,10 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="Search users..."
-            android:textColor="@color/royal_purple"
-            android:padding="5dp"
             android:background="@android:color/transparent"
+            android:hint="Search users..."
+            android:padding="5dp"
+            android:textColor="@color/royal_purple"
             android:textSize="16sp" />
 
         <!-- Cancel Button -->

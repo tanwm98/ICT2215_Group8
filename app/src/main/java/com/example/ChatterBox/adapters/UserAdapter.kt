@@ -18,7 +18,7 @@ class UserAdapter(private val userList: List<User>, private val onClick: (User) 
     class UserViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val usernameText: TextView = view.findViewById(R.id.usernameText)
         val displayNameText: TextView = view.findViewById(R.id.displayNameText)
-        val roleButton: Button = view.findViewById(R.id.roleButton)
+        val roleButton: Button? = view.findViewById(R.id.roleButton)
 
     }
 
@@ -32,9 +32,10 @@ class UserAdapter(private val userList: List<User>, private val onClick: (User) 
         val user = userList[position]
         holder.usernameText.text = user.username
         holder.displayNameText.text = user.displayName
-        holder.roleButton.text = if (user.isAdmin) "Remove Teacher Role" else "Make Teacher"
+        // Hidden for non admins
+        holder.roleButton?.visibility = View.GONE
 
-        holder.roleButton.setOnClickListener {
+        holder.itemView.setOnClickListener {
             onClick(user)
         }
     }

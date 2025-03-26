@@ -6,14 +6,14 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.ChatterBox.adapters.RoleAdapter
+import com.example.ChatterBox.adapters.RoleEditUserAdapter
 import com.example.ChatterBox.models.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
 class RoleEditActivity : AppCompatActivity() {
     private lateinit var db: FirebaseFirestore
-    private lateinit var roleAdapter: RoleAdapter
+    private lateinit var roleAdapter: RoleEditUserAdapter
     private val userList = mutableListOf<User>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,7 +24,8 @@ class RoleEditActivity : AppCompatActivity() {
 
         val recyclerView = findViewById<RecyclerView>(R.id.roleRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
-        roleAdapter = RoleAdapter(userList)
+        val isAdmin = true // This activity is only for admins anyway
+        roleAdapter = RoleEditUserAdapter(userList, isAdmin)
         recyclerView.adapter = roleAdapter
 
         loadUsers()
