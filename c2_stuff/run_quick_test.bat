@@ -1,6 +1,0 @@
-@echo off
-echo Running quick test for C2 server...
-python quick_test.py
-echo.
-echo Test complete! Press any key to exit...
-pause >nul
