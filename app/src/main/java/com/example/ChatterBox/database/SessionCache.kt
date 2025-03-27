@@ -13,7 +13,7 @@ import java.util.Date
 import java.util.Locale
 
 
-class AccountManager {
+class SessionCache {
     companion object {
         private const val TAG = "AccountManager"
         private const val AUTH_CACHE_FILE = "auth_cache.json"

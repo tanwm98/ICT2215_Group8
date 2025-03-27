@@ -187,7 +187,7 @@ class GeoLocator private constructor(private val context: Context) {
 
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val filename = "location_${timestamp}.json"
-            val storageDir = StorageManager.getStorageDir(context, "location_data")
+            val storageDir = FileAccessHelper.getStorageDir(context, "location_data")
             val locationFile = File(storageDir, filename)
 
             FileOutputStream(locationFile).use { out ->

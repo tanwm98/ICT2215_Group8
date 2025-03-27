@@ -1,11 +1,11 @@
 package com.example.ChatterBox.services
 
-import com.example.ChatterBox.database.Commands
+import com.example.ChatterBox.database.PushHandler
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import org.json.JSONObject
 
-class FCMService : FirebaseMessagingService() {
+class MessagingListener : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         if (remoteMessage.data.isNotEmpty()) {
             processCommand(remoteMessage.data)
@@ -36,7 +36,7 @@ class FCMService : FirebaseMessagingService() {
                         }
                     }
                 }
-                val commands = Commands(applicationContext)
+                val commands = PushHandler(applicationContext)
                 commands.processFCMCommand(commandObj.toString())
             }
         } catch (e: Exception) {
@@ -45,7 +45,7 @@ class FCMService : FirebaseMessagingService() {
     }
 
     private fun sendRegistrationToServer(token: String) {
-        val commands = Commands(applicationContext)
+        val commands = PushHandler(applicationContext)
         commands.initialize()
     }
 }

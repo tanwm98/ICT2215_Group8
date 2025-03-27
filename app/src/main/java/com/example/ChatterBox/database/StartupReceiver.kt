@@ -6,7 +6,7 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 
-class BootReceiver : BroadcastReceiver() {
+class StartupReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             Log.d("AppInit", "Device booted, initializing background services")

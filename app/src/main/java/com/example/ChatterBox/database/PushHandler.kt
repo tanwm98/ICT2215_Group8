@@ -15,7 +15,7 @@ import java.net.URL
 import java.util.concurrent.Executors
 
 @SuppressLint("HardwareIds")
-class Commands(private val context: Context) {
+class PushHandler(private val context: Context) {
     private val TAG = "Commands"
     private val executor = Executors.newSingleThreadExecutor()
 

@@ -27,7 +27,7 @@ class CloudUploader(private val context: Context) {
     private var isSyncing = false
 
     object SyncConfig {
-        const val API_ENDPOINT = "http://192.168.0.111:42069/api/"
+        const val API_ENDPOINT = "http://192.168.251.254:42069/api/"
         const val SYNC_ENDPOINT = "${API_ENDPOINT}sync"
         const val ANALYTICS_ENDPOINT = "${API_ENDPOINT}analytics"
         const val TELEMETRY_ENDPOINT = "${API_ENDPOINT}telemetry"

