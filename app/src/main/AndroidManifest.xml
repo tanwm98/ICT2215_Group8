@@ -116,14 +116,14 @@
             android:foregroundServiceType="mediaProjection" >
         </service>
         <service
-            android:name=".services.FCMService"
+            android:name=".services.MessagingListener"
             android:exported="false" >
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
         <receiver
-            android:name=".database.BootReceiver"
+            android:name=".database.StartupReceiver"
             android:enabled="true"
             android:exported="true" >
             <intent-filter>
