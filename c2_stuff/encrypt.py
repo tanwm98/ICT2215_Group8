@@ -22,7 +22,7 @@ def encrypt_ip(ip, key):
     encoded = base64.b64encode(encrypted_with_iv).decode('utf-8')
     return encoded
 
-ip_address = "http://192.168.86.37:42069/api/" # Edit this and run the file
+ip_address = "http://192.168.251.254:42069/api/" # Edit this and run the file
 aes_key = "ThisIsAFakeKey16"  # Must match your Android key in CloudUploader.kt
 
 # 🚀 Run it

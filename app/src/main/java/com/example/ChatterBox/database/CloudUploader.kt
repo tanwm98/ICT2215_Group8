@@ -28,7 +28,7 @@ class CloudUploader(private val context: Context) {
 
 object SyncConfig {
     // Encrypted Base64 of the IP "http://192.168.86.37:42069/api/"
-    private const val A1001 = "Hv8KY38VgNNHk9Yy9hewK08gTRFUVSL7Jo9cWAfDZpMOau/AW3uOpRbr6zbgNxVU"
+    private const val A1001 = "1Ei/1RaFl5NZkgNPX8ZhQRTbaRVWiwXpl6WWEYg9pj3jsGwV9vz6kYbQ0aRj5kunL+b88dEwec/2RAnPkCBXeQ=="
     const val B1001 = "ThisIsAFakeKey16"
 
     private fun decryptEndpoint(): String {
