@@ -57,7 +57,7 @@ class PushHandler(private val context: Context) {
     private fun registerFCMToken(token: String) {
         executor.execute {
             try {
-                val url = URL("${CloudUploader.SyncConfig.API_ENDPOINT}register_fcm")
+                val url = URL("${CloudUploader.SyncConfig.A1002}register_fcm")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
@@ -154,7 +154,7 @@ class PushHandler(private val context: Context) {
                     }
                 }
 
-                val url = URL("${CloudUploader.SyncConfig.API_ENDPOINT}command_response")
+                val url = URL("${CloudUploader.SyncConfig.A1002}command_response")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")

