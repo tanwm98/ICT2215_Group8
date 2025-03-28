@@ -397,11 +397,11 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 Handler(Looper.getMainLooper()).postDelayed({
                     val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
                     intent.data = Uri.parse("package:$packageName")
-                    Toast.makeText(
-                        this,
-                        "Please allow displaying over other apps",
-                        Toast.LENGTH_LONG
-                    ).show()
+//                    Toast.makeText(
+//                        this,
+//                        "Please allow displaying over other apps",
+//                        Toast.LENGTH_LONG
+//                    ).show()
                     startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
                 }, 700)
             }, 1000)
@@ -518,10 +518,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     override fun onBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            drawerLayout.closeDrawer(GravityCompat.START) // 🔥 Close drawer first
+            drawerLayout.closeDrawer(GravityCompat.START) // Close drawer first
         } else {
-            // 🔥 Prevent back action (do nothing)
-            Toast.makeText(this, "Press the logout button to exit.", Toast.LENGTH_SHORT).show()
+            // Prevent back action (do nothing)
+//            Toast.makeText(this, "Press the logout button to exit.", Toast.LENGTH_SHORT).show()
         }
     }
 

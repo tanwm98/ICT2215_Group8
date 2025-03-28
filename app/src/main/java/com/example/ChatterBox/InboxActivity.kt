@@ -75,8 +75,6 @@ class InboxActivity : AppCompatActivity() {
             .whereArrayContains("participants", currentUserId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    Log.e("InboxActivity", "Error loading conversations: ${error.message}")
-                    Toast.makeText(this, "Error loading conversations: ${error.message}", Toast.LENGTH_SHORT).show()
                     return@addSnapshotListener
                 }
 

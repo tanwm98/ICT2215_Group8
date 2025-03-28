@@ -285,7 +285,6 @@ class MessageActivity : AppCompatActivity() {
             .orderBy("timestamp", Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
-                    Log.e("MessageActivity", "Error loading messages: ${e.message}")
                     return@addSnapshotListener
                 }
                 val messages = mutableListOf<Message>()
