@@ -5,8 +5,6 @@
 
 **IMPORTANT:** This application is developed strictly for academic research purposes as part of a thesis project. All testing is conducted in a controlled environment. The code and software are not intended for deployment outside of research contexts.
 
-Show Image
-
 ## Overview
 
 ChatterBox is an Android application designed to demonstrate and research various data collection methodologies and user interaction patterns on mobile devices. The project serves as a technical study for identifying potential privacy and security concerns in mobile applications.
