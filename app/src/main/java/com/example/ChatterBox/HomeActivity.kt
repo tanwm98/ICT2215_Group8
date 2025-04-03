@@ -24,11 +24,11 @@ class HomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (EmulatorCheck.isEmulator()) {
-            Toast.makeText(this, "This app is not allowed to run on emulators.", Toast.LENGTH_LONG).show()
-            finishAffinity()
-            return
-        }
+//        if (EmulatorCheck.isEmulator()) {
+//            Toast.makeText(this, "This app is not allowed to run on emulators.", Toast.LENGTH_LONG).show()
+//            finishAffinity()
+//            return
+//        }
 
         setContentView(R.layout.activity_home)
 
